@@ -1,0 +1,691 @@
+% ============================================================
+%  Documentation — Générateur de molécules non-benzenoïdes
+%  Stage AMU — Master 2 IMD / CSP
+% ============================================================
+\documentclass[a4paper,12pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tcolorbox}
+\usepackage{float}
+\usepackage{microtype}
+\usepackage{parskip}
+
+% ---- couleurs ----
+\definecolor{codebg}{rgb}{0.96,0.96,0.96}
+\definecolor{codeframe}{rgb}{0.75,0.75,0.75}
+\definecolor{primary}{RGB}{0,90,160}
+\definecolor{accent}{RGB}{200,60,0}
+\definecolor{notegreen}{RGB}{0,120,60}
+
+% ---- listings (Python) ----
+\lstdefinestyle{python}{
+  language=Python,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{codeframe},
+  basicstyle=\ttfamily\small,
+  keywordstyle=\bfseries\color{primary},
+  commentstyle=\itshape\color{notegreen},
+  stringstyle=\color{accent},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  numbersep=8pt,
+  breaklines=true,
+  showstringspaces=false,
+  tabsize=4,
+}
+\lstset{style=python}
+
+% ---- boîtes ----
+\tcbuselibrary{skins, breakable}
+\newtcolorbox{remarque}[1][]{
+  colback=blue!5, colframe=primary, fonttitle=\bfseries,
+  title=Remarque, #1
+}
+\newtcolorbox{attention}[1][]{
+  colback=orange!8, colframe=accent, fonttitle=\bfseries,
+  title=Attention, #1
+}
+\newtcolorbox{todo}[1][]{
+  colback=gray!8, colframe=gray!60, fonttitle=\bfseries,
+  title=À faire, #1
+}
+
+% ---- en-têtes ----
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\textcolor{gray}{\small Générateur non-benzenoïde — Stage AMU M2}}
+\lhead{\textcolor{gray}{\small \leftmark}}
+\cfoot{\thepage}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=primary,
+  urlcolor=primary,
+  citecolor=primary
+}
+
+% ============================================================
+\begin{document}
+
+\begin{titlepage}
+  \centering
+  \vspace*{2cm}
+  {\huge\bfseries\color{primary}
+    Générateur de Structures Moléculaires\\[0.4em]
+    Non-Benzenoïdes Polycycliques\\[1em]}
+  {\large\color{gray} Documentation technique — Stage AMU, Master 2 IMD}\\[0.5em]
+  {\large\color{gray} Projet CSP — Table de voisinage}\\[3em]
+  \rule{\linewidth}{0.5pt}\\[1em]
+  {\large
+    \textbf{Contexte :} génération automatique de molécules polycycliques\\
+    pour alimenter un modèle de satisfaction de contraintes (Choco Solver)
+  }\\[1em]
+  \rule{\linewidth}{0.5pt}\\[3em]
+  {\normalsize
+    \textbf{Implémentation :} Python 3 (bibliothèques standard uniquement)\\[0.5em]
+    \textbf{Format de sortie :} Chemical Markup Language (CML)\\[0.5em]
+    \textbf{Date :} Avril 2026
+  }
+  \vfill
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Contexte et objectif}
+% ============================================================
+
+\subsection{Motivation}
+
+Ce projet s'inscrit dans la conception d'un solveur de contraintes (Choco Solver) capable de
+générer des molécules polycycliques planaires. Pour alimenter ce solveur, il est nécessaire de
+disposer d'une \textbf{table de voisinage} exhaustive : pour chaque type de cycle (pentagone,
+hexagone, heptagone), quels sont tous les arrangements valides de cycles voisins ?
+
+Le présent générateur a pour rôle de produire automatiquement, en Python, \textbf{toutes les
+structures moléculaires distinctes} de la famille des hydrocarbures polycycliques non-benzenoïdes,
+et de les exporter au format CML pour utilisation ultérieure.
+
+\subsection{Famille de molécules ciblée}
+
+On s'intéresse aux \textbf{hydrocarbures polycycliques} (composés uniquement de C et H) dont les
+cycles sont de taille 5, 6 ou 7. Ces molécules sont dites \textit{non-benzenoïdes} car elles
+contiennent au moins un cycle différent d'un hexagone (à la différence du benzène et de ses
+dérivés purement hexagonaux).
+
+Chaque molécule est composée :
+\begin{itemize}
+  \item d'un \textbf{cycle central} (pentagone, hexagone ou heptagone) ;
+  \item d'un ou plusieurs \textbf{cycles voisins}, fusionnés sur les arêtes du cycle central.
+\end{itemize}
+
+Les cycles sont fusionnés par \textbf{partage d'arête} (\textit{edge-fused}), ce qui est la
+topologie standard des HAP (hydrocarbures aromatiques polycycliques). Chaque carbone respecte une
+valence totale de 4.
+
+% ============================================================
+\section{Contraintes de génération}
+% ============================================================
+
+\subsection{Représentation par séquence de voisins}
+
+Une molécule est entièrement codée par le couple $(\text{taille\_centrale},\ s)$ où :
+\[
+  s = (s_0,\ s_1,\ \ldots,\ s_{n-1})\ \in \{0, 5, 6, 7\}^n
+\]
+$n$ est la taille du cycle central, et $s_i$ est la taille du cycle voisin fusionné sur l'arête
+$i$ du cycle central ($s_i = 0$ signifie qu'aucun voisin n'est présent sur cette arête).
+
+\begin{remarque}
+  Les arêtes du cycle central sont numérotées de 0 à $n-1$ dans l'ordre trigonométrique
+  (sens anti-horaire). L'arête $i$ relie le sommet $i$ au sommet $(i+1) \bmod n$.
+\end{remarque}
+
+\subsection{Contraintes sur le nombre de voisins}
+
+Toutes les positions ne peuvent pas être remplies pour toutes les tailles de cycle central.
+Les limites sont les suivantes :
+
+\begin{center}
+\begin{tabular}{cccp{7cm}}
+  \toprule
+  Cycle central & Min voisins & Max voisins & Raison du maximum \\
+  \midrule
+  5 (pentagone)  & 2 & 4 & 5 voisins fermeraient un hexagone intérieur complet — géométriquement impossible sans distorsion majeure \\
+  6 (hexagone)   & 2 & 6 & toutes les arêtes peuvent être fusionnées \\
+  7 (heptagone)  & 2 & 5 & au-delà de 5 voisins, les contraintes angulaires créent des chevauchements géométriques \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+On exclut également les séquences \textbf{purement benzenoïdes} : un hexagone central entouré
+uniquement de cycles à 6 appartient à la famille du coronène et de ses homologues, déjà couverts
+par la chimie classique.
+
+\subsection{Symétries : le groupe diédral $D_n$}
+
+Deux séquences $s$ et $s'$ décrivent la \textbf{même molécule} si l'une peut être obtenue à
+partir de l'autre par une rotation ou une réflexion du cycle central. Ces transformations
+constituent le \textbf{groupe diédral} $D_n$, qui contient $2n$ éléments.
+
+\subsubsection{Rotations}
+
+Une rotation d'angle $k \times \frac{2\pi}{n}$ ($k = 0, 1, \ldots, n-1$) correspond sur la
+séquence à un \textbf{décalage circulaire} :
+\[
+  R_k(s)_i = s_{(i+k) \bmod n}
+\]
+
+Par exemple, pour $n = 5$ :
+\[
+  (5, 6, 5, 0, 0) \xrightarrow{R_1} (6, 5, 0, 0, 5) \xrightarrow{R_2} (5, 0, 0, 5, 6) \xrightarrow{\cdots}
+\]
+Ces quatre séquences représentent la même molécule vue sous différentes orientations.
+
+\subsubsection{Réflexions (miroirs)}
+
+Une réflexion selon un axe de symétrie du polygone correspond sur la séquence à une
+\textbf{inversion de l'ordre de parcours}. Les $n$ réflexions s'écrivent :
+\[
+  M_k(s)_i = s_{(k - i) \bmod n}
+\]
+
+Une molécule et son image miroir sont donc considérées comme identiques (on ne distingue pas
+les énantiomères ici — les structures planes n'ont pas de chiralité intrinsèque).
+
+\subsubsection{Taille du groupe}
+
+\begin{center}
+\begin{tabular}{ccc}
+  \toprule
+  Cycle central & Taille de $D_n$ & Nombre de transformations \\
+  \midrule
+  5 & $|D_5| = 10$ & 5 rotations + 5 réflexions \\
+  6 & $|D_6| = 12$ & 6 rotations + 6 réflexions \\
+  7 & $|D_7| = 14$ & 7 rotations + 7 réflexions \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Forme canonique}
+
+Pour éviter les doublons, on ne conserve qu'un seul représentant par orbite sous $D_n$. On
+choisit la \textbf{forme canonique} définie comme suit :
+
+\begin{enumerate}
+  \item Parmi toutes les $2n$ transformées de $s$, ne retenir que celles dont les zéros sont
+    \textbf{groupés à droite} (toutes les positions vides sont consécutives en fin de séquence).
+    Cette convention place les voisins en premier, dans un ordre déterministe.
+  \item Parmi ces candidats, choisir le \textbf{maximum lexicographique} (les grandes valeurs
+    en tête).
+\end{enumerate}
+
+\begin{remarque}
+  La contrainte ``zéros à droite'' garantit que le bloc de voisins non nuls est toujours
+  aligné à gauche, ce qui facilite la comparaison et l'indexation dans la table CSP.
+  Le maximum lexicographique brise les symétries résiduelles de manière unique.
+\end{remarque}
+
+Si aucune transformée ne satisfait la condition des zéros regroupés (cas des séquences
+entièrement non nulles, ex. hexagone complet), on prend simplement le maximum lexicographique
+de toutes les transformées.
+
+% ============================================================
+\section{Concepts géométriques clés}
+% ============================================================
+
+\subsection{Polygone régulier et rayons caractéristiques}
+
+Tous les cycles sont traités comme des \textbf{polygones réguliers} de côté $d = 1.42\ \text{\AA}$
+(distance C--C standard dans les HAP aromatiques). Deux rayons sont utilisés :
+
+\begin{itemize}
+  \item \textbf{Rayon circonscrit} (sommet $\to$ centre) :
+    \[
+      R_n = \frac{d}{2 \sin(\pi/n)}
+    \]
+  \item \textbf{Apothème} (centre $\to$ milieu d'arête) :
+    \[
+      a_n = \frac{d}{2 \tan(\pi/n)}
+    \]
+\end{itemize}
+
+Le centre d'un cycle voisin fusionné sur l'arête $[v_1, v_2]$ est placé à distance $a_n$ du
+milieu de cette arête, du côté \textit{extérieur} au cycle central.
+
+\subsection{Sens de placement des sommets}
+
+À partir du centre $C$ du nouveau cycle et de $v_1$ (premier sommet de l'arête partagée),
+les sommets sont placés en \textbf{sens horaire} :
+\[
+  P_k = C + R_n \cdot \left(\cos\left(\theta_0 - k \cdot \frac{2\pi}{n}\right),\
+                             \sin\left(\theta_0 - k \cdot \frac{2\pi}{n}\right)\right)
+  \quad k = 0, 1, \ldots, n-1
+\]
+où $\theta_0 = \text{atan2}(v_{1y} - C_y,\ v_{1x} - C_x)$. Le signe négatif ($-k$) assure
+le sens horaire, qui place $v_2$ en position $k=1$, cohérent avec l'orientation de l'arête
+$v_1 \to v_2$.
+
+\subsection{Fusion coadjacente}
+
+Quand deux voisins occupent des positions \textbf{consécutives} $i$ et $i+1$, leurs cycles ne
+partagent pas seulement une arête avec le cycle central : ils \textbf{partagent aussi un sommet
+entre eux} (et donc une arête entière). On parle de \textbf{fusion coadjacente} ou de structure
+\textit{indénoïde}.
+
+\begin{center}
+\begin{tabular}{p{7cm}p{7cm}}
+  \textbf{Sans coadjacence} & \textbf{Avec coadjacence} \\
+  Les deux voisins sont séparés par au moins une arête vide. Chaque voisin introduit ses propres
+  sommets externes sans chevauchement. &
+  Les deux voisins sont contigus. Le dernier sommet créé par le voisin en position $i$ (adjacent à
+  $C_i$) est \textit{réutilisé} comme premier sommet externe du voisin en position $i+1$. \\
+\end{tabular}
+\end{center}
+
+Concrètement, dans le code, si le cycle en position $\text{pos}$ a un prédécesseur non nul en
+position $\text{pos}-1$, alors le sommet d'index 2 du cycle précédent (le premier sommet après
+les deux sommets partagés avec le cycle central) est réutilisé, sans en créer un nouveau.
+
+\subsection{Cas du wrap-around (cycle 6 complet)}
+
+Pour un hexagone central dont toutes les 6 positions sont occupées, les positions 0 et 5 sont
+aussi coadjacentes. Ce cas ne peut pas être traité dans le passage avant, car la position 5 est
+placée \textit{après} la position 0. Un second passage est donc nécessaire après placement de
+tous les cycles : on \textbf{fusionne} les deux atomes dupliqués à la jonction pos=0/pos=5 en un
+seul atome (méthode \texttt{\_merge\_vertices}).
+
+% ============================================================
+\section{Règles de valence : structure de Kekulé}
+% ============================================================
+
+\subsection{Principe}
+
+Dans un hydrocarbure aromatique, chaque carbone a une valence totale de 4. Les carbones de cycle
+sont tous liés à 2 ou 3 autres carbones par des liaisons C--C (d'ordre 1 ou 2). La valence
+restante est complétée par un atome d'hydrogène (ordre 1).
+
+La \textbf{structure de Kekulé} est une représentation avec alternance explicite de simples et
+doubles liaisons. Elle n'est pas unique (il peut exister plusieurs Kekulé pour une même molécule),
+mais doit vérifier les règles suivantes :
+\begin{itemize}
+  \item chaque carbone porte \textbf{au plus une} double liaison C=C ;
+  \item chaque carbone porte \textbf{au plus un} atome d'hydrogène ;
+  \item la \textbf{somme des ordres de liaison} autour de chaque carbone est exactement 4.
+\end{itemize}
+
+\subsection{Algorithme glouton de placement des doubles liaisons}
+
+Les arêtes éligibles sont classées en deux catégories, traitées dans cet ordre de priorité :
+
+\begin{enumerate}
+  \item \textbf{Arêtes coadjacentes} (prioritaires) : les deux extrémités ont un degré carbone
+    $\geq 3$, mais l'une appartient au cycle central et l'autre non. Ce sont les arêtes de
+    jonction entre un sommet central et un sommet partagé. Elles doivent recevoir une double
+    liaison en premier pour éviter que leurs extrémités soient ``bloquées'' par un double lien
+    périphérique.
+
+  \item \textbf{Arêtes périphériques} : au moins l'une des deux extrémités a un degré carbone
+    $< 3$ (carbone de bord, portant un H).
+\end{enumerate}
+
+Sont \textbf{exclues} : les arêtes dont les deux extrémités sont toutes deux dans le cycle
+central et de degré $\geq 3$ (arêtes de fusion interne pure — elles correspondent aux arêtes
+partagées entre le cycle central et un voisin).
+
+L'algorithme parcourt la liste ordonnée et place une double liaison si aucune des deux
+extrémités n'a déjà reçu de double liaison.
+
+\subsection{Règle du nombre pair / impair de carbones}
+
+\subsubsection{Nombre pair}
+
+Si le nombre total de carbones est pair, une alternance complète simple/double est en général
+possible : chaque carbone peut participer exactement à une double liaison.
+
+\subsubsection{Nombre impair — carbone radicalaire}
+
+Si le nombre de carbones est \textbf{impair}, il est impossible de former des paires complètes.
+Un carbone restera nécessairement avec une valence insatisfaite : c'est un \textbf{carbone
+radicalaire}.
+
+Ce carbone radicalaire doit vérifier :
+\begin{itemize}
+  \item 3 liaisons C--C simples (ou 2 C--C + 1 C--H), \textit{sans} double liaison ;
+  \item pas d'hydrogène supplémentaire (si 3 carbones voisins) ou un seul H (si 2 carbones
+    voisins).
+\end{itemize}
+
+En pratique, on identifie le candidat comme un carbone de degré 3 (jonction de fusion) sans
+double liaison attribuée, et on omet l'ajout d'un hydrogène supplémentaire.
+
+\begin{attention}
+  La préférence pour les cycles à 7 (maximiser les doubles liaisons dans les heptagones) et
+  la gestion explicite du marquage du radical sont partiellement implémentées et font partie
+  des améliorations prévues.
+\end{attention}
+
+\subsection{Placement des hydrogènes}
+
+Pour chaque carbone, on calcule la valence utilisée (somme des ordres de liaison C--C). Si la
+valence restante est $\geq 1$, on place un atome H dans la \textbf{direction externe} :
+\[
+  \vec{u}_{\text{ext}} = -\frac{\displaystyle\sum_{\text{voisins C}} (\vec{r}_{\text{voisin}} - \vec{r}_C)}
+                               {\left\|\displaystyle\sum_{\text{voisins C}} (\vec{r}_{\text{voisin}} - \vec{r}_C)\right\|}
+\]
+La position du H est à $d_{CH} = 1.08\ \text{\AA}$ dans cette direction. Comme tous les carbones
+sont dans le plan $z = 0$, les hydrogènes sont automatiquement dans ce même plan : \textbf{la
+liaison C--H est planaire par construction}.
+
+% ============================================================
+\section{Architecture du code}
+% ============================================================
+
+\subsection{Vue d'ensemble}
+
+\begin{lstlisting}[language=bash, style={}]
+non_benzenoid_generator/
+|-- config.py                 # Constantes physiques et parametres globaux
+|-- main.py                   # Point d'entree : boucle sur les tailles de cycle
+|-- core/
+|   |-- topology.py           # Structures de donnees (MolecularGraph, Vertex, Cycle)
+|   |-- geometry.py           # Placement geometrique 3D des atomes
+|   `-- valence_solver.py     # Attribution doubles liaisons et hydrogens
+|-- generators/
+|   `-- builder.py            # Orchestrateur : sequence -> fichier CML
+`-- utils/
+    |-- symmetry.py           # Reduction par symetrie (groupe diedral)
+    `-- exporters.py          # Export Chemical Markup Language (CML)
+\end{lstlisting}
+
+\subsection{\texttt{config.py} — Paramètres globaux}
+
+Centralise toutes les constantes physiques et les paramètres de génération :
+
+\begin{lstlisting}
+BOND_LENGTH_CC_SINGLE = 1.42  # Angstroms
+BOND_LENGTH_CC_DOUBLE = 1.34  # Angstroms
+BOND_LENGTH_CH = 1.08         # Angstroms
+VALID_CYCLE_SIZES = [5, 6, 7]
+NEIGHBOR_VALUES = [0, 5, 6, 7]
+
+NEIGHBOR_CONSTRAINTS = {
+    5: {'min': 2, 'max': 4, 'n_positions': 5},
+    6: {'min': 2, 'max': 6, 'n_positions': 6},
+    7: {'min': 2, 'max': 5, 'n_positions': 7},
+}
+\end{lstlisting}
+
+\subsection{\texttt{core/topology.py} — Graphe moléculaire}
+
+Définit les structures de données fondamentales :
+
+\begin{itemize}
+  \item \texttt{Vertex} : un atome, avec son élément (\texttt{'C'} ou \texttt{'H'}),
+    ses coordonnées $(x, y, z)$ et la liste de ses liaisons \texttt{(voisin\_id, ordre)}.
+  \item \texttt{Cycle} : une liste ordonnée d'IDs de sommets et une taille.
+  \item \texttt{MolecularGraph} : dictionnaire d'atomes + liste de cycles. Méthodes :
+    \texttt{add\_vertex}, \texttt{add\_bond}, \texttt{get\_carbon\_degree},
+    \texttt{get\_valence\_used}, \texttt{count\_carbons}, \texttt{to\_cml\_data}.
+\end{itemize}
+
+
+\subsection{\texttt{utils/symmetry.py} — Réduction par symétrie}
+
+\textbf{\texttt{get\_dihedral\_transforms(seq)}} génère les $2n$ transformées de la séquence :
+\begin{lstlisting}
+# Rotations
+rot = tuple(seq[(i + k) % n] for i in range(n))
+# Reflexions
+ref = tuple(seq[(k - i) % n] for i in range(n))
+\end{lstlisting}
+
+\textbf{\texttt{canonical\_form(seq)}} choisit la forme canonique (zéros à droite, max lexico).
+
+\textbf{\texttt{generate\_canonical\_sequences(...)}} énumère toutes les combinaisons via
+\texttt{itertools.product}, filtre par nombre de voisins, exclut le benzenoïde pur, et ne
+conserve qu'une représentante par orbite.
+
+\subsection{\texttt{core/geometry.py} — Moteur géométrique}
+
+\textbf{\texttt{place\_central\_cycle(size)}} :
+Place le cycle central en $(0, 0)$, sommets sur le cercle de rayon $R_n$, dans le plan $z=0$.
+Crée les liaisons C--C du cycle.
+
+\textbf{\texttt{compute\_cycle\_center(v1, v2, n\_sides)}} :
+Calcule le centre du nouveau cycle placé sur l'arête $[v_1, v_2]$, à distance $a_n$ du milieu
+de l'arête, du côté extérieur.
+
+\textbf{\texttt{place\_cycle\_with\_shared\_vertex(v1, v2, n\_sides, shared\_vertex\_id)}} :
+Place un nouveau cycle fusionné sur $[v_1, v_2]$. Si \texttt{shared\_vertex\_id} est fourni,
+le sommet en position $k = n-1$ (adjacent à $v_1$, côté coadjacent) est réutilisé plutôt que
+recréé. Les liaisons sont ajoutées sans doublon.
+
+\textbf{\texttt{build\_from\_sequence(central\_size, sequence)}} :
+Orchestre la construction complète :
+\begin{enumerate}
+  \item Place le cycle central.
+  \item Pour chaque position non nulle, détecte la coadjacence avec le prédécesseur et place
+    le cycle voisin.
+  \item \textit{Wrap-around} : si les positions 0 et $n-1$ sont toutes deux non nulles, fusionne
+    les deux atomes dupliqués à la jonction.
+\end{enumerate}
+
+\textbf{\texttt{\_merge\_vertices(keep\_id, remove\_id)}} :
+Fusionne deux sommets : redirige toutes les liaisons de \texttt{remove\_id} vers
+\texttt{keep\_id}, supprime \texttt{remove\_id} du graphe.
+
+\subsection{\texttt{core/valence\_solver.py} — Solveur de valences}
+
+\textbf{\texttt{solve()}} : point d'entrée. Appelle dans l'ordre :
+\begin{enumerate}
+  \item \texttt{\_get\_peripheral\_edges} : construit la liste priorisée des arêtes éligibles.
+  \item Boucle gloutonne : place une double liaison sur chaque arête si aucune extrémité n'est
+    déjà doublement liée.
+  \item \texttt{\_handle\_radical} (si nombre impair de C).
+  \item \texttt{\_place\_hydrogens} : ajoute un H sur chaque valence libre.
+\end{enumerate}
+
+\textbf{\texttt{\_get\_peripheral\_edges}} :
+\begin{lstlisting}
+# Groupe 1 : coadjacentes (priorite haute)
+# Les deux carbones ont degre >= 3, l'un dans le cycle central, l'autre non.
+one_in_central = (vid in central_vertices) != (other_id in central_vertices)
+if one_in_central:
+    edges_coadjacent.append((vid, other_id))
+
+# Groupe 2 : peripheriques (au moins un degre < 3)
+if not (deg_v >= 3 and deg_o >= 3):
+    edges_peripheral.append((vid, other_id))
+
+return edges_coadjacent + edges_peripheral  # Coadjacentes en premier
+\end{lstlisting}
+
+\subsection{\texttt{generators/builder.py} — Orchestrateur}
+
+Assemble le pipeline complet pour une séquence donnée :
+\begin{enumerate}
+  \item Crée un \texttt{MolecularGraph} vide et un \texttt{GeometryEngine}.
+  \item Appelle \texttt{build\_from\_sequence} (topologie + géométrie).
+  \item Appelle \texttt{ValenceSolver.solve()} (doubles liaisons + H).
+  \item Appelle \texttt{CMLExporter.export()} (fichier \texttt{.cml}).
+\end{enumerate}
+
+\subsection{\texttt{utils/exporters.py} — Export CML}
+
+Sérialise le graphe en \textbf{Chemical Markup Language} (XML), format lisible par Avogadro,
+OpenBabel, et interprétable par Choco Solver. Chaque atome est exporté avec ses coordonnées 3D,
+chaque liaison avec son ordre (1 ou 2).
+
+\subsection{\texttt{main.py} — Point d'entrée}
+
+\begin{lstlisting}
+for size in [5, 6, 7]:
+    configs = generate_canonical_sequences(
+        size, n_positions, max_neighbors, min_neighbors
+    )
+    for central_size, seq in configs:
+        builder.build(central_size, seq, output_dir)
+\end{lstlisting}
+
+Les fichiers CML sont écrits dans \texttt{output/cycle5/}, \texttt{output/cycle6/},
+\texttt{output/cycle7/}, nommés par leur séquence (ex. \texttt{5\_6\_5\_5\_0.cml}).
+
+% ============================================================
+\section{Bibliothèques utilisées}
+% ============================================================
+
+Le projet utilise \textbf{exclusivement la bibliothèque standard Python 3}. Aucune dépendance
+externe (NumPy, RDKit, OpenBabel, etc.) n'est requise.
+
+\begin{center}
+\begin{tabular}{lp{9cm}}
+  \toprule
+  Module standard & Utilisation \\
+  \midrule
+  \texttt{math} & \texttt{sin}, \texttt{cos}, \texttt{atan2}, \texttt{sqrt} pour la géométrie \\
+  \texttt{itertools.product} & énumération de toutes les combinaisons de séquences \\
+  \texttt{xml.etree.ElementTree} & construction de l'arbre XML pour CML \\
+  \texttt{xml.dom.minidom} & formatage lisible (indentation) du XML \\
+  \texttt{dataclasses} & définition des structures \texttt{Vertex} et \texttt{Cycle} \\
+  \texttt{pathlib} & gestion des chemins de fichiers \\
+  \texttt{typing} & annotations de types (\texttt{List}, \texttt{Tuple}, \texttt{Optional}, etc.) \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+% ============================================================
+\section{État d'avancement}
+% ============================================================
+
+\subsection{Fonctionnalités complètes et validées}
+
+\begin{itemize}[label=$\checkmark$]
+  \item Énumération canonique sous le groupe diédral $D_n$ pour $n \in \{5, 6, 7\}$
+  \item Placement géométrique du cycle central et de tous les cycles voisins
+  \item Gestion correcte de la fusion coadjacente (sommets partagés entre voisins consécutifs)
+  \item Gestion du wrap-around pour le cycle 6 complet (fusion des atomes dupliqués)
+  \item Placement prioritaire des doubles liaisons sur les arêtes coadjacentes
+  \item Placement des hydrogènes dans le plan de la molécule
+  \item Export CML valide pour toutes les structures testées
+\end{itemize}
+
+\subsection{Fonctionnalités partiellement implémentées}
+
+\begin{itemize}[label=$\sim$]
+  \item \textbf{Préférence pour les doubles liaisons dans les cycles à 7} :
+    la méthode \texttt{\_prioritize\_edges} est présente mais retourne la liste sans
+    tri spécifique. Il faudrait détecter les arêtes appartenant à des heptagones et les
+    placer en tête.
+  \item \textbf{Marquage du carbone radicalaire} : la méthode \texttt{\_handle\_radical}
+    identifie le candidat mais ne le marque pas explicitement. Il faudrait ajouter un
+    attribut \texttt{radical=True} sur le sommet et ne pas lui ajouter d'hydrogène.
+\end{itemize}
+
+\subsection{Fonctionnalités prévues (travail futur)}
+
+\begin{todo}
+\begin{itemize}
+  \item \textbf{Optimisation UFF} : les liaisons de fermeture coadjacentes ont une longueur
+    légèrement supérieure à $1.42\ \text{\AA}$ (artefact de géométrie régulière). L'optimisation
+    par champ de force UFF doit les corriger et planariser la molécule.
+  \item \textbf{Validation de planéité} : calcul du RMSD hors-plan pour vérifier que $z \approx 0$
+    pour tous les atomes après optimisation.
+  \item \textbf{Intégration Choco Solver} : utilisation des CML générés comme entrée du modèle
+    CSP pour construire la table de voisinage.
+  \item \textbf{Détection des isomorphismes} : vérification que deux séquences canoniques
+    différentes ne donnent pas accidentellement des graphes moléculaires identiques.
+\end{itemize}
+\end{todo}
+
+% ============================================================
+\section{Exemple complet : la molécule \texttt{5\_6\_5\_5\_0}}
+% ============================================================
+
+\subsection{Description}
+
+Cycle central : \textbf{pentagone} (5 carbones). Voisins :
+\begin{itemize}
+  \item position 0 : pentagone (5)
+  \item position 1 : hexagone (6)
+  \item position 2 : pentagone (5)
+  \item position 3 : pentagone (5)
+  \item position 4 : aucun (0)
+\end{itemize}
+
+Les positions 0-1, 1-2 et 2-3 sont consécutives et non nulles : \textbf{trois fusions
+coadjacentes} sont présentes.
+
+\subsection{Comptage attendu}
+
+\begin{center}
+\begin{tabular}{lc}
+  \toprule
+  Grandeur & Valeur \\
+  \midrule
+  Atomes C & 19 \\
+  Atomes H & 8 \\
+  Doubles liaisons C=C & 8 \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Vérification de la valence}
+
+\[
+  \text{Valence totale} = 19 \times 4 = 76
+\]
+\[
+  \text{Liaisons C-C simples} + 2 \times \text{doubles} + \text{liaisons C-H}
+\]
+
+Avec 8 doubles, le nombre de liaisons C=C contribue $8 \times 2 = 16$ au comptage de valence,
+les simples et les C-H complètent le total de 76. Ce bilan est vérifié par le solveur.
+
+% ============================================================
+\section{Glossaire}
+% ============================================================
+
+\begin{description}
+  \item[HAP] Hydrocarbure Aromatique Polycyclique. Famille de molécules planes composées de
+    cycles carbonés fusionnés.
+  \item[Non-benzenoïde] HAP contenant au moins un cycle de taille différente de 6.
+  \item[Fusion par arête (\textit{edge-fused})] Deux cycles partagent exactement une arête
+    (deux carbones et la liaison entre eux).
+  \item[Coadjacence / fusion indénoïde] Deux cycles voisins d'un même cycle central qui sont
+    aussi directement fusionnés entre eux par une arête.
+  \item[Forme canonique] Représentant unique d'une classe d'équivalence sous l'action d'un
+    groupe de symétrie.
+  \item[Groupe diédral $D_n$] Groupe des symétries d'un polygone régulier à $n$ côtés,
+    contenant $n$ rotations et $n$ réflexions.
+  \item[Structure de Kekulé] Représentation d'une molécule aromatique avec alternance
+    explicite de liaisons simples et doubles.
+  \item[Carbone radicalaire] Carbone avec un électron non apparié, résultant d'un nombre
+    impair de carbones dans la structure (impossible de former des paires complètes de
+    doubles liaisons).
+  \item[UFF] Universal Force Field. Champ de force moléculaire utilisé pour l'optimisation
+    géométrique (travail futur).
+  \item[CML] Chemical Markup Language. Format XML standard pour l'échange de données
+    moléculaires.
+  \item[CSP] Constraint Satisfaction Problem. Problème de satisfaction de contraintes, ici
+    résolu avec Choco Solver (Java).
+\end{description}
+
+\end{document}
