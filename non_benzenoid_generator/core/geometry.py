@@ -121,7 +121,8 @@ class GeometryEngine:
     
     def place_cycle_with_shared_vertex(self, v1_id: int, v2_id: int, n_sides: int,
                                       shared_vertex_id: Optional[int] = None,
-                                      prev_cycle_center: Optional[Tuple[float, float]] = None) -> Tuple[List[int], Tuple[float, float]]:
+                                      prev_cycle_center: Optional[Tuple[float, float]] = None,
+                                      prev_cycle_size: Optional[int] = None) -> Tuple[List[int], Tuple[float, float]]:
         """
         Place un cycle avec éventuellement un sommet déjà existant (partagé avec le voisin précédent)
         
@@ -137,22 +138,22 @@ class GeometryEngine:
         # Si on a un sommet partagé et le centre du cycle précédent,
         # on doit vérifier que ce sommet est bien à l'intersection des deux cercles
         if shared_vertex_id is not None and prev_cycle_center is not None:
-            # Calculer les intersections des deux cercles
+            # Calculer les intersections des deux cercles circonscrits
+            r_prev = radius_from_side(prev_cycle_size) if prev_cycle_size is not None else R
             intersections = circle_intersections(
-                prev_cycle_center, radius_from_side(n_sides),
+                prev_cycle_center, r_prev,
                 (cx, cy), R
             )
-            
-            # Trouver quelle intersection utiliser (celle qui n'est pas le sommet central v2)
-            v2 = self.graph.vertices[v2_id]
+
+            # Les deux intersections sont v1 (C_{pos}) et le sommet externe A.
+            # On exclut v1 pour obtenir A.
+            v1_ref = self.graph.vertices[v1_id]
             shared_pos = None
-            
+
             for ix, iy in intersections:
-                # Vérifier si c'est près de v2 (sommet central) ou l'autre (externe)
-                dist_to_v2 = math.sqrt((ix - v2.x)**2 + (iy - v2.y)**2)
-                if dist_to_v2 > 0.5:  # C'est le sommet externe
+                dist_to_v1 = math.sqrt((ix - v1_ref.x)**2 + (iy - v1_ref.y)**2)
+                if dist_to_v1 > 0.5:  # C'est le sommet externe A
                     shared_pos = (ix, iy)
-                    # Mettre à jour la position du sommet partagé (moyenne pour lissage)
                     sv = self.graph.vertices[shared_vertex_id]
                     sv.x = ix
                     sv.y = iy
@@ -164,15 +165,16 @@ class GeometryEngine:
         angle_0 = math.atan2(v1.y - cy, v1.x - cx)
         
         cycle_vertices = [v1_id, v2_id]  # Indices 0 et 1
-        
-        # Sommets 2 à n_sides-1
+
+        # Sommets 2 à n_sides-1, sens horaire depuis v1
+        # (v2 est à angle_0 - 2π/n depuis le centre, donc on décrémente)
         for k in range(2, n_sides):
-            if k == 2 and shared_vertex_id is not None:
-                # Utiliser le sommet partagé
+            if k == n_sides - 1 and shared_vertex_id is not None:
+                # Sommet partagé avec le cycle précédent : adjacent à v1 (dernière position)
                 cycle_vertices.append(shared_vertex_id)
             else:
                 # Créer nouveau sommet
-                angle = angle_0 + k * (2 * math.pi / n_sides)
+                angle = angle_0 - k * (2 * math.pi / n_sides)
                 x = cx + R * math.cos(angle)
                 y = cy + R * math.sin(angle)
                 z = 0.0
@@ -221,16 +223,19 @@ class GeometryEngine:
             prev_pos = (pos - 1) % n_pos
             shared_vertex = None
             prev_center = None
-            
+            prev_size = None
+
             if sequence[prev_pos] != 0 and prev_pos in placed_cycles:
-                # Le sommet à partager est le dernier du cycle précédent
+                # Le sommet partagé est à l'index 2 du cycle précédent :
+                # c'est le vertex adjacent à v2_prev = v1_current = C_{pos}
                 prev_data = placed_cycles[prev_pos]
-                shared_vertex = prev_data['vertices'][-1]  # Dernier sommet
+                shared_vertex = prev_data['vertices'][2]
                 prev_center = prev_data['center']
-            
+                prev_size = prev_data['size']
+
             # Placer le cycle
             cycle_verts, center = self.place_cycle_with_shared_vertex(
-                v1, v2, size, shared_vertex, prev_center
+                v1, v2, size, shared_vertex, prev_center, prev_size
             )
             
             placed_cycles[pos] = {

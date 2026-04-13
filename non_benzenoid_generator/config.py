@@ -15,7 +15,7 @@ VALID_CYCLE_SIZES = [5, 6, 7]
 NEIGHBOR_CONSTRAINTS = {
     5: {'min': 2, 'max': 4, 'n_positions': 5},
     6: {'min': 2, 'max': 6, 'n_positions': 6},
-    7: {'min': 2, 'max': 5, 'n_positions': 6}  # 6 positions mais max 5 voisins
+    7: {'min': 2, 'max': 5, 'n_positions': 7}  # 7 positions, max 5 voisins
 }
 
 # Valeurs possibles pour les voisins (0=vide, 5/6/7=taille)
