@@ -53,28 +53,52 @@ class ValenceSolver:
         return True
     
     def _get_peripheral_edges(self, carbons: List[int]) -> List[Tuple[int, int]]:
-        """Retourne les arêtes périphériques (non de fusion entre deux cycles internes)"""
-        edges = []
-        
+        """
+        Retourne les arêtes éligibles pour les doubles liaisons, en deux groupes :
+
+        1. Arêtes coadjacentes (retournées en premier, prioritaires) :
+           les deux carbones ont degré >= 3, mais l'un appartient au cycle central
+           et l'autre non. Ce sont les arêtes de fermeture entre deux cycles voisins
+           consécutifs (ex: C1—A dans 5_6_5_5_0). Elles doivent recevoir un double
+           en priorité pour reproduire la structure de Kekulé correcte.
+
+        2. Arêtes périphériques (standard) :
+           au moins un des deux carbones a degré < 3.
+
+        Sont exclues : les arêtes où les deux carbones ont degré >= 3 ET sont tous
+        les deux dans le cycle central (arêtes de fusion interne pure).
+        """
+        central_vertices = set(self.graph.cycles[0].vertices) if self.graph.cycles else set()
+
+        edges_coadjacent = []
+        edges_peripheral = []
+
         for vid in carbons:
             vertex = self.graph.vertices[vid]
             for other_id, order in vertex.bonds:
-                if other_id > vid:  # Éviter doublons
-                    other = self.graph.vertices[other_id]
-                    if other.element != 'C':
-                        continue
-                    
-                    # Déterminer si c'est une arête de fusion (interne)
-                    # Critère : les deux carbones ont degré >= 3 dans le graphe des C
-                    deg_v = self.graph.get_carbon_degree(vid)
-                    deg_o = self.graph.get_carbon_degree(other_id)
-                    
-                    # Si les deux ont degré >= 3, c'est une fusion entre cycles
-                    # On la considère comme non-éligible pour double (sauf exceptions)
-                    if not (deg_v >= 3 and deg_o >= 3):
-                        edges.append((vid, other_id))
-        
-        return edges
+                if other_id <= vid:
+                    continue
+                if self.graph.vertices[other_id].element != 'C':
+                    continue
+
+                deg_v = self.graph.get_carbon_degree(vid)
+                deg_o = self.graph.get_carbon_degree(other_id)
+
+                if not (deg_v >= 3 and deg_o >= 3):
+                    # Arête périphérique : au moins un sommet de degré < 3
+                    edges_peripheral.append((vid, other_id))
+                else:
+                    # Les deux ont degré >= 3 : coadjacente si l'un est dans le
+                    # cycle central et l'autre non
+                    one_in_central = (vid in central_vertices) != (other_id in central_vertices)
+                    if one_in_central:
+                        edges_coadjacent.append((vid, other_id))
+                    # Sinon : arête interne pure (ex: liaison dans le cycle central),
+                    # exclue
+
+        # Coadjacentes d'abord : garantit qu'elles reçoivent le double avant
+        # que leurs extrémités soient "bloquées" par un double périphérique
+        return edges_coadjacent + edges_peripheral
     
     def _prioritize_edges(self, edges: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
         """Trie les arêtes : privilégier les cycles 7, puis les positions externes"""
