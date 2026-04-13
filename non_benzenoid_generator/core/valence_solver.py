@@ -1,177 +1,241 @@
-"""Résolution des valences : placement des doubles liaisons et H"""
+"""Résolution des valences : placement des doubles liaisons et H
+
+Approche : couplage maximum pondéré (algorithme de Blossom via NetworkX)
+sur le graphe carbone-carbone.
+
+  - Chaque lien C-C est un candidat pour double liaison (y compris les
+    liaisons de fusion internes).
+  - Poids plus élevé pour les arêtes appartenant à des cycles à 7 sommets :
+    les structures azuléniques préfèrent les doubles liaisons dans le cycle 7.
+  - maxcardinality=True garantit d'abord le maximum de doubles liaisons,
+    puis optimise le poids.
+  - Cas impair (radical) : un carbone reste sans double liaison ni H.
+"""
 
 import math
-from typing import List, Tuple, Set
+from typing import List, Set
 from core.topology import MolecularGraph
+
+try:
+    import networkx as nx
+    _HAS_NX = True
+except ImportError:
+    _HAS_NX = False
+
+
+# Poids des arêtes selon la taille du cycle d'appartenance
+_WEIGHT_IN_7 = 10   # forte préférence pour les doubles des cycles 7
+_WEIGHT_IN_5 = 3    # légère préférence pour les cycles 5 vs liaisons de fusion
+_WEIGHT_DEFAULT = 1
+
 
 class ValenceSolver:
     """
-    Résout le problème de satisfaction des valences :
-    - Max 1 double liaison par carbone
-    - Max 1 hydrogène par carbone  
-    - Gestion des cas pair/impair (radicaux)
+    Résout le problème de satisfaction des valences via couplage maximum pondéré.
+
+    Paramètres
+    ----------
+    graph : MolecularGraph
+        Le graphe moléculaire AVANT placement des H.  Les cycles doivent être
+        renseignés (graph.cycles) afin de pouvoir identifier les cycles à 7.
     """
-    
+
     def __init__(self, graph: MolecularGraph):
         self.graph = graph
-        
+
+    # ------------------------------------------------------------------
+    # Interface publique
+    # ------------------------------------------------------------------
+
     def solve(self) -> bool:
         """
-        Algorithme glouton amélioré pour placer les doubles liaisons
-        Retourne True si une solution valide est trouvée
+        Place les doubles liaisons puis les hydrogènes.
+        Retourne True si au moins un couplage a été trouvé.
         """
-        carbons = [vid for vid, v in self.graph.vertices.items() if v.element == 'C']
-        n_carbons = len(carbons)
-        is_odd = (n_carbons % 2 == 1)
-        
-        # Identifier les arêtes éligibles (périphériques, pas de fusion interne)
-        edges = self._get_peripheral_edges(carbons)
-        
-        # Trier par priorité : coins éloignés d'abord, puis cycles 7
-        edges = self._prioritize_edges(edges)
-        
-        # Placement glouton des doubles liaisons
-        used_double = set()
-        
-        for v1, v2 in edges:
-            if v1 in used_double or v2 in used_double:
-                continue
-            
-            # Vérifier les degrés après ajout
-            # Un carbone ne peut avoir qu'une seule double
-            self._set_bond_order(v1, v2, 2)
-            used_double.add(v1)
-            used_double.add(v2)
-        
-        # Gestion des radicaux si nombre impair
-        if is_odd:
-            self._handle_radical(carbons, used_double)
-        
-        # Placement des hydrogènes
-        self._place_hydrogens(carbons)
-        
+        carbons = [vid for vid, v in self.graph.vertices.items()
+                   if v.element == 'C']
+
+        if _HAS_NX:
+            matched = self._solve_matching(carbons)
+        else:
+            matched = self._solve_greedy(carbons)
+
+        self._place_hydrogens(carbons, matched)
         return True
-    
-    def _get_peripheral_edges(self, carbons: List[int]) -> List[Tuple[int, int]]:
+
+    # ------------------------------------------------------------------
+    # Méthode principale : couplage maximum pondéré (NetworkX / Blossom)
+    # ------------------------------------------------------------------
+
+    def _solve_matching(self, carbons: List[int]) -> Set[int]:
         """
-        Retourne les arêtes éligibles pour les doubles liaisons, en deux groupes :
+        Construit un graphe NetworkX carbon-only, pondère les arêtes, puis
+        appelle max_weight_matching.
 
-        1. Arêtes coadjacentes (retournées en premier, prioritaires) :
-           les deux carbones ont degré >= 3, mais l'un appartient au cycle central
-           et l'autre non. Ce sont les arêtes de fermeture entre deux cycles voisins
-           consécutifs (ex: C1—A dans 5_6_5_5_0). Elles doivent recevoir un double
-           en priorité pour reproduire la structure de Kekulé correcte.
-
-        2. Arêtes périphériques (standard) :
-           au moins un des deux carbones a degré < 3.
-
-        Sont exclues : les arêtes où les deux carbones ont degré >= 3 ET sont tous
-        les deux dans le cycle central (arêtes de fusion interne pure).
+        Retourne l'ensemble des carbones couverts par le couplage (i.e. ceux
+        qui ont une double liaison).
         """
-        central_vertices = set(self.graph.cycles[0].vertices) if self.graph.cycles else set()
+        # --- Identifier les arêtes par cycle ---
+        edges_in_7: Set[tuple] = set()
+        edges_in_5: Set[tuple] = set()
+        for cycle in self.graph.cycles:
+            verts = cycle.vertices
+            n = len(verts)
+            for i in range(n):
+                a, b = verts[i], verts[(i + 1) % n]
+                key = (min(a, b), max(a, b))
+                if cycle.size == 7:
+                    edges_in_7.add(key)
+                elif cycle.size == 5:
+                    edges_in_5.add(key)
 
-        edges_coadjacent = []
-        edges_peripheral = []
+        # --- Construire le graphe pondéré ---
+        G = nx.Graph()
+        G.add_nodes_from(carbons)
 
+        carbon_set = set(carbons)
         for vid in carbons:
-            vertex = self.graph.vertices[vid]
-            for other_id, order in vertex.bonds:
+            for other_id, _ in self.graph.vertices[vid].bonds:
                 if other_id <= vid:
                     continue
-                if self.graph.vertices[other_id].element != 'C':
+                if other_id not in carbon_set:
                     continue
-
-                deg_v = self.graph.get_carbon_degree(vid)
-                deg_o = self.graph.get_carbon_degree(other_id)
-
-                if not (deg_v >= 3 and deg_o >= 3):
-                    # Arête périphérique : au moins un sommet de degré < 3
-                    edges_peripheral.append((vid, other_id))
+                key = (vid, other_id)
+                if key in edges_in_7:
+                    w = _WEIGHT_IN_7
+                elif key in edges_in_5:
+                    w = _WEIGHT_IN_5
                 else:
-                    # Les deux ont degré >= 3 : coadjacente si l'un est dans le
-                    # cycle central et l'autre non
-                    one_in_central = (vid in central_vertices) != (other_id in central_vertices)
-                    if one_in_central:
-                        edges_coadjacent.append((vid, other_id))
-                    # Sinon : arête interne pure (ex: liaison dans le cycle central),
-                    # exclue
+                    w = _WEIGHT_DEFAULT
+                G.add_edge(vid, other_id, weight=w)
 
-        # Coadjacentes d'abord : garantit qu'elles reçoivent le double avant
-        # que leurs extrémités soient "bloquées" par un double périphérique
-        return edges_coadjacent + edges_peripheral
-    
-    def _prioritize_edges(self, edges: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
-        """Trie les arêtes : privilégier les cycles 7, puis les positions externes"""
-        # Pour l'instant, simple shuffle ou tri par degré
-        # On pourrait ajouter ici la détection des cycles 7
-        return edges
-    
+        # --- Couplage maximum pondéré ---
+        # maxcardinality=True : maximise d'abord le nombre de paires (doubles
+        # liaisons), puis parmi les couplages de même cardinalité, maximise le
+        # poids (préférence cycle 7).
+        matching = nx.max_weight_matching(G, maxcardinality=True)
+
+        # --- Appliquer le couplage ---
+        covered: Set[int] = set()
+        for v1, v2 in matching:
+            self._set_bond_order(v1, v2, 2)
+            covered.add(v1)
+            covered.add(v2)
+
+        return covered
+
+    # ------------------------------------------------------------------
+    # Méthode de repli : glouton (si NetworkX absent)
+    # ------------------------------------------------------------------
+
+    def _solve_greedy(self, carbons: List[int]) -> Set[int]:
+        """
+        Algorithme glouton de secours (identique à l'ancienne implémentation,
+        mais sans l'exclusion incorrecte des liaisons internes).
+        """
+        carbon_set = set(carbons)
+        # Collecter toutes les arêtes C-C
+        edges = []
+        for vid in carbons:
+            for other_id, _ in self.graph.vertices[vid].bonds:
+                if other_id <= vid:
+                    continue
+                if other_id not in carbon_set:
+                    continue
+                edges.append((vid, other_id))
+
+        # Priorité : arêtes dans les cycles 7, puis cycles 5, puis le reste
+        edges_in_7_set: Set[tuple] = set()
+        for cycle in self.graph.cycles:
+            if cycle.size == 7:
+                verts = cycle.vertices
+                n = len(verts)
+                for i in range(n):
+                    a, b = verts[i], verts[(i + 1) % n]
+                    edges_in_7_set.add((min(a, b), max(a, b)))
+
+        def priority(e):
+            key = (min(e), max(e))
+            return 0 if key in edges_in_7_set else 1
+
+        edges.sort(key=priority)
+
+        used: Set[int] = set()
+        for v1, v2 in edges:
+            if v1 in used or v2 in used:
+                continue
+            self._set_bond_order(v1, v2, 2)
+            used.add(v1)
+            used.add(v2)
+
+        return used
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
     def _set_bond_order(self, v1: int, v2: int, order: int):
-        """Modifie l'ordre d'une liaison existante"""
-        # Trouver et modifier dans les deux sens
-        for i, (v, o) in enumerate(self.graph.vertices[v1].bonds):
+        """Modifie l'ordre d'une liaison existante dans les deux sens."""
+        for i, (v, _) in enumerate(self.graph.vertices[v1].bonds):
             if v == v2:
                 self.graph.vertices[v1].bonds[i] = (v, order)
                 break
-        
-        for i, (v, o) in enumerate(self.graph.vertices[v2].bonds):
+        for i, (v, _) in enumerate(self.graph.vertices[v2].bonds):
             if v == v1:
                 self.graph.vertices[v2].bonds[i] = (v, order)
                 break
-    
-    def _handle_radical(self, carbons: List[int], used_double: Set[int]):
+
+    def _place_hydrogens(self, carbons: List[int], covered: Set[int]):
         """
-        Gestion du cas impair : un carbone doit être radical
-        (3 liaisons C-C, pas de double, pas de H supplémentaire)
+        Place les H sur les valences libres.
+
+        Un carbone NON couvert par le couplage n'a pas de double liaison.
+        S'il a exactement 3 voisins C, c'est un radical (pas de H ajouté).
+        S'il a 1 ou 2 voisins C, il reçoit le nombre de H nécessaire pour
+        saturer sa valence à 4.
+
+        Un carbone COUVERT (une double liaison) reçoit (4 - valence_utilisée) H,
+        au maximum 1 (structure sp²).
         """
-        # Trouver un carbone de degré 3 (fusion) qui n'a pas de double
-        candidates = []
-        for vid in carbons:
-            if vid not in used_double:
-                deg = self.graph.get_carbon_degree(vid)
-                if deg == 3:  # Carbone de fusion trivalent
-                    candidates.append(vid)
-        
-        if candidates:
-            # Marquer le premier comme radical (pas de H ajouté plus tard)
-            # Pour l'instant, on ne fait rien de spécial, juste pas de H ajouté
-            pass
-    
-    def _place_hydrogens(self, carbons: List[int]):
-        """Place les hydrogènes (max 1 par carbone) sur les valences libres"""
         for vid in carbons:
             valence_used = self.graph.get_valence_used(vid)
             remaining = 4 - valence_used
-            
-            if remaining >= 1:
-                # Placer 1 H (max)
+
+            if remaining <= 0:
+                continue
+
+            cc_degree = self.graph.get_carbon_degree(vid)
+
+            # Carbone non couvert avec 3 voisins C → radical → pas de H
+            if vid not in covered and cc_degree >= 3:
+                continue
+
+            # Sinon, ajouter les H manquants (max 1 pour les sp²)
+            n_h = min(remaining, 1) if vid in covered else remaining
+            for _ in range(n_h):
                 self._add_hydrogen(vid)
-    
+
     def _add_hydrogen(self, carbon_id: int):
-        """Ajoute un atome H à un carbone"""
+        """Ajoute un atome H à un carbone selon la direction externe."""
         c = self.graph.vertices[carbon_id]
-        
-        # Calculer la direction externe (moyenne des vecteurs vers voisins, inversée)
+
         vx, vy, vz = 0.0, 0.0, 0.0
-        
         for other_id, _ in c.bonds:
             other = self.graph.vertices[other_id]
             vx += other.x - c.x
             vy += other.y - c.y
             vz += other.z - c.z
-        
-        # Normaliser et inverser
-        norm = math.sqrt(vx**2 + vy**2 + vz**2)
+
+        norm = math.sqrt(vx ** 2 + vy ** 2 + vz ** 2)
         if norm > 0.1:
-            vx, vy, vz = -vx/norm, -vy/norm, -vz/norm
+            vx, vy, vz = -vx / norm, -vy / norm, -vz / norm
         else:
-            vx, vy, vz = 1.0, 0.0, 0.0  # Default
-        
-        # Position du H à 1.08 Å
+            vx, vy, vz = 1.0, 0.0, 0.0
+
         from config import BOND_LENGTH_CH
         hx = c.x + vx * BOND_LENGTH_CH
         hy = c.y + vy * BOND_LENGTH_CH
         hz = c.z + vz * BOND_LENGTH_CH
-        
+
         h_id = self.graph.add_vertex('H', hx, hy, hz)
         self.graph.add_bond(carbon_id, h_id, 1)
