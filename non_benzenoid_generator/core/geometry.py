@@ -212,4 +212,49 @@ class GeometryEngine:
                 'size': size
             }
         
+        # Gestion du wrap-around : pos=0 et pos=n_pos-1 sont consécutifs,
+        # donc le sommet k=n_sides-1 du cycle[0] et le sommet k=2 du cycle[n_pos-1]
+        # devraient être le même atome (adjacent à central_vertices[0]).
+        # Ce cas ne se produit que quand toutes les positions sont remplies (cycle 6 complet).
+        last_pos = n_pos - 1
+        if (sequence[0] != 0 and sequence[last_pos] != 0
+                and 0 in placed_cycles and last_pos in placed_cycles):
+            # Le sommet partagé vu depuis pos=0 : dernier vertex du cycle[0] (adjacent à C0)
+            keep_id = placed_cycles[0]['vertices'][-1]
+            # Le sommet créé par le cycle[last_pos] adjacent à C0 : index 2 dans ce cycle
+            remove_id = placed_cycles[last_pos]['vertices'][2]
+            if keep_id != remove_id:
+                # Mettre à jour la liste des vertices du dernier cycle
+                placed_cycles[last_pos]['vertices'][2] = keep_id
+                # Mettre à jour les cycles du graphe
+                for cycle in self.graph.cycles:
+                    cycle.vertices = [keep_id if v == remove_id else v
+                                      for v in cycle.vertices]
+                # Fusionner les deux sommets dans le graphe
+                self._merge_vertices(keep_id, remove_id)
+
         return self.graph
+
+    def _merge_vertices(self, keep_id: int, remove_id: int):
+        """
+        Fusionne remove_id dans keep_id :
+        - Toutes les liaisons de remove_id sont redirigées vers keep_id
+        - remove_id est supprimé du graphe
+        - Les doublons de liaisons (keep_id déjà lié à un voisin) sont ignorés
+        """
+        remove_v = self.graph.vertices[remove_id]
+        keep_v = self.graph.vertices[keep_id]
+
+        for neighbor_id, order in list(remove_v.bonds):
+            neighbor_v = self.graph.vertices[neighbor_id]
+            # Supprimer la référence à remove_id chez le voisin
+            neighbor_v.bonds = [(v, o) for v, o in neighbor_v.bonds if v != remove_id]
+            # Ajouter la liaison vers keep_id si elle n'existe pas déjà
+            if not any(v == keep_id for v, _ in neighbor_v.bonds):
+                neighbor_v.bonds.append((keep_id, order))
+                keep_v.bonds.append((neighbor_id, order))
+
+        # Supprimer remove_id du graphe
+        del self.graph.vertices[remove_id]
+        if remove_id in self.placed_vertices:
+            del self.placed_vertices[remove_id]
