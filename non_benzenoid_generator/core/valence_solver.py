@@ -187,33 +187,36 @@ class ValenceSolver:
 
     def _place_hydrogens(self, carbons: List[int], covered: Set[int]):
         """
-        Place les H sur les valences libres.
+        Place les H selon le type de carbone (procédure du chimiste) :
 
-        Un carbone NON couvert par le couplage n'a pas de double liaison.
-        S'il a exactement 3 voisins C, c'est un radical (pas de H ajouté).
-        S'il a 1 ou 2 voisins C, il reçoit le nombre de H nécessaire pour
-        saturer sa valence à 4.
+        Carbone COUVERT (sp², une double liaison) :
+          - degré 2 C-C : 1H  (valence = 1simple + 2double + 1H = 4)
+          - degré 3 C-C : 0H  (valence = 2simples + 2double = 4)
 
-        Un carbone COUVERT (une double liaison) reçoit (4 - valence_utilisée) H,
-        au maximum 1 (structure sp²).
+        Carbone NON couvert (radical, valence 3) :
+          - degré >= 3 C-C : 0H  (3 liaisons C-C, électron célibataire)
+          - degré 2 C-C    : 1H  (2 C-C simples + 1H + électron célibataire)
+          - degré 1 C-C    : 2H  (rare dans nos polycycles)
+
+        Règle générale radical : n_H = 4 - cc_degree - 1 (réserve 1 pour l'électron)
         """
         for vid in carbons:
-            valence_used = self.graph.get_valence_used(vid)
-            remaining = 4 - valence_used
-
-            if remaining <= 0:
-                continue
-
             cc_degree = self.graph.get_carbon_degree(vid)
 
-            # Carbone non couvert avec 3 voisins C → radical → pas de H
-            if vid not in covered and cc_degree >= 3:
-                continue
-
-            # Sinon, ajouter les H manquants (max 1 pour les sp²)
-            n_h = min(remaining, 1) if vid in covered else remaining
-            for _ in range(n_h):
-                self._add_hydrogen(vid)
+            if vid in covered:
+                # Carbone sp² : exactement 1H si la valence le permet
+                valence_used = self.graph.get_valence_used(vid)
+                remaining = 4 - valence_used
+                if remaining >= 1:
+                    self._add_hydrogen(vid)
+            else:
+                # Carbone radical
+                if cc_degree >= 3:
+                    pass  # valence 3 par les seules liaisons C-C, pas de H
+                else:
+                    n_h = max(0, 4 - cc_degree - 1)
+                    for _ in range(n_h):
+                        self._add_hydrogen(vid)
 
     def _add_hydrogen(self, carbon_id: int):
         """Ajoute un atome H à un carbone selon la direction externe."""

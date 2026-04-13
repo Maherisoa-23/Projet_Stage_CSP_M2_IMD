@@ -46,7 +46,6 @@
     <atom id="a45" elementType="H" x3="4.141328" y3="-2.275635" z3="0.000000"/>
     <atom id="a46" elementType="H" x3="1.072270" y3="4.618456" z3="0.000000"/>
     <atom id="a47" elementType="H" x3="3.463565" y3="3.237841" z3="0.000000"/>
-    <atom id="a48" elementType="H" x3="3.463565" y3="3.237841" z3="0.000000"/>
   </atomArray>
   <bondArray>
     <bond atomRefs2="a1 a2" order="2"/>
@@ -101,6 +100,5 @@
     <bond atomRefs2="a29 a30" order="1"/>
     <bond atomRefs2="a29 a46" order="1"/>
     <bond atomRefs2="a30 a47" order="1"/>
-    <bond atomRefs2="a30 a48" order="1"/>
   </bondArray>
 </molecule>

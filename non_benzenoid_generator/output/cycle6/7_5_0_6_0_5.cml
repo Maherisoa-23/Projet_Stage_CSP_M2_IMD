@@ -30,7 +30,6 @@
     <atom id="a29" elementType="H" x3="-0.935307" y3="-3.380000" z3="0.000000"/>
     <atom id="a30" elementType="H" x3="2.290865" y3="3.866264" z3="0.000000"/>
     <atom id="a31" elementType="H" x3="3.341421" y3="1.435621" z3="0.000000"/>
-    <atom id="a32" elementType="H" x3="3.341421" y3="1.435621" z3="0.000000"/>
   </atomArray>
   <bondArray>
     <bond atomRefs2="a1 a2" order="2"/>
@@ -42,9 +41,9 @@
     <bond atomRefs2="a3 a12" order="1"/>
     <bond atomRefs2="a4 a5" order="1"/>
     <bond atomRefs2="a4 a17" order="1"/>
-    <bond atomRefs2="a5 a6" order="2"/>
+    <bond atomRefs2="a5 a6" order="1"/>
     <bond atomRefs2="a5 a14" order="1"/>
-    <bond atomRefs2="a6 a20" order="1"/>
+    <bond atomRefs2="a6 a20" order="2"/>
     <bond atomRefs2="a7 a8" order="2"/>
     <bond atomRefs2="a7 a13" order="1"/>
     <bond atomRefs2="a8 a9" order="1"/>
@@ -67,6 +66,5 @@
     <bond atomRefs2="a19 a20" order="1"/>
     <bond atomRefs2="a19 a30" order="1"/>
     <bond atomRefs2="a20 a31" order="1"/>
-    <bond atomRefs2="a20 a32" order="1"/>
   </bondArray>
 </molecule>

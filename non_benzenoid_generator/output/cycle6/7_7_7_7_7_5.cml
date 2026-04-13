@@ -58,41 +58,41 @@
     <bond atomRefs2="a5 a6" order="2"/>
     <bond atomRefs2="a5 a20" order="1"/>
     <bond atomRefs2="a6 a24" order="1"/>
-    <bond atomRefs2="a7 a8" order="2"/>
-    <bond atomRefs2="a7 a15" order="1"/>
-    <bond atomRefs2="a8 a9" order="1"/>
+    <bond atomRefs2="a7 a8" order="1"/>
+    <bond atomRefs2="a7 a15" order="2"/>
+    <bond atomRefs2="a8 a9" order="2"/>
     <bond atomRefs2="a8 a30" order="1"/>
-    <bond atomRefs2="a9 a10" order="2"/>
+    <bond atomRefs2="a9 a10" order="1"/>
     <bond atomRefs2="a9 a31" order="1"/>
-    <bond atomRefs2="a10 a11" order="1"/>
+    <bond atomRefs2="a10 a11" order="2"/>
     <bond atomRefs2="a10 a32" order="1"/>
-    <bond atomRefs2="a11 a29" order="2"/>
-    <bond atomRefs2="a12 a13" order="2"/>
-    <bond atomRefs2="a12 a19" order="1"/>
-    <bond atomRefs2="a13 a14" order="1"/>
+    <bond atomRefs2="a11 a29" order="1"/>
+    <bond atomRefs2="a12 a13" order="1"/>
+    <bond atomRefs2="a12 a19" order="2"/>
+    <bond atomRefs2="a13 a14" order="2"/>
     <bond atomRefs2="a13 a33" order="1"/>
-    <bond atomRefs2="a14 a15" order="2"/>
+    <bond atomRefs2="a14 a15" order="1"/>
     <bond atomRefs2="a14 a34" order="1"/>
     <bond atomRefs2="a15 a35" order="1"/>
-    <bond atomRefs2="a16 a17" order="2"/>
-    <bond atomRefs2="a16 a23" order="1"/>
-    <bond atomRefs2="a17 a18" order="1"/>
+    <bond atomRefs2="a16 a17" order="1"/>
+    <bond atomRefs2="a16 a23" order="2"/>
+    <bond atomRefs2="a17 a18" order="2"/>
     <bond atomRefs2="a17 a36" order="1"/>
-    <bond atomRefs2="a18 a19" order="2"/>
+    <bond atomRefs2="a18 a19" order="1"/>
     <bond atomRefs2="a18 a37" order="1"/>
     <bond atomRefs2="a19 a38" order="1"/>
-    <bond atomRefs2="a20 a21" order="2"/>
-    <bond atomRefs2="a20 a27" order="1"/>
-    <bond atomRefs2="a21 a22" order="1"/>
+    <bond atomRefs2="a20 a21" order="1"/>
+    <bond atomRefs2="a20 a27" order="2"/>
+    <bond atomRefs2="a21 a22" order="2"/>
     <bond atomRefs2="a21 a39" order="1"/>
-    <bond atomRefs2="a22 a23" order="2"/>
+    <bond atomRefs2="a22 a23" order="1"/>
     <bond atomRefs2="a22 a40" order="1"/>
     <bond atomRefs2="a23 a41" order="1"/>
-    <bond atomRefs2="a24 a25" order="2"/>
-    <bond atomRefs2="a24 a29" order="1"/>
-    <bond atomRefs2="a25 a26" order="1"/>
+    <bond atomRefs2="a24 a25" order="1"/>
+    <bond atomRefs2="a24 a29" order="2"/>
+    <bond atomRefs2="a25 a26" order="2"/>
     <bond atomRefs2="a25 a42" order="1"/>
-    <bond atomRefs2="a26 a27" order="2"/>
+    <bond atomRefs2="a26 a27" order="1"/>
     <bond atomRefs2="a26 a43" order="1"/>
     <bond atomRefs2="a27 a44" order="1"/>
     <bond atomRefs2="a29 a45" order="1"/>

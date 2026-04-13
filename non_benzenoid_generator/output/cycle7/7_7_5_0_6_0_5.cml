@@ -45,29 +45,29 @@
     <bond atomRefs2="a1 a12" order="1"/>
     <bond atomRefs2="a2 a3" order="1"/>
     <bond atomRefs2="a2 a8" order="1"/>
-    <bond atomRefs2="a3 a4" order="2"/>
-    <bond atomRefs2="a3 a13" order="1"/>
-    <bond atomRefs2="a4 a5" order="1"/>
+    <bond atomRefs2="a3 a4" order="1"/>
+    <bond atomRefs2="a3 a13" order="2"/>
+    <bond atomRefs2="a4 a5" order="2"/>
     <bond atomRefs2="a4 a17" order="1"/>
-    <bond atomRefs2="a5 a6" order="2"/>
+    <bond atomRefs2="a5 a6" order="1"/>
     <bond atomRefs2="a5 a22" order="1"/>
-    <bond atomRefs2="a6 a7" order="1"/>
+    <bond atomRefs2="a6 a7" order="2"/>
     <bond atomRefs2="a6 a19" order="1"/>
-    <bond atomRefs2="a7 a25" order="2"/>
-    <bond atomRefs2="a8 a9" order="2"/>
-    <bond atomRefs2="a8 a16" order="1"/>
-    <bond atomRefs2="a9 a10" order="1"/>
+    <bond atomRefs2="a7 a25" order="1"/>
+    <bond atomRefs2="a8 a9" order="1"/>
+    <bond atomRefs2="a8 a16" order="2"/>
+    <bond atomRefs2="a9 a10" order="2"/>
     <bond atomRefs2="a9 a26" order="1"/>
-    <bond atomRefs2="a10 a11" order="2"/>
+    <bond atomRefs2="a10 a11" order="1"/>
     <bond atomRefs2="a10 a27" order="1"/>
-    <bond atomRefs2="a11 a12" order="1"/>
+    <bond atomRefs2="a11 a12" order="2"/>
     <bond atomRefs2="a11 a28" order="1"/>
-    <bond atomRefs2="a12 a24" order="2"/>
-    <bond atomRefs2="a13 a14" order="2"/>
+    <bond atomRefs2="a12 a24" order="1"/>
+    <bond atomRefs2="a13 a14" order="1"/>
     <bond atomRefs2="a13 a18" order="1"/>
-    <bond atomRefs2="a14 a15" order="1"/>
+    <bond atomRefs2="a14 a15" order="2"/>
     <bond atomRefs2="a14 a29" order="1"/>
-    <bond atomRefs2="a15 a16" order="2"/>
+    <bond atomRefs2="a15 a16" order="1"/>
     <bond atomRefs2="a15 a30" order="1"/>
     <bond atomRefs2="a16 a31" order="1"/>
     <bond atomRefs2="a17 a18" order="2"/>
@@ -80,7 +80,7 @@
     <bond atomRefs2="a21 a22" order="2"/>
     <bond atomRefs2="a21 a36" order="1"/>
     <bond atomRefs2="a22 a37" order="1"/>
-    <bond atomRefs2="a24 a25" order="1"/>
+    <bond atomRefs2="a24 a25" order="2"/>
     <bond atomRefs2="a24 a38" order="1"/>
     <bond atomRefs2="a25 a39" order="1"/>
   </bondArray>
