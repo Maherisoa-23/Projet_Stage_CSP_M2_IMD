@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python3 -c ':*)"
+      "Bash(python3 -c ':*)",
+      "Bash(wc -l non_benzenoid_generator/**/*.py optimisation_et_test_planarite/*.py)",
+      "Bash(head -50 *.py)"
     ]
   }
 }

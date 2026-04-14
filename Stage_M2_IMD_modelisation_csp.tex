@@ -106,7 +106,7 @@
   {\large\itshape
     \'Enum\'eration des structures obtenues par substitution\\
     de cycles dans un benz\'eno\"ide}\\[18pt]
-  {\small Document de travail --- Stage M2 IMD --- Version 5.0}\\[4pt]
+  {\small Document de travail --- Stage M2 IMD --- Version 6.0}\\[4pt]
   {\small\color{gray}\today}
 \end{center}
 
@@ -172,7 +172,6 @@ La \textbf{seule variable} par cycle est sa taille $x_v \in \{5,6,7\}$.
 
 \subsubsection{Structure du format}
 
-\newpage
 \begin{lstlisting}[style=benzai,
   caption={Fichier Benzai pour un benz\'eno\"ide \`a 3 hexagones}]
 p DIMACS 14 16 3
@@ -374,62 +373,146 @@ avec $|\mathbf{X}| = h$.
 \end{contrainte}
 
 \begin{propriete}
-C1 est \'equivalente \`a $\ncinq = \nsept$.
+\label{prop:euler}
+Dans un syst\`eme fusionn\'e de $h$~cycles formant un graphe planaire connexe,
+le nombre d'atomes de carbone (sommets) est~:
+\[
+  V \;=\; \sum_{v \in \VD} x_v \;-\; |\ED| \;-\; h \;+\; 1,
+\]
+o\`u $|\ED|$ est le nombre d'ar\^etes du graphe dual
+(= nombre d'ar\^etes C--C partag\'ees entre deux cycles adjacents).
 \end{propriete}
 
 \noindent\textit{Preuve.}
-$5\ncinq + 6\nhex + 7\nsept = 6(\ncinq+\nhex+\nsept)
-\Leftrightarrow \ncinq = \nsept$.\hfill$\square$
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Formule d'Euler.}
+        Le graphe de carbone $G_\B$ est planaire connexe~; ses faces internes
+        sont les $h$~cycles et il y a une face ext\'erieure, soit $F = h + 1$.
+        La formule d'Euler donne
+        \[
+          V - E + (h+1) = 2,
+          \quad\text{d'o\`u}\quad
+          V = E - h + 1.
+        \]
+  \item \textbf{Comptage des ar\^etes.}
+        Chaque cycle $v$ poss\`ede $\xv$ ar\^etes.
+        Une ar\^ete \emph{interne} (partag\'ee par deux cycles adjacents)
+        est compt\'ee \textbf{deux fois} dans la somme $\sum \xv$, tandis
+        qu'une ar\^ete \emph{externe} (bord de la mol\'ecule) n'est compt\'ee
+        qu'une fois. Le nombre d'ar\^etes internes est exactement $|\ED|$
+        (chaque ar\^ete du dual correspond \`a une ar\^ete partag\'ee), donc
+        \[
+          \sum_{v \in \VD} x_v \;=\; E + |\ED|,
+          \qquad\text{soit}\qquad
+          E \;=\; \sum_{v \in \VD} x_v \;-\; |\ED|.
+        \]
+  \item \textbf{Conclusion.}
+        En substituant dans $V = E - h + 1$~:
+        \[
+          V \;=\; \sum_{v \in \VD} x_v \;-\; |\ED| \;-\; h \;+\; 1.
+          \qedhere
+        \]
+\end{enumerate}
 
-\subsubsection{C2 --- Cycles gel\'es}
+\begin{propriete}
+La contrainte C1 est \'equivalente \`a la conservation du nombre de carbones,
+et \'equivalente \`a $\ncinq = \nsept$.
+\end{propriete}
+
+\noindent\textit{Preuve.}
+Les quantit\'es $|\ED|$ et $h$ sont des \textbf{constantes} du graphe dual
+d'entr\'ee~: la substitution modifie la taille des cycles mais ne change
+ni la structure d'adjacence ni le nombre de faces. Par la
+propri\'et\'e~\ref{prop:euler}~:
+\[
+  V_{\text{nouveau}} = V_{\text{original}}
+  \;\Longleftrightarrow\;
+  \sum_{v \in \VD} x_v = 6\,h.
+\]
+De plus, en posant $\ncinq + \nhex + \nsept = h$~:
+\[
+  5\ncinq + 6\nhex + 7\nsept = 6(\ncinq+\nhex+\nsept)
+  \;\Longleftrightarrow\;
+  -\ncinq + \nsept = 0
+  \;\Longleftrightarrow\;
+  \ncinq = \nsept.
+  \tag*{$\square$}
+\]
+
+\begin{exemple}[V\'erification num\'erique]
+Deux hexagones adjacents ($h=2$, $|\ED|=1$)~:
+$V = (6+6) - 1 - 2 + 1 = 10$ carbones
+(et non~$12$, car les deux cycles partagent une ar\^ete, soit 2~atomes
+en commun).
+
+Trois hexagones lin\'eaires ($h=3$, $|\ED|=2$)~:
+$V = 18 - 2 - 3 + 1 = 14$ carbones.
+\end{exemple}
+
+\subsubsection{C2 --- Hexagones gel\'es}
 \label{sec:gele}
 
-Un hexagone doit rester hexagone dans deux cas.
+Certains hexagones du benz\'eno\"ide d'entr\'ee doivent obligatoirement
+conserver leur taille~$6$~: on les dit \textbf{gel\'es}. Le crit\`ere repose
+sur la disposition des ar\^etes partag\'ees et des ar\^etes libres autour
+de l'hexagone.
 
-\paragraph{Cas 1 : hexagone int\'erieur.}
-Si $\degv = 6$, tous les c\^ot\'es sont partag\'es ; aucune substitution
-n'est possible.
+\begin{definition}[Blocs d'ar\^etes libres]
+Soit $\sigma(v) \in \{0,1\}^6$ le pattern de l'hexagone $v$, lu de
+fa\c{c}on cyclique. Un \textbf{bloc d'ar\^etes libres} est un sous-mot
+maximal de $0$ cons\'ecutifs dans $\sigma(v)$. On note $b(v)$ le nombre
+de tels blocs.
+\end{definition}
 
-\paragraph{Cas 2 : pattern incompatible.}
-Si $\degv < 6$ mais qu'aucune ligne de $\mathcal{T}(5)$ ni de $\mathcal{T}(7)$
-n'est compatible avec le pattern $\sigma(v)$, le cycle est gel\'e.
+\begin{exemple}
+$\sigma = (1,1,0,0,0,0)$~: un seul bloc de~$4$ z\'eros $\Rightarrow b = 1$.\\
+$\sigma = (1,0,0,1,0,0)$~: deux blocs de~$2$ z\'eros $\Rightarrow b = 2$.\\
+$\sigma = (1,0,1,0,1,0)$~: trois blocs de~$1$ z\'ero $\Rightarrow b = 3$.
+\end{exemple}
 
-\begin{notebox}[Patterns identifi\'es comme incompatibles]
-Les patterns suivants ont \'et\'e identifi\'es comme n'admettant aucun placement
-valide pour un pentagone ou un heptagone~:
-\begin{center}
-\begin{tabular}{cl}
-\toprule
-Pattern $\sigma(v)$ & Raison \\
-\midrule
-$\pat{6\;0\;0\;6\;0\;0}$ & c\^ot\'es oppos\'es (1 et 4) \\
-$\pat{6\;6\;0\;6\;0\;0}$ & 3 voisins dont un isol\'e \\
-$\pat{6\;6\;0\;6\;6\;0}$ & 4 voisins en deux paires \\
-$\pat{6\;0\;6\;0\;6\;0}$ & c\^ot\'es altern\'es (1, 3, 5) \\
-\bottomrule
-\end{tabular}
-\end{center}
-Cette liste est \`a compl\'eter selon l'analyse combinatoire compl\`ete
-de la compatibilit\'e entre $\sigma(v)$ et les tables $\mathcal{T}(5)$
-et $\mathcal{T}(7)$.
-\end{notebox}
+\paragraph{Cas 1 --- Hexagone int\'erieur ($\degv = 6$).}
+Tous les c\^ot\'es sont partag\'es ($b(v)=0$)~; il n'y a aucune ar\^ete
+libre et la substitution est impossible.
 
-\begin{contrainte}[Cycles gel\'es]
+\paragraph{Cas 2 --- Ar\^etes libres s\'epar\'ees ($b(v) \geq 2$).}
+Si les ar\^etes partag\'ees d\'ecoupent le bord de l'hexagone en
+\textbf{deux blocs ou plus} d'ar\^etes libres, l'hexagone est gel\'e.
+
+\smallskip\noindent\textit{Justification.}
+Les ar\^etes partag\'ees sont verrouill\'ees par les cycles voisins~:
+elles occupent des positions fixes impos\'ees par la structure du
+benz\'eno\"ide. Chaque bloc d'ar\^etes libres se situe entre deux
+groupes d'ar\^etes partag\'ees et son nombre d'ar\^etes est
+d\'etermin\'e par l'espacement entre ces groupes.
+
+Substituer l'hexagone par un cycle de taille $n \neq 6$ reviendrait
+\`a ajouter ($n=7$) ou retirer ($n=5$) une ar\^ete \`a \textbf{un seul}
+des blocs sans modifier les autres, puisque les ar\^etes partag\'ees
+restent fix\'ees. Or d\`es que $b(v) \geq 2$, les blocs libres se
+trouvent de part et d'autre des ar\^etes partag\'ees~: modifier un bloc
+d\'eformerait l'espacement d'un c\^ot\'e tout en maintenant l'autre,
+ce qui est incompatible avec un polygone r\'egulier de taille~$n$.
+Le cycle doit donc rester un hexagone.
+
+\smallskip
+En revanche, lorsque $b(v) = 1$ (toutes les ar\^etes partag\'ees sont
+cons\'ecutives et les ar\^etes libres forment un seul bloc contigu),
+la substitution reste possible~: on peut agrandir ou r\'eduire cet
+unique bloc pour passer \`a un heptagone ou un pentagone.
+
+\begin{contrainte}[Hexagones gel\'es]
 \label{c:gele}
 \[
   \forall\, v \in \VD,\quad
-  \Bigl[\,\degv = 6 \;\lor\;
-  \text{aucune ligne de } \mathcal{T}(5) \cup \mathcal{T}(7)
-  \text{ n'est compatible avec } \sigma(v)
-  \Bigr]
+  \bigl[\,\degv = 6 \;\;\lor\;\; b(v) \geq 2\,\bigr]
   \;\Longrightarrow\; \xv = 6.
 \]
 \end{contrainte}
 
 \begin{remarque}
-La contrainte C2 g\'en\'eralise la condition ``hexagone int\'erieur gel\'e''
-en incorporant les cas o\`u le pattern local du benz\'eno\"ide interdit
-g\'eom\'etriquement toute substitution, m\^eme pour des cycles de bord.
+Ce crit\`ere est purement structurel~: il ne d\'epend que du pattern
+$\sigma(v)$ et peut \^etre \'evalu\'e en temps constant lors de la lecture
+du benz\'eno\"ide d'entr\'ee, avant toute r\'esolution.
 \end{remarque}
 
 \subsubsection{C3 --- Voisinage admissible}
@@ -517,9 +600,8 @@ $\xv$ & $\{5, 6, 7\}$ & pour tout $v \in \VD$ \\
 \midrule
 C1 & Conservation du carbone &
   $\displaystyle\sum_{v \in \VD} x_v = 6h \;\Leftrightarrow\; n_5 = n_7$ \\[6pt]
-C2 & Cycles gel\'es &
-  $\bigl[\degv=6 \lor \text{aucune ligne de } \mathcal{T}(5)\cup\mathcal{T}(7)$
-  \text{ compatible avec } $\sigma(v)\bigr] \Rightarrow \xv=6$ \\[4pt]
+C2 & Hexagones gel\'es &
+  $\bigl[\degv=6 \;\lor\; b(v) \geq 2\bigr] \Rightarrow \xv=6$ \\[4pt]
 C3 & Voisinage admissible &
   $\Lambda(v) \in \mathcal{T}(\xv)$ pour tout $v \in \VD$ \\
 \bottomrule
@@ -544,5 +626,322 @@ C1 \`a C3, encod\'ees dans le format de sortie adapt\'e du format Benzai.
         taille~3. La table $\mathcal{T}(n)$ est une contrainte extensionnelle
         trait\'ee efficacement par les solveurs CSP modernes.
 \end{itemize}
+
+% ════════════════════════════════════════════════════════════════════
+\section{Pr\'e-traitement~: exploitation du graphe dual d'entr\'ee}
+% ════════════════════════════════════════════════════════════════════
+
+Le graphe dual $\GD$ est connu \emph{avant} la r\'esolution. Il fournit,
+pour chaque sommet~$v$, le degr\'e $\degv$, le pattern $\sigma(v)$ et le
+nombre de blocs libres $b(v)$. Ces informations permettent de
+\textbf{r\'eduire la table de voisinage} et les domaines des variables
+avant de lancer le solveur, all\'egeant ainsi consid\'erablement l'espace
+de recherche.
+
+\subsection{\'Etape~1~: filtrage par pattern}
+
+La table compl\`ete $\mathcal{T}(n)$ contient toutes les configurations
+locales admissibles pour un cycle de taille~$n$, ind\'ependamment de
+l'instance. Pour une instance donn\'ee, chaque sommet~$v$ n'a besoin que
+du sous-ensemble compatible avec son pattern.
+
+\begin{definition}[Table restreinte]
+Pour un sommet $v \in \VD$ et une taille $n \in \{5,6,7\}$, la
+\textbf{table restreinte} est
+\[
+  \mathcal{T}_v(n) \;=\;
+  \bigl\{\,\ell \in \mathcal{T}(n) \;\bigm|\;
+  \text{les positions non nulles de } \ell
+  \text{ sont compatibles avec } \sigma(v)
+  \,\bigr\}.
+\]
+\end{definition}
+
+Concr\`etement, une ligne $\ell = (s_1, \ldots, s_n) \in \mathcal{T}(n)$
+est compatible avec $\sigma(v)$ si les ar\^etes partag\'ees de $\sigma(v)$
+(les positions $i$ o\`u $\sigma_i = 1$) correspondent, apr\`es remappage
+dans le cycle de taille~$n$, exactement aux positions non nulles de~$\ell$.
+
+\subsection{\'Etape~2~: filtrage par domaine des voisins}
+
+Si un voisin $u$ de $v$ est gel\'e par C2 ($x_u = 6$), on peut
+\'eliminer de $\mathcal{T}_v(n)$ toute ligne qui attribue une taille
+diff\'erente de~$6$ \`a la position correspondant \`a~$u$~:
+\[
+  \mathcal{T}_v(n) \;\leftarrow\;
+  \bigl\{\,\ell \in \mathcal{T}_v(n) \;\bigm|\;
+  \ell[\text{pos}(u)] = 6
+  \,\bigr\}.
+\]
+
+Plus g\'en\'eralement, toute r\'eduction du domaine de $x_u$
+(par exemple $x_u \in \{6,7\}$ au lieu de $\{5,6,7\}$) permet d'\'elaguer
+les lignes de $\mathcal{T}_v(n)$ contenant des valeurs exclues pour~$u$.
+
+\subsection{\'Etape~3~: arc-consistance}
+
+Apr\`es les \'etapes~1 et~2, on propage les r\'eductions entre voisins.
+Pour chaque ar\^ete $(u,v) \in \ED$, on v\'erifie que chaque valeur
+restante de $x_u$ est support\'ee par au moins une ligne de $\mathcal{T}_v$
+(et r\'eciproquement). Si une valeur perd tous ses supports, elle est
+retir\'ee du domaine, ce qui peut d\'eclencher de nouvelles r\'eductions
+en cascade.
+
+Ce filtrage par arc-consistance est un pr\'e-traitement classique en CSP~;
+il est g\'en\'eralement int\'egr\'e au solveur, mais peut aussi \^etre
+effectu\'e en amont dans le code Python pour r\'eduire la taille des
+tables transmises au solveur.
+
+\begin{remarque}
+Ces trois \'etapes sont appliqu\'ees \textbf{avant} la r\'esolution.
+Elles exploitent le fait que le graphe dual est une donn\'ee d'entr\'ee,
+et non une inconnue, pour r\'eduire le probl\`eme transmis au solveur.
+\end{remarque}
+
+% ════════════════════════════════════════════════════════════════════
+\section{Rupture de sym\'etrie}
+% ════════════════════════════════════════════════════════════════════
+
+\subsection{Probl\`eme des solutions redondantes}
+
+Le graphe dual $\GD$ peut poss\'eder des \textbf{automorphismes}~:
+des permutations de ses sommets qui pr\'eservent la structure d'adjacence.
+Par exemple, un benz\'eno\"ide lin\'eaire \`a 3~hexagones admet un axe de
+sym\'etrie qui \'echange les hexagones extr\^emes.
+
+Si $\pi$ est un automorphisme de $\GD$ et $(x_{v_1}, \ldots, x_{v_h})$
+est une solution du CSP, alors $(x_{\pi(v_1)}, \ldots, x_{\pi(v_h)})$
+est \'egalement une solution. Ces deux solutions repr\'esentent la
+\textbf{m\^eme structure mol\'eculaire} (aux rotations et r\'eflexions
+pr\`es) et ne doivent \^etre compt\'ees qu'une fois.
+
+La question fondamentale est~: \emph{les automorphismes de $\GD$ capturent-ils
+toutes les redondances, et seulement elles~?} La r\'eponse est oui, et nous
+le prouvons ci-dessous.
+
+\subsection{Groupe d'automorphismes}
+
+\begin{definition}[Automorphisme du graphe dual]
+Un \textbf{automorphisme} de $\GD$ est une bijection
+$\pi : \VD \to \VD$ telle que
+\[
+  (u,v) \in \ED \;\Longleftrightarrow\; (\pi(u), \pi(v)) \in \ED.
+\]
+L'ensemble de ces bijections forme le \textbf{groupe d'automorphismes}
+$\mathrm{Aut}(\GD)$.
+\end{definition}
+
+Le groupe $\mathrm{Aut}(\GD)$ peut \^etre calcul\'e en pr\'e-traitement
+\`a l'aide d'algorithmes sp\'ecialis\'es (par exemple \textsc{nauty},
+\textsc{bliss}, ou les fonctions d'isomorphisme de NetworkX).
+
+\begin{definition}[Action sur les solutions]
+Un automorphisme $\pi \in \mathrm{Aut}(\GD)$ agit sur une solution
+$\alpha : \VD \to \{5,6,7\}$ par~:
+\[
+  (\pi \cdot \alpha)(v) \;=\; \alpha\bigl(\pi^{-1}(v)\bigr)
+  \qquad \forall\, v \in \VD.
+\]
+Deux solutions $\alpha$ et $\beta$ sont dans la m\^eme \textbf{orbite}
+s'il existe $\pi \in \mathrm{Aut}(\GD)$ tel que $\beta = \pi \cdot \alpha$.
+\end{definition}
+
+\subsection{\'Equivalence entre redondance et automorphisme}
+
+\newtheorem{theoreme}{Th\'eor\`eme}[section]
+
+\begin{theoreme}[Caract\'erisation des solutions redondantes]
+\label{thm:sym}
+Deux solutions $\alpha$ et $\beta$ du CSP produisent des graphes de
+carbone isomorphes si et seulement s'il existe
+$\pi \in \mathrm{Aut}(\GD)$ tel que $\beta = \pi \cdot \alpha$.
+\end{theoreme}
+
+\noindent\textit{Preuve.}
+
+\paragraph{Sens ($\Leftarrow$)~: l'automorphisme implique l'isomorphisme.}
+Soit $\pi \in \mathrm{Aut}(\GD)$ tel que $\beta = \pi \cdot \alpha$.
+Puisque $\pi$ pr\'eserve l'adjacence dans $\GD$, il induit une bijection
+sur les faces du graphe de carbone qui envoie chaque cycle de taille
+$\alpha(v)$ sur un cycle de taille $\alpha(\pi^{-1}(\pi(v))) = \alpha(v)
+= \beta(\pi(v))$. Les ar\^etes partag\'ees entre faces adjacentes sont
+pr\'eserv\'ees. Donc $\pi$ induit un isomorphisme entre les graphes de
+carbone $G_\alpha$ et $G_\beta$.
+
+\paragraph{Sens ($\Rightarrow$)~: l'isomorphisme implique l'automorphisme.}
+Supposons que $G_\alpha \cong G_\beta$ via un isomorphisme
+$\varphi : V(G_\alpha) \to V(G_\beta)$.
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{2-connexit\'e du graphe de carbone.}
+        Dans un benz\'eno\"ide (et dans toute structure substitu\'ee
+        qui en d\'erive), deux cycles adjacents partagent exactement
+        une ar\^ete, c'est-\`a-dire deux atomes de carbone. Aucun
+        sommet n'est un point d'articulation~: le graphe de carbone
+        est donc \textbf{2-connexe}.
+
+  \item \textbf{Unicit\'e du plongement (th\'eor\`eme de Whitney).}
+        Un graphe planaire 2-connexe admet un \textbf{unique plongement
+        combinatoire} dans le plan (\`a r\'eflexion pr\`es). Cela signifie
+        que l'isomorphisme $\varphi$ pr\'eserve (ou inverse) l'ordre
+        cyclique des ar\^etes autour de chaque sommet.
+
+  \item \textbf{Pr\'eservation des faces.}
+        Cons\'equence directe de l'unicit\'e du plongement~: $\varphi$
+        envoie les faces de $G_\alpha$ sur les faces de $G_\beta$.
+        Les faces internes sont exactement les cycles (sommets de $\VD$).
+        Donc $\varphi$ induit une bijection $\pi : \VD \to \VD$.
+
+  \item \textbf{$\pi$ est un automorphisme de $\GD$.}
+        Deux faces sont adjacentes dans $\GD$ si et seulement si elles
+        partagent une ar\^ete dans le graphe de carbone. Puisque $\varphi$
+        pr\'eserve les ar\^etes, $\pi$ pr\'eserve l'adjacence~:
+        $\pi \in \mathrm{Aut}(\GD)$.
+
+  \item \textbf{$\beta = \pi \cdot \alpha$.}
+        La taille d'une face est un invariant de l'isomorphisme~: la face
+        correspondant \`a $v$ dans $G_\alpha$ a $\alpha(v)$ sommets, et
+        son image $\pi(v)$ dans $G_\beta$ a \'egalement $\alpha(v)$
+        sommets. Donc $\beta(\pi(v)) = \alpha(v)$ pour tout $v$,
+        c'est-\`a-dire $\beta = \pi \cdot \alpha$.
+        \hfill$\square$
+\end{enumerate}
+
+\begin{remarque}
+Ce th\'eor\`eme garantit que les contraintes lex-leader sur
+$\mathrm{Aut}(\GD)$ sont \textbf{exactes}~: elles \'eliminent toutes
+les solutions redondantes et seulement elles. Aucune solution
+structurellement distincte n'est perdue.
+\end{remarque}
+
+\subsection{Contraintes lex-leader}
+
+Pour \'eliminer les solutions redondantes, on impose que la solution
+retenue soit \textbf{lexicographiquement minimale} parmi toutes les
+solutions de son orbite sous $\mathrm{Aut}(\GD)$.
+
+\begin{definition}[Contrainte lex-leader]
+Soit $\pi$ un automorphisme de $\GD$ et $(v_1, \ldots, v_h)$ un ordre
+fix\'e des sommets. La contrainte lex-leader associ\'ee \`a~$\pi$ est~:
+\[
+  (x_{v_1}, x_{v_2}, \ldots, x_{v_h})
+  \;\leq_{\mathrm{lex}}\;
+  (x_{\pi(v_1)}, x_{\pi(v_2)}, \ldots, x_{\pi(v_h)}).
+\]
+\end{definition}
+
+En pratique, il suffit d'ajouter une contrainte lex-leader pour chaque
+\textbf{g\'en\'erateur} du groupe $\mathrm{Aut}(\GD)$ (et non pour chaque
+\'el\'ement), ce qui limite le nombre de contraintes ajout\'ees.
+
+\begin{remarque}[Orbites de sommets]
+Deux sommets $u, v \in \VD$ appartenant \`a la m\^eme orbite sous
+$\mathrm{Aut}(\GD)$ sont structurellement interchangeables. Cette
+information peut guider l'\textbf{ordre de branchement} du solveur~:
+on fixe d'abord les variables d'un repr\'esentant par orbite.
+\end{remarque}
+
+\subsection{Justification du traitement en amont}
+
+Le solveur utilis\'e via PyCSP3 fonctionne comme une \textbf{bo\^ite
+noire}~: on lui transmet un mod\`ele (variables, domaines, contraintes)
+au format XCSP3, et il retourne les solutions. Il n'y a pas d'acc\`es
+\`a l'\'etat interne du solveur pendant la r\'esolution (pas de callback,
+pas d'injection de nogoods \`a la vol\'ee).
+
+C'est pourquoi la rupture de sym\'etrie doit \^etre enti\`erement
+encod\'ee \textbf{dans le mod\`ele}, avant la r\'esolution~:
+\begin{enumerate}[leftmargin=*]
+  \item Calculer $\mathrm{Aut}(\GD)$ et ses g\'en\'erateurs en Python
+        (NetworkX, \textsc{nauty} ou \textsc{bliss}).
+  \item Pour chaque g\'en\'erateur $\pi$, ajouter une contrainte
+        \texttt{LexIncreasing} dans le mod\`ele PyCSP3.
+  \item Transmettre le mod\`ele complet au solveur.
+\end{enumerate}
+
+Par le th\'eor\`eme~\ref{thm:sym}, cette approche garantit l'obtention
+de \textbf{toutes les structures distinctes, sans doublon}.
+
+\begin{exemple}
+Consid\'erons un benz\'eno\"ide lin\'eaire \`a $h=3$ hexagones
+$v_1, v_2, v_3$. Le graphe dual est un chemin $v_1 - v_2 - v_3$.
+Son unique automorphisme non trivial est la r\'eflexion
+$\pi : v_1 \leftrightarrow v_3,\; v_2 \mapsto v_2$.
+La contrainte lex-leader est~:
+\[
+  (x_{v_1}, x_{v_2}, x_{v_3})
+  \;\leq_{\mathrm{lex}}\;
+  (x_{v_3}, x_{v_2}, x_{v_1}).
+\]
+Ainsi, la solution $(7, 6, 5)$ est accept\'ee mais $(5, 6, 7)$ est
+rejet\'ee car $5 < 7$ lexicographiquement (et elle est dans la m\^eme
+orbite que $(7, 6, 5)$ via~$\pi$).
+\end{exemple}
+
+% ════════════════════════════════════════════════════════════════════
+\section{Choix de l'outil de r\'esolution}
+% ════════════════════════════════════════════════════════════════════
+
+\subsection{Contexte}
+
+Le pipeline de g\'en\'eration existant est \'ecrit en Python.
+La th\`ese de Varet (2022) utilise Choco Solver (Java) avec injection
+de nogoods pour la rupture de sym\'etrie. Nous comparons cette approche
+avec PyCSP3, une biblioth\`eque Python qui g\'en\`ere des instances au
+format XCSP3.
+
+\subsection{Comparaison}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{@{}p{4cm}p{4.5cm}p{4.5cm}@{}}
+\toprule
+\textbf{Crit\`ere} & \textbf{Choco (Java)} & \textbf{PyCSP3 (Python)} \\
+\midrule
+Langage &
+  Java &
+  Python (g\'en\`ere XCSP3 XML) \\
+Solveur &
+  Int\'egr\'e (choco-solver) &
+  Backend~: ACE, Choco, PicatSAT \\
+Tables extensionnelles &
+  \texttt{table()} natif &
+  \texttt{Extension()} $\to$ XCSP3 \\
+Lex-leader &
+  \texttt{model.lexLess()} &
+  \texttt{LexIncreasing()} \\
+Nogoods \`a l'ex\'ecution &
+  API directe &
+  Pas d'acc\`es runtime \\
+Int\'egration Python &
+  Via Py4J ou subprocess &
+  Natif \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Choix retenu}
+
+\textbf{PyCSP3} est retenu pour les raisons suivantes~:
+\begin{itemize}
+  \item \textbf{Coh\'erence du pipeline}~: le pr\'e-traitement
+        (lecture Benzai, construction du dual, filtrage des tables,
+        calcul des automorphismes) est d\'ej\`a en Python.
+        PyCSP3 \'evite un changement de langage.
+  \item \textbf{Fonctionnalit\'es suffisantes}~: les contraintes
+        extensionnelles (\texttt{Extension}) et les contraintes
+        lexicographiques (\texttt{LexIncreasing}) couvrent notre
+        mod\`ele (C1 via \texttt{Sum}, C2 via r\'eduction de domaine,
+        C3 via \texttt{Extension}, sym\'etries via \texttt{LexIncreasing}).
+  \item \textbf{Multi-solveur}~: le format XCSP3 permet de tester
+        diff\'erents solveurs (ACE, Choco, etc.) sans modifier le mod\`ele.
+\end{itemize}
+
+L'approche par nogoods utilis\'ee dans la th\`ese de Varet n\'ecessite
+un acc\`es bas niveau au solveur que PyCSP3 ne fournit pas. Cependant,
+les contraintes lex-leader sont une alternative standard qui offre des
+garanties \'equivalentes pour la rupture de sym\'etrie. Si les performances
+s'av\`erent insuffisantes sur de grandes instances, une migration vers
+Choco/Java reste possible, le mod\`ele \'etant identique.
 
 \end{document}
