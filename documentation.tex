@@ -247,6 +247,125 @@ Si aucune transformée ne satisfait la condition des zéros regroupés (cas des 
 entièrement non nulles, ex. hexagone complet), on prend simplement le maximum lexicographique
 de toutes les transformées.
 
+\subsection{Dénombrement exact : lemme de Burnside}
+
+Le nombre de séquences canoniques (orbites distinctes sous l'action de $D_n$) se calcule
+exactement grâce au \textbf{lemme de Burnside} :
+\[
+  |\text{orbites}| = \frac{1}{|D_n|} \sum_{g \in D_n} |\text{Fix}(g)|
+\]
+où $\text{Fix}(g)$ désigne l'ensemble des séquences valides qui sont \textit{invariantes} par
+la transformation $g$.
+
+\begin{remarque}[title=Intuition du lemme de Burnside]
+  Le lemme de Burnside (aussi appelé lemme de Cauchy--Frobenius) affirme que le nombre d'objets
+  \textbf{distincts sous un groupe de symétries} $G$ est la \textbf{moyenne} du nombre de points
+  fixes de chaque symétrie. Autrement dit : pour compter combien de ``colliers'' différents on
+  peut fabriquer avec des perles colorées, on regarde pour chaque rotation et chaque réflexion
+  combien de colliers restent inchangés, puis on fait la moyenne. Ici, les ``colliers'' sont les
+  séquences de voisins $(s_0, \ldots, s_{n-1})$ et le groupe est $D_n$.
+\end{remarque}
+
+\subsubsection{Séquences brutes valides}
+
+L'ensemble de départ $S$ contient les séquences $(s_0, \ldots, s_{n-1}) \in \{0,5,6,7\}^n$
+vérifiant :
+\begin{enumerate}
+  \item le nombre de positions non nulles est compris entre $k_{\min}$ et $k_{\max}$ ;
+  \item \textbf{exclusion benzenoïde} (cycle central 6 uniquement) : au moins un voisin
+    non nul doit être $\neq 6$.
+\end{enumerate}
+
+Le cardinal brut (avant réduction par symétrie) est :
+\[
+  |S| = \sum_{k=k_{\min}}^{k_{\max}} \binom{n}{k} \cdot 3^k
+  \quad - \quad \underbrace{\sum_{k=k_{\min}}^{k_{\max}} \binom{n}{k}}_{\text{benzenoïdes (si $n=6$)}}
+\]
+Le facteur $3^k$ correspond aux 3 choix $\{5, 6, 7\}$ pour chaque position non nulle.
+
+\subsubsection{Points fixes par type de transformation}
+
+\paragraph{Cas $n$ premier (5 et 7).}
+Comme $n$ est premier, toute rotation non triviale $r^k$ ($k \neq 0$) a pour seuls points
+fixes les séquences \textbf{constantes} $(v, v, \ldots, v)$ avec $v \in \{0,5,6,7\}$.
+Or une séquence constante non nulle a $n$ positions occupées, ce qui dépasse le maximum autorisé
+($k_{\max} = 4$ pour $n=5$, $k_{\max} = 5$ pour $n=7$). Donc :
+\[
+  \text{Fix}(r^k) = 0 \quad \text{pour } k = 1, \ldots, n-1
+\]
+
+Chaque réflexion fixe 1 position et échange $\frac{n-1}{2}$ paires. Par exemple, pour $n=5$,
+la réflexion $\sigma_0$ fixe la position 0 et échange $(1 \leftrightarrow 4)$ et
+$(2 \leftrightarrow 3)$. Les paramètres libres sont $(s_0, s_1, s_2)$, et le comptage des
+configurations valides donne $\text{Fix}(\sigma) = 33$ (pour $n=5$) et $\text{Fix}(\sigma) = 144$
+(pour $n=7$).
+
+\paragraph{Cas $n = 6$ (non premier).}
+Les rotations d'ordre strict inférieur à 6 ont des points fixes non triviaux :
+
+\begin{center}
+\begin{tabular}{llcl}
+  \toprule
+  Transformation & Orbites sur les positions & Ordre & $|\text{Fix}|$ \\
+  \midrule
+  $r, r^5$   & $\{0,1,2,3,4,5\}$ & 6 & 2 (séquences constantes $(5,\ldots)$ et $(7,\ldots)$) \\
+  $r^2, r^4$ & $\{0,2,4\},\ \{1,3,5\}$ & 3 & 12 \\
+  $r^3$      & $\{0,3\},\ \{1,4\},\ \{2,5\}$ & 2 & 56 \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+De plus, $D_6$ possède \textbf{deux classes de conjugaison} de réflexions :
+\begin{itemize}
+  \item 3 réflexions par sommets opposés (fixent 2 positions, échangent 2 paires) :
+    $|\text{Fix}| = 236$ chacune ;
+  \item 3 réflexions par milieux d'arêtes opposées (échangent 3 paires) :
+    $|\text{Fix}| = 56$ chacune.
+\end{itemize}
+
+\subsubsection{Résultats}
+
+\paragraph{Cycle 5 ($|D_5| = 10$, $|S| = 765$) :}
+\[
+  |\text{orbites}| = \frac{1}{10}\left(765 + 4 \times 0 + 5 \times 33\right)
+                   = \frac{930}{10} = \mathbf{93}
+\]
+
+\paragraph{Cycle 6 ($|D_6| = 12$, $|S| = 4020$ après exclusion benzenoïde) :}
+\[
+  |\text{orbites}| = \frac{1}{12}\left(
+    4020 + 2 + 12 + 56 + 12 + 2 + 3 \times 236 + 3 \times 56
+  \right)
+  = \frac{4980}{12} = \mathbf{415}
+\]
+
+\paragraph{Cycle 7 ($|D_7| = 14$, $|S| = 9072$) :}
+\[
+  |\text{orbites}| = \frac{1}{14}\left(9072 + 6 \times 0 + 7 \times 144\right)
+                   = \frac{10080}{14} = \mathbf{720}
+\]
+
+\begin{center}
+\begin{tabular}{ccccc}
+  \toprule
+  Cycle central & $|S|$ brut & $|D_n|$ & Orbites & Voisins (min--max) \\
+  \midrule
+  5 &  765 & 10 &  93 & 2--4 \\
+  6 & 4020 & 12 & 415 & 2--6 \\
+  7 & 9072 & 14 & 720 & 2--5 \\
+  \midrule
+  \textbf{Total} & & & \textbf{1228} & \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\begin{remarque}
+  Le fait que chaque résultat tombe sur un entier exact constitue une vérification indirecte
+  de la cohérence entre l'implémentation du code (énumération + forme canonique) et la théorie
+  (lemme de Burnside). Toute erreur dans les contraintes ou dans le groupe de symétrie
+  produirait un résultat fractionnaire.
+\end{remarque}
+
 % ============================================================
 \section{Concepts géométriques clés}
 % ============================================================
@@ -331,56 +450,151 @@ mais doit vérifier les règles suivantes :
   \item la \textbf{somme des ordres de liaison} autour de chaque carbone est exactement 4.
 \end{itemize}
 
-\subsection{Algorithme glouton de placement des doubles liaisons}
+\subsection{Algorithme de placement des doubles liaisons : couplage maximum pondéré}
 
-Les arêtes éligibles sont classées en deux catégories, traitées dans cet ordre de priorité :
+Le placement des doubles liaisons est formalisé comme un \textbf{problème de couplage maximum
+pondéré} (\textit{maximum weight matching}) sur le graphe carbone--carbone de la molécule.
+
+\subsubsection{Pourquoi pas un algorithme glouton ?}
+
+Une première implémentation utilisait un algorithme glouton qui parcourait les arêtes par
+priorité et assignait une double liaison à chaque arête dont aucune extrémité n'était déjà
+couverte. Cette approche présentait deux défauts :
+
+\begin{itemize}
+  \item Elle \textbf{excluait les arêtes de fusion internes} (les deux extrémités dans le
+    cycle central, degré $\geq 3$), alors qu'en chimie ces liaisons peuvent parfaitement être
+    des doubles dans une structure de Kekulé (ex. la liaison centrale du naphtalène).
+  \item Elle ne garantissait pas le \textbf{maximum de doubles liaisons} : pour 13 carbones
+    (ex. \texttt{5\_0\_5\_0\_0\_0\_0}, heptagone central), le glouton trouvait 5 doubles au lieu
+    de 6, laissant 3 carbones sans double liaison au lieu d'un seul radical.
+\end{itemize}
+
+\subsubsection{Modélisation par couplage maximum}
+
+Le problème est résolu par l'\textbf{algorithme de Blossom} (Edmonds, 1965), implémenté dans
+NetworkX via \texttt{nx.max\_weight\_matching(G, maxcardinality=True)} :
 
 \begin{enumerate}
-  \item \textbf{Arêtes coadjacentes} (prioritaires) : les deux extrémités ont un degré carbone
-    $\geq 3$, mais l'une appartient au cycle central et l'autre non. Ce sont les arêtes de
-    jonction entre un sommet central et un sommet partagé. Elles doivent recevoir une double
-    liaison en premier pour éviter que leurs extrémités soient ``bloquées'' par un double lien
-    périphérique.
-
-  \item \textbf{Arêtes périphériques} : au moins l'une des deux extrémités a un degré carbone
-    $< 3$ (carbone de bord, portant un H).
+  \item On construit un graphe $G = (V, E)$ où $V$ = ensemble des carbones et $E$ = ensemble
+    des liaisons C--C (y compris les liaisons de fusion internes).
+  \item Chaque arête reçoit un \textbf{poids} selon le cycle auquel elle appartient :
+    \begin{itemize}
+      \item arête dans un cycle à 7 : poids $w = 10$
+      \item arête dans un cycle à 5 : poids $w = 3$
+      \item arête dans un cycle à 6 ou arête de fusion : poids $w = 1$
+    \end{itemize}
+  \item \texttt{maxcardinality=True} garantit de maximiser \textbf{d'abord le nombre de paires}
+    (nombre maximal de doubles liaisons), \textbf{puis le poids total} (préférence pour les
+    doubles dans les heptagones).
 \end{enumerate}
 
-Sont \textbf{exclues} : les arêtes dont les deux extrémités sont toutes deux dans le cycle
-central et de degré $\geq 3$ (arêtes de fusion interne pure — elles correspondent aux arêtes
-partagées entre le cycle central et un voisin).
+L'algorithme de Blossom fonctionne sur les graphes \textbf{non bipartites}, ce qui est essentiel
+car les pentagones et heptagones (cycles impairs) rendent le graphe carbone non bipartite.
+Les approches purement bipartites (matrice de biadjacence, déterminant de Rispoli) ne sont
+valables que pour les benzenoïdes purs (cycles pairs uniquement).
 
-L'algorithme parcourt la liste ordonnée et place une double liaison si aucune des deux
-extrémités n'a déjà reçu de double liaison.
+\begin{remarque}
+  Cette modélisation est équivalente au modèle $M_2^K$ de la thèse de Varet (AMU, 2022) :
+  une variable booléenne $x_{v,w} \in \{0, 1\}$ par liaison, avec la contrainte
+  $\sum_{w \in \mathcal{N}(v)} x_{v,w} = 1$ pour chaque carbone $v$ (exactement une double
+  liaison par carbone). La différence est que Varet utilise PyCSP3 (Choco Solver) pour
+  \textit{énumérer toutes} les structures de Kekulé, alors que nous utilisons NetworkX pour en
+  trouver \textit{une seule optimale} (poids maximal).
+\end{remarque}
+
+\subsubsection{Repli glouton}
+
+Si NetworkX n'est pas installé, le code bascule sur un algorithme glouton corrigé qui considère
+\textbf{toutes} les arêtes C--C (y compris les arêtes internes) avec priorité aux arêtes des
+cycles à 7. Ce repli est sous-optimal mais fonctionnel.
 
 \subsection{Règle du nombre pair / impair de carbones}
 
-\subsubsection{Nombre pair}
+\subsubsection{Formule du nombre de carbones}
 
-Si le nombre total de carbones est pair, une alternance complète simple/double est en général
-possible : chaque carbone peut participer exactement à une double liaison.
+Le nombre total de carbones se calcule directement à partir de la séquence. Sans coadjacence :
+\[
+  N_C = n + \sum_{\substack{i=0 \\ s_i \neq 0}}^{n-1} (s_i - 2)
+\]
+où $n$ est la taille du cycle central et $s_i$ la taille du voisin en position $i$. Chaque
+voisin de taille $s_i$ fusionné sur une arête partage 2 carbones avec le cycle central et en
+ajoute $(s_i - 2)$ nouveaux. En cas de coadjacence, un sommet supplémentaire est partagé entre
+deux voisins consécutifs, ce qui réduit $N_C$ de 1 par fusion coadjacente.
+
+\begin{remarque}
+  L'apport de chaque type de voisin : pentagone $\to +3$ (impair), hexagone $\to +4$ (pair),
+  heptagone $\to +5$ (impair). Ainsi, la parité de $N_C$ dépend de la taille du cycle central
+  et du nombre de voisins à contribution impaire (pentagones et heptagones).
+\end{remarque}
+
+\subsubsection{Nombre pair — couche fermée}
+
+Si $N_C$ est pair, la molécule est dite \textbf{à couche fermée} : le couplage maximum de
+Blossom trouve un \textbf{couplage parfait} (chaque carbone est couvert par exactement une
+double liaison). Il n'y a \textbf{aucun radical}.
+
+C'est le cas idéal : toutes les valences sont satisfaites à 4, et le champ de force MMFF94
+planarise la structure de manière fiable.
 
 \subsubsection{Nombre impair — carbone radicalaire}
 
-Si le nombre de carbones est \textbf{impair}, il est impossible de former des paires complètes.
-Un carbone restera nécessairement avec une valence insatisfaite : c'est un \textbf{carbone
-radicalaire}.
-
-Ce carbone radicalaire doit vérifier :
-\begin{itemize}
-  \item 3 liaisons C--C simples (ou 2 C--C + 1 C--H), \textit{sans} double liaison ;
-  \item pas d'hydrogène supplémentaire (si 3 carbones voisins) ou un seul H (si 2 carbones
-    voisins).
-\end{itemize}
-
-En pratique, on identifie le candidat comme un carbone de degré 3 (jonction de fusion) sans
-double liaison attribuée, et on omet l'ajout d'un hydrogène supplémentaire.
+Si $N_C$ est impair, il est \textbf{mathématiquement impossible} de former des paires complètes.
+Le couplage maximum couvre $N_C - 1$ carbones ($\lfloor N_C / 2 \rfloor$ doubles liaisons),
+laissant \textbf{exactement un carbone} sans double liaison : c'est le \textbf{carbone
+radicalaire} (un électron célibataire).
 
 \begin{attention}
-  La préférence pour les cycles à 7 (maximiser les doubles liaisons dans les heptagones) et
-  la gestion explicite du marquage du radical sont partiellement implémentées et font partie
-  des améliorations prévues.
+  Il ne doit y avoir qu'\textbf{un seul} carbone radicalaire, jamais deux ou trois. Si le
+  solveur laisse plusieurs carbones sans double liaison, c'est un bug (le couplage n'est pas
+  maximal). C'est précisément le problème que l'ancien algorithme glouton produisait.
 \end{attention}
+
+Le carbone radicalaire a une valence de \textbf{3} (et non 4). Deux cas possibles :
+
+\begin{center}
+\begin{tabular}{lccl}
+  \toprule
+  Configuration & Liaisons C--C & Hydrogènes & Description \\
+  \midrule
+  Carbone de jonction  & 3 simples  & 0 H & Carbone interne, valence 3 = 3$\times$C--C \\
+  Carbone périphérique & 2 simples  & 1 H & Carbone de bord, valence 3 = 2$\times$C--C + 1$\times$H \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Procédure de validation chimique}
+\label{sec:procedure-chimiste}
+
+La procédure suivante, fournie par le chimiste du projet, doit être respectée pour s'assurer
+qu'une structure est chimiquement correcte :
+
+\begin{enumerate}
+  \item \textbf{Maximiser l'alternance simple/double} : préférer compléter avec le maximum de
+    doubles liaisons dans les cycles à 7, car le champ de force ``planarise'' mieux les
+    structures avec des doubles dans les heptagones.
+  \item \textbf{Nombre impair $\Rightarrow$ un seul radical} : si $N_C$ est impair, s'assurer
+    qu'un unique carbone a une valence de 3 (soit 3 C--C, soit 2 C--C + 1 H). Il faut
+    éventuellement \textit{retirer} un H d'un carbone qui a deux liaisons simples avec deux
+    autres carbones.
+  \item \textbf{Nombre pair $\Rightarrow$ alternance complète} : on doit pouvoir alterner
+    simples et doubles liaisons sans aucun carbone radicalaire.
+  \item \textbf{C--H dans le plan} : les liaisons C--H doivent rester dans le plan de la
+    molécule pour les carbones de valence 4 (garanti par construction dans notre code :
+    $z = 0$ pour tous les atomes).
+  \item \textbf{Optimisation MMFF94} : le champ de force MMFF94 (et non UFF) est le plus adapté
+    pour les petites molécules organiques aromatiques. UFF planarise artificiellement toutes les
+    structures (constantes de torsion trop fortes). Si MMFF94 donne une déviation au plan moyen
+    $> 10°$, la structure est \textbf{rejetée} comme non planaire.
+\end{enumerate}
+
+\begin{remarque}
+  Le code Python gère les étapes 1 à 4 automatiquement. L'étape 5 (optimisation MMFF94) est
+  réalisée en post-traitement dans un logiciel de visualisation moléculaire (Avogadro, par
+  exemple). Le critère de rejet par MMFF94 permet de filtrer les topologies qui ne sont pas
+  physiquement réalisables en tant que molécules planes, même si leur graphe est bien construit
+  (ex. \texttt{5\_5\_5\_0\_0}, 12 C, planaire avec UFF mais fortement déformée avec MMFF94).
+\end{remarque}
 
 \subsection{Placement des hydrogènes}
 
@@ -496,26 +710,40 @@ Fusionne deux sommets : redirige toutes les liaisons de \texttt{remove\_id} vers
 
 \textbf{\texttt{solve()}} : point d'entrée. Appelle dans l'ordre :
 \begin{enumerate}
-  \item \texttt{\_get\_peripheral\_edges} : construit la liste priorisée des arêtes éligibles.
-  \item Boucle gloutonne : place une double liaison sur chaque arête si aucune extrémité n'est
-    déjà doublement liée.
-  \item \texttt{\_handle\_radical} (si nombre impair de C).
-  \item \texttt{\_place\_hydrogens} : ajoute un H sur chaque valence libre.
+  \item \texttt{\_solve\_matching} (si NetworkX disponible) ou \texttt{\_solve\_greedy} (repli) :
+    place les doubles liaisons et retourne l'ensemble des carbones couverts.
+  \item \texttt{\_place\_hydrogens} : ajoute les H selon la procédure de validation chimique.
 \end{enumerate}
 
-\textbf{\texttt{\_get\_peripheral\_edges}} :
+\textbf{\texttt{\_solve\_matching}} (méthode principale) :
 \begin{lstlisting}
-# Groupe 1 : coadjacentes (priorite haute)
-# Les deux carbones ont degre >= 3, l'un dans le cycle central, l'autre non.
-one_in_central = (vid in central_vertices) != (other_id in central_vertices)
-if one_in_central:
-    edges_coadjacent.append((vid, other_id))
+# Construire le graphe pondere NetworkX
+G = nx.Graph()
+G.add_nodes_from(carbons)
+for vid in carbons:
+    for other_id, _ in graph.vertices[vid].bonds:
+        if other_id in carbon_set and other_id > vid:
+            # Poids selon le cycle d'appartenance
+            w = 10 if edge in edges_in_7 else (3 if edge in edges_in_5 else 1)
+            G.add_edge(vid, other_id, weight=w)
 
-# Groupe 2 : peripheriques (au moins un degre < 3)
-if not (deg_v >= 3 and deg_o >= 3):
-    edges_peripheral.append((vid, other_id))
+# Couplage maximum pondere (Blossom)
+matching = nx.max_weight_matching(G, maxcardinality=True)
+\end{lstlisting}
 
-return edges_coadjacent + edges_peripheral  # Coadjacentes en premier
+\textbf{\texttt{\_place\_hydrogens(carbons, covered)}} :
+\begin{lstlisting}
+for vid in carbons:
+    if vid in covered:
+        # sp2 : 1H si valence < 4
+        if 4 - get_valence_used(vid) >= 1:
+            add_hydrogen(vid)
+    else:
+        # Radical : reserve 1 valence pour l'electron celibataire
+        if cc_degree >= 3:
+            pass    # jonction, 0H
+        else:
+            n_h = 4 - cc_degree - 1  # degre 2 -> 1H
 \end{lstlisting}
 
 \subsection{\texttt{generators/builder.py} — Orchestrateur}
@@ -552,13 +780,14 @@ Les fichiers CML sont écrits dans \texttt{output/cycle5/}, \texttt{output/cycle
 \section{Bibliothèques utilisées}
 % ============================================================
 
-Le projet utilise \textbf{exclusivement la bibliothèque standard Python 3}. Aucune dépendance
-externe (NumPy, RDKit, OpenBabel, etc.) n'est requise.
+Le projet utilise la bibliothèque standard Python~3 et une dépendance externe optionnelle
+(NetworkX). Si NetworkX n'est pas installé, le solveur de valences bascule sur un algorithme
+glouton de secours.
 
 \begin{center}
 \begin{tabular}{lp{9cm}}
   \toprule
-  Module standard & Utilisation \\
+  Module & Utilisation \\
   \midrule
   \texttt{math} & \texttt{sin}, \texttt{cos}, \texttt{atan2}, \texttt{sqrt} pour la géométrie \\
   \texttt{itertools.product} & énumération de toutes les combinaisons de séquences \\
@@ -567,6 +796,9 @@ externe (NumPy, RDKit, OpenBabel, etc.) n'est requise.
   \texttt{dataclasses} & définition des structures \texttt{Vertex} et \texttt{Cycle} \\
   \texttt{pathlib} & gestion des chemins de fichiers \\
   \texttt{typing} & annotations de types (\texttt{List}, \texttt{Tuple}, \texttt{Optional}, etc.) \\
+  \midrule
+  \texttt{networkx} & \texttt{max\_weight\_matching} — algorithme de Blossom (Edmonds, 1965)
+    pour le couplage maximum pondéré. Installation : \texttt{pip install networkx}. \\
   \bottomrule
 \end{tabular}
 \end{center}
@@ -582,32 +814,23 @@ externe (NumPy, RDKit, OpenBabel, etc.) n'est requise.
   \item Placement géométrique du cycle central et de tous les cycles voisins
   \item Gestion correcte de la fusion coadjacente (sommets partagés entre voisins consécutifs)
   \item Gestion du wrap-around pour le cycle 6 complet (fusion des atomes dupliqués)
-  \item Placement prioritaire des doubles liaisons sur les arêtes coadjacentes
-  \item Placement des hydrogènes dans le plan de la molécule
+  \item \textbf{Couplage maximum pondéré} (algorithme de Blossom / NetworkX) pour le placement
+    des doubles liaisons — maximise le nombre de doubles et préfère les cycles à 7
+  \item \textbf{Gestion correcte du carbone radicalaire} : exactement 1 radical si $N_C$ impair,
+    0 si pair. Le radical de degré 2 reçoit 1 H (et non 2), le radical de degré 3 reçoit 0 H
+  \item Placement des hydrogènes dans le plan de la molécule ($z = 0$ par construction)
   \item Export CML valide pour toutes les structures testées
-\end{itemize}
-
-\subsection{Fonctionnalités partiellement implémentées}
-
-\begin{itemize}[label=$\sim$]
-  \item \textbf{Préférence pour les doubles liaisons dans les cycles à 7} :
-    la méthode \texttt{\_prioritize\_edges} est présente mais retourne la liste sans
-    tri spécifique. Il faudrait détecter les arêtes appartenant à des heptagones et les
-    placer en tête.
-  \item \textbf{Marquage du carbone radicalaire} : la méthode \texttt{\_handle\_radical}
-    identifie le candidat mais ne le marque pas explicitement. Il faudrait ajouter un
-    attribut \texttt{radical=True} sur le sommet et ne pas lui ajouter d'hydrogène.
 \end{itemize}
 
 \subsection{Fonctionnalités prévues (travail futur)}
 
 \begin{todo}
 \begin{itemize}
-  \item \textbf{Optimisation UFF} : les liaisons de fermeture coadjacentes ont une longueur
-    légèrement supérieure à $1.42\ \text{\AA}$ (artefact de géométrie régulière). L'optimisation
-    par champ de force UFF doit les corriger et planariser la molécule.
-  \item \textbf{Validation de planéité} : calcul du RMSD hors-plan pour vérifier que $z \approx 0$
-    pour tous les atomes après optimisation.
+  \item \textbf{Optimisation MMFF94} : les structures générées doivent être optimisées avec le
+    champ de force MMFF94 (et non UFF qui planarise artificiellement). Si la déviation au plan
+    moyen dépasse 10°, la structure est rejetée. Actuellement réalisé manuellement dans Avogadro.
+  \item \textbf{Validation de planéité automatique} : calcul du RMSD hors-plan après optimisation
+    MMFF94 pour automatiser le filtrage des structures non planaires.
   \item \textbf{Intégration Choco Solver} : utilisation des CML générés comme entrée du modèle
     CSP pour construire la table de voisinage.
   \item \textbf{Détection des isomorphismes} : vérification que deux séquences canoniques
@@ -680,8 +903,19 @@ les simples et les C-H complètent le total de 76. Ce bilan est vérifié par le
   \item[Carbone radicalaire] Carbone avec un électron non apparié, résultant d'un nombre
     impair de carbones dans la structure (impossible de former des paires complètes de
     doubles liaisons).
-  \item[UFF] Universal Force Field. Champ de force moléculaire utilisé pour l'optimisation
-    géométrique (travail futur).
+  \item[Algorithme de Blossom] Algorithme d'Edmonds (1965) pour trouver un couplage maximum
+    dans un graphe général (non bipartite). Utilisé ici via NetworkX pour placer les doubles
+    liaisons de manière optimale.
+  \item[Couplage maximum pondéré] Ensemble maximal d'arêtes sans sommet commun, qui maximise
+    d'abord le nombre d'arêtes puis la somme des poids. Modélise le placement des doubles
+    liaisons dans les structures de Kekulé.
+  \item[Couche fermée] Molécule dont tous les électrons sont appariés (nombre pair de carbones,
+    couplage parfait). Par opposition au \textit{radical} (nombre impair, un électron
+    célibataire).
+  \item[UFF] Universal Force Field. Planarise artificiellement les structures — non fiable
+    pour valider la géométrie des non-benzenoïdes.
+  \item[MMFF94] Merck Molecular Force Field 94. Champ de force recommandé pour les petites
+    molécules organiques aromatiques. Critère de rejet : déviation au plan moyen $> 10°$.
   \item[CML] Chemical Markup Language. Format XML standard pour l'échange de données
     moléculaires.
   \item[CSP] Constraint Satisfaction Problem. Problème de satisfaction de contraintes, ici
