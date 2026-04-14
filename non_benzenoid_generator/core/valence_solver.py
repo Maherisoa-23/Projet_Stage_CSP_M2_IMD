@@ -18,9 +18,11 @@ from core.topology import MolecularGraph
 
 try:
     import networkx as nx
-    _HAS_NX = True
 except ImportError:
-    _HAS_NX = False
+    raise ImportError(
+        "NetworkX est requis pour le placement des doubles liaisons "
+        "(algorithme de Blossom). Installez-le avec : pip install networkx"
+    )
 
 
 # Poids des arêtes selon la taille du cycle d'appartenance
@@ -55,10 +57,7 @@ class ValenceSolver:
         carbons = [vid for vid, v in self.graph.vertices.items()
                    if v.element == 'C']
 
-        if _HAS_NX:
-            matched = self._solve_matching(carbons)
-        else:
-            matched = self._solve_greedy(carbons)
+        matched = self._solve_matching(carbons)
 
         self._place_hydrogens(carbons, matched)
         return True
@@ -123,52 +122,6 @@ class ValenceSolver:
             covered.add(v2)
 
         return covered
-
-    # ------------------------------------------------------------------
-    # Méthode de repli : glouton (si NetworkX absent)
-    # ------------------------------------------------------------------
-
-    def _solve_greedy(self, carbons: List[int]) -> Set[int]:
-        """
-        Algorithme glouton de secours (identique à l'ancienne implémentation,
-        mais sans l'exclusion incorrecte des liaisons internes).
-        """
-        carbon_set = set(carbons)
-        # Collecter toutes les arêtes C-C
-        edges = []
-        for vid in carbons:
-            for other_id, _ in self.graph.vertices[vid].bonds:
-                if other_id <= vid:
-                    continue
-                if other_id not in carbon_set:
-                    continue
-                edges.append((vid, other_id))
-
-        # Priorité : arêtes dans les cycles 7, puis cycles 5, puis le reste
-        edges_in_7_set: Set[tuple] = set()
-        for cycle in self.graph.cycles:
-            if cycle.size == 7:
-                verts = cycle.vertices
-                n = len(verts)
-                for i in range(n):
-                    a, b = verts[i], verts[(i + 1) % n]
-                    edges_in_7_set.add((min(a, b), max(a, b)))
-
-        def priority(e):
-            key = (min(e), max(e))
-            return 0 if key in edges_in_7_set else 1
-
-        edges.sort(key=priority)
-
-        used: Set[int] = set()
-        for v1, v2 in edges:
-            if v1 in used or v2 in used:
-                continue
-            self._set_bond_order(v1, v2, 2)
-            used.add(v1)
-            used.add(v2)
-
-        return used
 
     # ------------------------------------------------------------------
     # Helpers

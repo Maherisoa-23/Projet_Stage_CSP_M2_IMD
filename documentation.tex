@@ -98,7 +98,7 @@
   }\\[1em]
   \rule{\linewidth}{0.5pt}\\[3em]
   {\normalsize
-    \textbf{Implémentation :} Python 3 (bibliothèques standard uniquement)\\[0.5em]
+    \textbf{Implémentation :} Python 3 + NetworkX\\[0.5em]
     \textbf{Format de sortie :} Chemical Markup Language (CML)\\[0.5em]
     \textbf{Date :} Avril 2026
   }
@@ -503,11 +503,12 @@ valables que pour les benzenoïdes purs (cycles pairs uniquement).
   trouver \textit{une seule optimale} (poids maximal).
 \end{remarque}
 
-\subsubsection{Repli glouton}
-
-Si NetworkX n'est pas installé, le code bascule sur un algorithme glouton corrigé qui considère
-\textbf{toutes} les arêtes C--C (y compris les arêtes internes) avec priorité aux arêtes des
-cycles à 7. Ce repli est sous-optimal mais fonctionnel.
+\begin{attention}
+  NetworkX est une \textbf{dépendance obligatoire}. Si la bibliothèque n'est pas installée,
+  le programme s'arrête immédiatement avec un message d'erreur demandant d'exécuter
+  \texttt{pip install networkx}. L'algorithme glouton a été retiré car il ne garantissait pas
+  un couplage maximal (cf. section précédente).
+\end{attention}
 
 \subsection{Règle du nombre pair / impair de carbones}
 
@@ -780,9 +781,8 @@ Les fichiers CML sont écrits dans \texttt{output/cycle5/}, \texttt{output/cycle
 \section{Bibliothèques utilisées}
 % ============================================================
 
-Le projet utilise la bibliothèque standard Python~3 et une dépendance externe optionnelle
-(NetworkX). Si NetworkX n'est pas installé, le solveur de valences bascule sur un algorithme
-glouton de secours.
+Le projet utilise la bibliothèque standard Python~3 et une dépendance externe obligatoire
+(NetworkX).
 
 \begin{center}
 \begin{tabular}{lp{9cm}}
@@ -797,8 +797,9 @@ glouton de secours.
   \texttt{pathlib} & gestion des chemins de fichiers \\
   \texttt{typing} & annotations de types (\texttt{List}, \texttt{Tuple}, \texttt{Optional}, etc.) \\
   \midrule
-  \texttt{networkx} & \texttt{max\_weight\_matching} — algorithme de Blossom (Edmonds, 1965)
-    pour le couplage maximum pondéré. Installation : \texttt{pip install networkx}. \\
+  \texttt{networkx} & \textbf{Obligatoire.} \texttt{max\_weight\_matching} — algorithme de
+    Blossom (Edmonds, 1965) pour le couplage maximum pondéré.
+    Installation : \texttt{pip install networkx}. \\
   \bottomrule
 \end{tabular}
 \end{center}
