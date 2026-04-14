@@ -1,3 +1,4 @@
+<?xml version="1.0" ?>
 <molecule title="cycle=6 sequence=7_6_5_7_6_0 n_C=23">
   <atomArray>
     <atom id="a1" elementType="C" x3="0.000000" y3="1.420000" z3="0.000000"/>

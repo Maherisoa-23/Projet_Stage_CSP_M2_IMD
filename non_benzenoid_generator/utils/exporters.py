@@ -35,10 +35,8 @@ class CMLExporter:
         reparsed = minidom.parseString(xml_str)
         pretty_xml = reparsed.toprettyxml(indent="  ")
         
-        # Nettoyer
+        # Nettoyer les lignes vides, garder la declaration XML
         lines = [line for line in pretty_xml.split('\n') if line.strip()]
-        if lines and lines[0].startswith('<?xml'):
-            lines = lines[1:]
-        
+
         with open(filename, 'w') as f:
             f.write('\n'.join(lines))

@@ -16,6 +16,14 @@ from config import NEIGHBOR_CONSTRAINTS
 
 def cmd_generate(output_dir: Path):
     """Genere toutes les structures CML (sans optimisation)."""
+    import shutil
+
+    # Nettoyer les anciens fichiers pour repartir proprement
+    for size in [5, 6, 7]:
+        cycle_dir = output_dir / f"cycle{size}"
+        if cycle_dir.exists():
+            shutil.rmtree(cycle_dir)
+
     builder = StructureBuilder()
     total = 0
 
@@ -43,11 +51,12 @@ def cmd_generate(output_dir: Path):
 
 def cmd_optimize(output_dir: Path, threshold: float, steps: int):
     """Optimise les CML existants avec MMFF94, teste la planarite, genere le rapport."""
-    from core.optimizer import optimize_cml, read_coords_from_cml
+    from core.optimizer import optimize_cml, read_optimized_coords, read_coords_from_cml
     from utils.planarity import compute_planarity, is_planar
     from utils.report import generate_report
     import shutil
     import sys
+    import xml.etree.ElementTree as ET
 
     # Verifier que obabel est disponible
     if not shutil.which("obabel"):
@@ -91,17 +100,14 @@ def cmd_optimize(output_dir: Path, threshold: float, steps: int):
             'opt_message': '',
         }
 
-        # Compter les carbones depuis le CML
-        coords_raw = read_coords_from_cml(str(cml_path))
         # Lire nC depuis le titre du CML
-        import xml.etree.ElementTree as ET
         tree = ET.parse(str(cml_path))
         title = tree.getroot().get('title', '')
         for part in title.split():
             if part.startswith('n_C='):
                 result['n_carbons'] = int(part.split('=')[1])
 
-        # Optimisation MMFF94
+        # Optimisation MMFF94 (CML -> XYZ tmp -> obabel minimize -> XYZ opt)
         success, msg = optimize_cml(
             str(cml_path), str(opt_path),
             forcefield="mmff94", steps=steps
@@ -109,14 +115,14 @@ def cmd_optimize(output_dir: Path, threshold: float, steps: int):
         result['opt_message'] = msg
 
         if not success:
-            print(f"  [{i}/{len(cml_files)}] {seq_str} — ECHEC MMFF94 : {msg}")
+            print(f"  [{i}/{len(cml_files)}] {seq_str} — ECHEC : {msg}")
             all_results.append(result)
             continue
 
         result['optimized'] = True
 
-        # Test de planarite sur la structure optimisee
-        coords_opt = read_coords_from_cml(str(opt_path))
+        # Test de planarite sur les coordonnees XYZ optimisees
+        coords_opt = read_optimized_coords(str(opt_path))
         if len(coords_opt) >= 3:
             metrics = compute_planarity(coords_opt)
             result['max_deviation'] = metrics['max_deviation']
