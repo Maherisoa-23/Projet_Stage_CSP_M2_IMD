@@ -25,8 +25,8 @@ def generate_report(results: List[Dict], output_path: str):
     non_planar = [r for r in results if not r.get('planar', False) and r.get('optimized', False)]
     opt_failed = [r for r in results if not r.get('optimized', False)]
 
-    # Trier les non-planes par deviation decroissante
-    non_planar.sort(key=lambda r: r.get('max_deviation', 0), reverse=True)
+    # Trier les non-planes par angle decroissant
+    non_planar.sort(key=lambda r: r.get('max_angle_deg', 0), reverse=True)
 
     lines = []
     lines.append("=" * 80)
@@ -58,11 +58,12 @@ def generate_report(results: List[Dict], output_path: str):
     lines.append("-" * 80)
     if planar:
         lines.append(f"{'Sequence':<30} {'Cycle':>5} {'nC':>4} "
-                     f"{'MaxDev(A)':>10} {'RMSD(A)':>9} {'Hauteur(A)':>11}")
-        lines.append("-" * 80)
+                     f"{'Angle(°)':>9} {'MaxDev(A)':>10} {'RMSD(A)':>9} {'Hauteur(A)':>11}")
+        lines.append("-" * 89)
         for r in sorted(planar, key=lambda x: (x['central_size'], x['sequence'])):
             lines.append(
                 f"{r['sequence']:<30} {r['central_size']:>5} {r['n_carbons']:>4} "
+                f"{r.get('max_angle_deg', 0):>9.2f} "
                 f"{r.get('max_deviation', 0):>10.4f} "
                 f"{r.get('rmsd_plane', 0):>9.4f} "
                 f"{r.get('height', 0):>11.4f}"
@@ -72,16 +73,17 @@ def generate_report(results: List[Dict], output_path: str):
     lines.append("")
 
     # --- Structures non planes ---
-    lines.append("-" * 80)
-    lines.append("  STRUCTURES NON PLANES (rejetees) — triees par deviation decroissante")
-    lines.append("-" * 80)
+    lines.append("-" * 89)
+    lines.append("  STRUCTURES NON PLANES (rejetees) — triees par angle decroissant")
+    lines.append("-" * 89)
     if non_planar:
         lines.append(f"{'Sequence':<30} {'Cycle':>5} {'nC':>4} "
-                     f"{'MaxDev(A)':>10} {'RMSD(A)':>9} {'Hauteur(A)':>11}")
-        lines.append("-" * 80)
+                     f"{'Angle(°)':>9} {'MaxDev(A)':>10} {'RMSD(A)':>9} {'Hauteur(A)':>11}")
+        lines.append("-" * 89)
         for r in non_planar:
             lines.append(
                 f"{r['sequence']:<30} {r['central_size']:>5} {r['n_carbons']:>4} "
+                f"{r.get('max_angle_deg', 0):>9.2f} "
                 f"{r.get('max_deviation', 0):>10.4f} "
                 f"{r.get('rmsd_plane', 0):>9.4f} "
                 f"{r.get('height', 0):>11.4f}"

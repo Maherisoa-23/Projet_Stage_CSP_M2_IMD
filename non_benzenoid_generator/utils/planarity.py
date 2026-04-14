@@ -118,14 +118,25 @@ def compute_planarity(coords: List[List[float]]) -> Dict[str, float]:
 
     max_dim = max(length, width) if max(length, width) > 0 else 1.0
 
+    # Angle diedre maximal : angle entre le vecteur centre->atome et le plan
+    # Pour l'atome le plus eloigne du plan : sin(theta) = deviation / distance_au_centre
+    max_angle_deg = 0.0
+    for c, d in zip(centered, dists):
+        r = math.sqrt(c[0]**2 + c[1]**2 + c[2]**2)
+        if r > 1e-6:
+            angle = math.degrees(math.asin(min(d / r, 1.0)))
+            if angle > max_angle_deg:
+                max_angle_deg = angle
+
     return {
         'height': height,
         'rmsd_plane': rmsd,
         'max_deviation': max_dev,
+        'max_angle_deg': max_angle_deg,
         'thickness_ratio': height / max_dim,
     }
 
 
-def is_planar(metrics: Dict[str, float], threshold: float = 0.5) -> bool:
-    """Retourne True si la molecule est consideree plane (max_deviation <= seuil)."""
-    return metrics['max_deviation'] <= threshold
+def is_planar(metrics: Dict[str, float], threshold_deg: float = 10.0) -> bool:
+    """Retourne True si la molecule est consideree plane (angle max <= seuil en degres)."""
+    return metrics['max_angle_deg'] <= threshold_deg

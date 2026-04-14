@@ -78,7 +78,7 @@ def cmd_optimize(output_dir: Path, threshold: float, steps: int):
         print("Aucun fichier CML trouve. Lancez d'abord : python main.py generate")
         sys.exit(1)
 
-    print(f"Optimisation MMFF94 de {len(cml_files)} structures (seuil planarite: {threshold} A)")
+    print(f"Optimisation MMFF94 de {len(cml_files)} structures (seuil planarite: {threshold} deg)")
     print()
 
     all_results = []
@@ -95,6 +95,7 @@ def cmd_optimize(output_dir: Path, threshold: float, steps: int):
             'optimized': False,
             'planar': False,
             'max_deviation': 0.0,
+            'max_angle_deg': 0.0,
             'rmsd_plane': 0.0,
             'height': 0.0,
             'opt_message': '',
@@ -126,11 +127,12 @@ def cmd_optimize(output_dir: Path, threshold: float, steps: int):
         if len(coords_opt) >= 3:
             metrics = compute_planarity(coords_opt)
             result['max_deviation'] = metrics['max_deviation']
+            result['max_angle_deg'] = metrics['max_angle_deg']
             result['rmsd_plane'] = metrics['rmsd_plane']
             result['height'] = metrics['height']
             result['planar'] = is_planar(metrics, threshold)
 
-        status = "PLANE" if result['planar'] else f"NON PLANE (dev={result['max_deviation']:.3f} A)"
+        status = "PLANE" if result['planar'] else f"NON PLANE ({result['max_angle_deg']:.1f} deg)"
         print(f"  [{i}/{len(cml_files)}] {seq_str} — {status}")
 
         all_results.append(result)
@@ -170,8 +172,8 @@ def main():
                          help="Optimiser MMFF94 + test planarite + rapport")
     opt.add_argument("-o", "--output", default="output",
                      help="Dossier contenant les CML (defaut: output)")
-    opt.add_argument("-t", "--threshold", type=float, default=0.5,
-                     help="Seuil planarite max_deviation en A (defaut: 0.5)")
+    opt.add_argument("-t", "--threshold", type=float, default=10.0,
+                     help="Seuil planarite en degres (defaut: 10.0)")
     opt.add_argument("-s", "--steps", type=int, default=500,
                      help="Nombre d'etapes MMFF94 (defaut: 500)")
 
