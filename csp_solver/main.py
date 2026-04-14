@@ -1,0 +1,103 @@
+"""
+Point d'entree du solveur CSP pour les non-benzenoides.
+
+Usage:
+    python main.py <fichier.graph> [--all] [--count]
+
+Options:
+    --all    : enumerer toutes les solutions (defaut)
+    --count  : afficher seulement le nombre de solutions
+"""
+
+import sys
+import os
+from pathlib import Path
+
+# Sauvegarder nos arguments AVANT d'importer pycsp3,
+# car pycsp3 intercepte sys.argv a l'import.
+_own_argv = sys.argv[:]
+filepath = _own_argv[1] if len(_own_argv) >= 2 else None
+count_only = "--count" in _own_argv
+enumerate_all = "--all" in _own_argv or not count_only
+
+# Nettoyer sys.argv pour que pycsp3 ne les intercepte pas
+sys.argv = [_own_argv[0]]
+
+# Ajouter le dossier courant au path pour les imports
+sys.path.insert(0, str(Path(__file__).parent))
+
+from parser import parse
+from table import load_table
+from preprocessing import preprocess
+from model import build_and_solve, format_solution
+
+
+def main():
+    if filepath is None:
+        print("Usage: python main.py <fichier.graph> [--all] [--count]")
+        print("Exemple: python main.py data/first.graph")
+        sys.exit(1)
+
+    # --- Etape 1 : Lecture du fichier Benzai ---
+    print(f"=== Lecture de {filepath} ===")
+    graph = parse(filepath)
+    print(graph.summary())
+    print()
+
+    # --- Etape 2 : Pre-traitement ---
+    print("=== Pre-traitement ===")
+    preprocessed = preprocess(graph)
+
+    frozen = preprocessed['frozen']
+    free = preprocessed['free']
+    generators = preprocessed['generators']
+
+    print(f"Hexagones geles: {len(frozen)} {frozen}")
+    print(f"Hexagones libres: {len(free)} {free}")
+    print(f"Generateurs Aut(G_D): {len(generators)}")
+    for i, gen in enumerate(generators):
+        mapping = ", ".join(f"v{k}->v{v}" for k, v in sorted(gen.items()) if k != v)
+        print(f"  pi_{i+1}: {mapping}")
+
+    tables_info = preprocessed['tables']
+    for v, t in tables_info.items():
+        print(f"  Table v{v}: {len(t)} entrees admissibles")
+    print()
+
+    # --- Etape 3 : Resolution ---
+    print("=== Resolution CSP ===")
+    solutions = build_and_solve(graph, preprocessed, enumerate_all=enumerate_all)
+
+    if not solutions:
+        print("Aucune solution trouvee.")
+        return
+
+    print(f"Nombre de solutions: {len(solutions)}")
+    print()
+
+    if not count_only:
+        # --- Etape 4 : Affichage ---
+        print("=== Solutions ===")
+        for i, sol in enumerate(solutions, 1):
+            print(format_solution(sol, i))
+
+        # Resume
+        print()
+        print("=== Resume ===")
+        print(f"Source: {filepath} (h={graph.h}, |E_D|={graph.dual.number_of_edges()})")
+        print(f"Solutions distinctes (apres rupture de symetrie): {len(solutions)}")
+
+        # Statistiques sur les solutions
+        counts = {5: 0, 6: 0, 7: 0}
+        for sol in solutions:
+            for v, size in sol.items():
+                counts[size] += 1
+        total = len(solutions) * graph.h
+        print(f"Repartition des tailles sur toutes les solutions:")
+        for size in (5, 6, 7):
+            pct = 100 * counts[size] / total if total > 0 else 0
+            print(f"  Taille {size}: {counts[size]} ({pct:.1f}%)")
+
+
+if __name__ == "__main__":
+    main()
