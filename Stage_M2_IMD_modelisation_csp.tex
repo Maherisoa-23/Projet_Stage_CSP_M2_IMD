@@ -1,0 +1,548 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{colortbl}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{tcolorbox}
+\usepackage{listings}
+\usepackage{parskip}
+\usepackage{longtable}
+
+\tcbuselibrary{skins,breakable}
+
+\geometry{
+  top=2.5cm, bottom=2.5cm,
+  left=3.0cm, right=2.5cm,
+  headheight=15pt
+}
+
+\definecolor{bleuTitre}{RGB}{31,56,100}
+\definecolor{bleuSection}{RGB}{31,92,153}
+\definecolor{bleuSub}{RGB}{46,117,182}
+\definecolor{grisNote}{RGB}{245,244,240}
+\definecolor{codebg}{RGB}{248,246,240}
+\definecolor{codecomment}{RGB}{100,100,90}
+\definecolor{vertOk}{RGB}{30,120,50}
+\definecolor{rougeAlert}{RGB}{180,40,20}
+\definecolor{grisLigne}{RGB}{235,235,230}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\fancyhead[L]{\small\textit{Mod\'elisation CSP }}
+\fancyfoot[C]{\thepage}
+
+\titleformat{\section}
+  {\large\bfseries\color{bleuTitre}}
+  {\thesection.}{0.6em}{}[\vspace{-4pt}\rule{\linewidth}{0.6pt}]
+\titleformat{\subsection}
+  {\normalsize\bfseries\color{bleuSection}}
+  {\thesubsection}{0.6em}{}
+\titleformat{\subsubsection}
+  {\normalsize\itshape\bfseries}
+  {\thesubsubsection}{0.6em}{}
+
+\theoremstyle{definition}
+\newtheorem{definition}{D\'efinition}[section]
+\newtheorem{propriete}{Propri\'et\'e}[section]
+\newtheorem{contrainte}{Contrainte}[section]
+\theoremstyle{remark}
+\newtheorem{remarque}{Remarque}[section]
+\newtheorem{exemple}{Exemple}[section]
+
+\newtcolorbox{notebox}[1][]{
+  enhanced, breakable,
+  colback=grisNote,
+  colframe=bleuSection,
+  leftrule=4pt, toprule=0.4pt, bottomrule=0.4pt, rightrule=0.4pt,
+  arc=2pt,
+  fonttitle=\bfseries\small\color{bleuSection},
+  title={#1},
+  before upper={\setlength{\parskip}{4pt}},
+}
+
+\lstdefinestyle{benzai}{
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  framesep=6pt,
+  rulecolor=\color{bleuSection!40},
+  xleftmargin=12pt,
+  xrightmargin=6pt,
+  commentstyle=\color{codecomment}\itshape,
+  morecomment=[l]{\#},
+  showstringspaces=false,
+}
+
+\newcommand{\B}{\mathcal{B}}
+\newcommand{\GD}{G_{\!D}}
+\newcommand{\VD}{V_{\!D}}
+\newcommand{\ED}{E_{\!D}}
+\newcommand{\xv}{x_v}
+\newcommand{\degv}{\deg(v)}
+\newcommand{\Tn}{\mathcal{T}(n)}
+\newcommand{\ncinq}{n_5}
+\newcommand{\nsept}{n_7}
+\newcommand{\nhex}{n_6}
+\newcommand{\posIn}[2]{\hat{p}_{#1}(#2)}
+\newcommand{\pat}[1]{\mathtt{#1}}
+
+% ────────────────────────────────────────────────────────────────────
+\begin{document}
+
+\begin{center}
+  {\LARGE\bfseries\color{bleuTitre}
+    Mod\'elisation du probl\`eme comme un CSP}\\[6pt]
+  {\large\itshape
+    \'Enum\'eration des structures obtenues par substitution\\
+    de cycles dans un benz\'eno\"ide}\\[18pt]
+  {\small Document de travail --- Stage M2 IMD --- Version 5.0}\\[4pt]
+  {\small\color{gray}\today}
+\end{center}
+
+\vspace{8pt}
+\rule{\linewidth}{1pt}
+\vspace{4pt}
+
+\tableofcontents
+
+\vspace{10pt}
+\rule{\linewidth}{0.4pt}
+
+% ════════════════════════════════════════════════════════════════════
+\section{Contexte et objectif}
+% ════════════════════════════════════════════════════════════════════
+
+\subsection{Cadre chimique}
+
+Un \textbf{hydrocarbure benz\'eno\"ide} $\B$ est une mol\'ecule plane compos\'ee
+de cycles hexagonaux fusionn\'es, dans laquelle chaque sommet repr\'esente un
+atome de carbone et chaque ar\^ete une liaison C--C. Les benz\'eno\"ides
+constituent une famille importante d'hydrocarbures aromatiques polycycliques (HAP).
+
+Notre probl\`eme~: \'etant donn\'e un benz\'eno\"ide $\B$ \`a $h$~hexagones,
+construire toutes les structures mol\'eculaires distinctes obtenues en
+rempla\c{c}ant certains cycles hexagonaux par des cycles \textbf{pentagonaux}
+(5~carbones) ou \textbf{heptagonaux} (7~carbones), tout en conservant exactement
+le nombre total d'atomes de carbone.
+
+\begin{notebox}[Proc\'edure de validation chimique]
+\textbf{Proc\'edure de validation chimique :}
+pour s'assurer qu'une structure est correcte chimiquement, suivre les \'etapes
+suivantes~:
+\begin{enumerate}[leftmargin=*]
+  \item Dessiner la mol\'ecule avec alternance de liaisons simples et doubles,
+        en cochant la case ``Ajuster les hydrog\`enes'' dans l'outil de dessin.
+        Optimiser au mieux l'alternance simple-double, en privil\'egiant le
+        maximum de doubles liaisons dans les cycles \`a~7.
+  \item Si le nombre de carbones est impair, cela indique un carbone radicalaire
+        (trois liaisons). Il faut alors enlever un hydrog\`ene \`a un carbone
+        qui poss\`ede deux liaisons simples avec deux autres carbones.
+  \item Si le nombre de carbones est pair, on doit pouvoir alterner
+        correctement les liaisons simples et doubles.
+  \item V\'erifier que les liaisons C--H des carbones de valence~4 sont dans
+        le plan de la mol\'ecule.
+  \item Optimiser la structure avec le champ de force MMFF94.
+\end{enumerate}
+\end{notebox}
+
+\subsection{Approche}
+
+L'approche retenue est celle d'un \textbf{probl\`eme de satisfaction de
+contraintes} (CSP) formul\'e sur le \emph{graphe dual} de $\B$. Les \'etiquettes
+de position des ar\^etes du dual sont des \textbf{donn\'ees d'entr\'ee}
+(constantes extraites du fichier Benzai), non des variables.
+La \textbf{seule variable} par cycle est sa taille $x_v \in \{5,6,7\}$.
+
+% ════════════════════════════════════════════════════════════════════
+\section{Repr\'esentation des graphes d'entr\'ee et de sortie}
+% ════════════════════════════════════════════════════════════════════
+
+\subsection{Format d'entr\'ee : le graphe de carbone Benzai}
+
+\subsubsection{Structure du format}
+
+\newpage
+\begin{lstlisting}[style=benzai,
+  caption={Fichier Benzai pour un benz\'eno\"ide \`a 3 hexagones}]
+p DIMACS 14 16 3
+e 0_0 1_1
+e 0_0 -1_1
+e 1_1 1_2
+e 1_1 2_0
+e -1_1 -1_2
+e 1_2 0_3
+e 1_2 2_3
+e 2_0 3_1
+e 0_3 -1_2
+e 2_3 3_2
+e 3_1 3_2
+e 3_1 4_0
+e 3_2 4_3
+e 4_0 5_1
+e 4_3 5_2
+e 5_1 5_2
+h 0_0 1_1 1_2 0_3 -1_2 -1_1
+h 2_0 3_1 3_2 2_3 1_2 1_1
+h 4_0 5_1 5_2 4_3 3_2 3_1
+\end{lstlisting}
+
+\begin{itemize}
+  \item \textbf{Ligne \texttt{p}} : \texttt{p DIMACS} $V$~$E$~$F$ ---
+        $V$~sommets (carbones), $E$~ar\^etes (liaisons), $F$~faces (hexagones).
+  \item \textbf{Identifiants de sommets} : paire $x\_y \in \mathbb{Z}^2$,
+        coordonn\'ees dans le r\'eseau hexagonal.
+  \item \textbf{Lignes \texttt{e}} : ar\^ete entre deux sommets.
+  \item \textbf{Lignes \texttt{h}} : liste ordonn\'ee des 6~sommets d'un
+        hexagone dans l'ordre cyclique.
+\end{itemize}
+
+\begin{definition}[Graphe de carbone]
+Le graphe de carbone de $\B$ est $G_\B = (V_\B,\, E_\B,\, F_\B)$ o\`u
+$V_\B$ sont les carbones, $E_\B$ les liaisons C--C, et $F_\B$ les hexagones
+d\'ecrits par leurs sommets ordonn\'es.
+\end{definition}
+
+\subsubsection{Extraction des positions d'ar\^etes depuis le fichier Benzai}
+\label{sec:extraction}
+
+Les lignes \texttt{h} d\'ecrivent chaque hexagone par la suite ordonn\'ee
+de ses 6~sommets~:
+\[
+  \texttt{h}\; s_1\; s_2\; s_3\; s_4\; s_5\; s_6.
+\]
+L'ar\^ete reliant $s_i$ \`a $s_{i+1}$ (indices modulo~6) est le
+\textbf{c\^ot\'e num\'ero~$i$} de cet hexagone.
+
+\paragraph{Proc\'edure d'extraction.}
+Pour chaque hexagone $v$ et chaque ar\^ete $e = (s_i, s_{i+1})$ de $G_\B$~:
+\begin{enumerate}
+  \item Identifier le second hexagone $u$ partageant cette ar\^ete
+        (s'il existe dans $F_\B$).
+  \item Poser $\posIn{v}{e} = i$ : num\'ero du c\^ot\'e de $e$ vu depuis $v$
+        (de~1 \`a~6).
+  \item Poser $\posIn{u}{e} = j$ o\`u $j$ est l'indice correspondant dans
+        la liste ordonn\'ee de $u$.
+\end{enumerate}
+Les valeurs $\posIn{v}{e}$ sont des \textbf{constantes}, calcul\'ees une
+fois lors de la lecture de l'entr\'ee. Elles ne font pas partie des variables
+du CSP.
+
+\paragraph{Pattern de c\^ot\'es d'un hexagone.}
+Le \textbf{pattern} de $v$ est le vecteur binaire circulaire \`a 6~positions~:
+\[
+  \sigma(v) \;=\; (\sigma_1, \sigma_2, \sigma_3, \sigma_4, \sigma_5, \sigma_6)
+  \;\in\; \{0,1\}^6,
+\]
+o\`u $\sigma_i = 1$ si le c\^ot\'e~$i$ de $v$ est partag\'e avec un voisin,
+et $\sigma_i = 0$ sinon.
+
+\begin{exemple}
+L'hexagone \texttt{h 0\_0 1\_1 1\_2 0\_3 -1\_2 -1\_1} partage l'ar\^ete
+$(1\_1, 1\_2)$ (c\^ot\'e~2) et l'ar\^ete $(-1\_1, 0\_0)$ (c\^ot\'e~6) avec
+ses deux voisins. Son pattern est donc $\sigma = (1,1,0,0,0,1)$, not\'e
+$\pat{6\;6\;0\;0\;0\;6}$ en utilisant~6 pour les c\^ot\'es partag\'es.
+\end{exemple}
+
+\subsection{Graphe dual et \'etiquetage}
+
+\subsubsection{Construction du graphe dual}
+
+\begin{definition}[Graphe dual]
+Le graphe dual de $\B$ est $\GD = (\VD, \ED)$ o\`u~:
+\begin{itemize}
+  \item $v \in \VD$ pour chaque hexagone de $F_\B$ ;
+  \item $e = (u,v) \in \ED$ si $u$ et $v$ partagent une ar\^ete de $E_\B$.
+\end{itemize}
+\end{definition}
+
+Le degr\'e $\degv \in \{1,\ldots,6\}$ donne le nombre de cycles voisins de $v$.
+
+\subsubsection{\'Etiquetage des sommets}
+
+Chaque sommet $v \in \VD$ re\c{c}oit une \'etiquette de taille~:
+\[
+  \xv \in \{5,\, 6,\, 7\}.
+\]
+C'est la \textbf{seule variable} du CSP. Les positions $\posIn{v}{e}$ et
+les patterns $\sigma(v)$ sont des constantes d\'eriv\'ees de l'entr\'ee.
+
+\subsection{Placement des ar\^etes lors d'une substitution}
+\label{sec:placement}
+
+Lorsque l'on substitue un hexagone $v$ par un cycle de taille $\xv \neq 6$,
+les ar\^etes partag\'ees (dont les positions sont fix\'ees par les $\posIn{v}{e}$)
+doivent \^etre r\'eparties dans un polygone de taille diff\'erente.
+L'ordre cyclique des ar\^etes partag\'ees est \textbf{conserv\'e}, mais leur
+espacement dans le nouveau polygone peut varier.
+
+\begin{exemple}
+Un hexagone de pattern $\pat{1\;0\;1\;0\;0\;0}$ (c\^ot\'es~1 et~3 partag\'es)
+substitu\'e par un \textbf{heptagone} admet deux placements valides des deux
+ar\^etes partag\'ees parmi les 7~c\^ot\'es~:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{cl}
+\toprule
+Placement & Description \\
+\midrule
+$\pat{1\;0\;1\;0\;0\;0\;0}$ &
+  \'ecart de~1 conserv\'e, c\^ot\'e libre ajout\'e dans le groupe de~3 \\
+$\pat{1\;0\;0\;1\;0\;0\;0}$ &
+  \'ecart de~1 augment\'e \`a~2 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{exemple}
+
+Ces placements possibles ne sont \textbf{pas une variable suppl\'ementaire}
+du CSP~: ils sont implicitement encod\'es dans la table des voisinages
+$\mathcal{T}(n)$. Chaque ligne admissible de $\mathcal{T}(\xv)$ compatible
+avec le pattern $\sigma(v)$ correspond \`a un placement valide. La contrainte
+C3 (voisinage admissible) filtre directement les assignations de $\xv$ en
+v\'erifiant qu'au moins une ligne de $\mathcal{T}(\xv)$ est compatible avec
+$\sigma(v)$ et les labels des voisins.
+
+\subsection{Format de sortie}
+
+La sortie est un ensemble de fichiers texte, un par structure g\'en\'er\'ee,
+au format adapt\'e du format Benzai.
+
+\paragraph{Adaptation n\'ecessaire.}
+Apr\`es substitution, la mol\'ecule n'est plus un sous-graphe du pavage
+hexagonal r\'egulier. Les coordonn\'ees $x\_y$ n'ont plus de sens~; les
+sommets sont identifi\'es par des \textbf{entiers s\'equentiels}.
+
+\begin{lstlisting}[style=benzai,
+  caption={Format de sortie pour une structure substitu\'ee}]
+p DIMACS <V> <E> <F>
+# cycles : <n1> <n2> ... <nF>
+e <id1> <id2>
+...
+c <id1> <id2> ... <idn>    # cycle de taille n
+...
+\end{lstlisting}
+
+Les lignes \texttt{c} remplacent les lignes \texttt{h} et admettent un nombre
+variable de sommets ($n \in \{5,6,7\}$) selon la taille du cycle.
+
+% ════════════════════════════════════════════════════════════════════
+\section{Mod\`ele CSP}
+% ════════════════════════════════════════════════════════════════════
+
+\subsection{Vue d'ensemble}
+
+Le CSP est d\'efini sur le graphe dual $\GD = (\VD, \ED)$ construit depuis
+le fichier Benzai. Les constantes $\posIn{v}{e}$ et les patterns $\sigma(v)$
+sont calcul\'es lors de la lecture de l'entr\'ee. Le mod\`ele comprend une
+\textbf{seule famille de variables} (les tailles $x_v$) et trois contraintes.
+
+\subsection{Variable}
+
+\begin{definition}[Variable de taille]
+Pour chaque sommet $v \in \VD$~:
+\[
+  \xv \;\in\; \{5,\, 6,\, 7\}.
+\]
+$\xv = 5$ d\'esigne un pentagone, $\xv = 6$ un hexagone (valeur par d\'efaut),
+$\xv = 7$ un heptagone.
+\end{definition}
+
+L'ensemble des variables est $\mathbf{X} = \{\xv \mid v \in \VD\}$,
+avec $|\mathbf{X}| = h$.
+
+\subsection{Contraintes}
+
+\subsubsection{C1 --- Conservation du nombre de carbones}
+
+\begin{contrainte}[Conservation du carbone]
+\label{c:carbone}
+\[
+  \sum_{v \in \VD} x_v \;=\; 6\,h.
+\]
+\end{contrainte}
+
+\begin{propriete}
+C1 est \'equivalente \`a $\ncinq = \nsept$.
+\end{propriete}
+
+\noindent\textit{Preuve.}
+$5\ncinq + 6\nhex + 7\nsept = 6(\ncinq+\nhex+\nsept)
+\Leftrightarrow \ncinq = \nsept$.\hfill$\square$
+
+\subsubsection{C2 --- Cycles gel\'es}
+\label{sec:gele}
+
+Un hexagone doit rester hexagone dans deux cas.
+
+\paragraph{Cas 1 : hexagone int\'erieur.}
+Si $\degv = 6$, tous les c\^ot\'es sont partag\'es ; aucune substitution
+n'est possible.
+
+\paragraph{Cas 2 : pattern incompatible.}
+Si $\degv < 6$ mais qu'aucune ligne de $\mathcal{T}(5)$ ni de $\mathcal{T}(7)$
+n'est compatible avec le pattern $\sigma(v)$, le cycle est gel\'e.
+
+\begin{notebox}[Patterns identifi\'es comme incompatibles]
+Les patterns suivants ont \'et\'e identifi\'es comme n'admettant aucun placement
+valide pour un pentagone ou un heptagone~:
+\begin{center}
+\begin{tabular}{cl}
+\toprule
+Pattern $\sigma(v)$ & Raison \\
+\midrule
+$\pat{6\;0\;0\;6\;0\;0}$ & c\^ot\'es oppos\'es (1 et 4) \\
+$\pat{6\;6\;0\;6\;0\;0}$ & 3 voisins dont un isol\'e \\
+$\pat{6\;6\;0\;6\;6\;0}$ & 4 voisins en deux paires \\
+$\pat{6\;0\;6\;0\;6\;0}$ & c\^ot\'es altern\'es (1, 3, 5) \\
+\bottomrule
+\end{tabular}
+\end{center}
+Cette liste est \`a compl\'eter selon l'analyse combinatoire compl\`ete
+de la compatibilit\'e entre $\sigma(v)$ et les tables $\mathcal{T}(5)$
+et $\mathcal{T}(7)$.
+\end{notebox}
+
+\begin{contrainte}[Cycles gel\'es]
+\label{c:gele}
+\[
+  \forall\, v \in \VD,\quad
+  \Bigl[\,\degv = 6 \;\lor\;
+  \text{aucune ligne de } \mathcal{T}(5) \cup \mathcal{T}(7)
+  \text{ n'est compatible avec } \sigma(v)
+  \Bigr]
+  \;\Longrightarrow\; \xv = 6.
+\]
+\end{contrainte}
+
+\begin{remarque}
+La contrainte C2 g\'en\'eralise la condition ``hexagone int\'erieur gel\'e''
+en incorporant les cas o\`u le pattern local du benz\'eno\"ide interdit
+g\'eom\'etriquement toute substitution, m\^eme pour des cycles de bord.
+\end{remarque}
+
+\subsubsection{C3 --- Voisinage admissible}
+
+\begin{definition}[Configuration locale]
+La \textbf{configuration locale} de $v$ est le couple
+\[
+  \Lambda(v) \;=\; \bigl(\xv,\;
+  (x_{u_1}, \ldots, x_{u_k})\bigr),
+\]
+o\`u $(u_1, \ldots, u_k)$ est la suite cyclique des voisins de $v$ dans $\GD$,
+ordonn\'ee conform\'ement aux positions $\posIn{v}{e}$ lues depuis l'entr\'ee.
+\end{definition}
+
+\begin{contrainte}[Voisinage admissible]
+\label{c:voisinage}
+\[
+  \forall\, v \in \VD,\quad \Lambda(v) \;\in\; \mathcal{T}(\xv),
+\]
+o\`u $\mathcal{T}(n)$ est la table des configurations locales admissibles pour
+un cycle de taille $n$.
+\end{contrainte}
+
+\begin{notebox}[Lien avec le placement]
+La compatibilit\'e de $\Lambda(v)$ avec $\sigma(v)$ est implicite dans la
+table~: chaque ligne de $\mathcal{T}(\xv)$ correspond \`a un placement
+g\'eom\'etriquement valide des ar\^etes partag\'ees dans un cycle de taille
+$\xv$. V\'erifier $\Lambda(v) \in \mathcal{T}(\xv)$ revient donc \`a
+v\'erifier simultan\'ement la validit\'e du placement \emph{et} la compatibilit\'e
+du voisinage, sans variable suppl\'ementaire.
+\end{notebox}
+
+\paragraph{Formulation par interdictions.}
+On peut \'egalement utiliser la table des configurations interdites
+$\overline{\mathcal{T}}(n)$~:
+\[
+  \forall\, v \in \VD,\quad \Lambda(v) \;\notin\; \overline{\mathcal{T}}(\xv).
+\]
+Les deux formulations sont \'equivalentes.
+
+\subsection{R\'ecapitulatif}
+
+\subsubsection{Donn\'ees d'entr\'ee}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{@{}p{3.5cm}p{9cm}@{}}
+\toprule
+\textbf{Donn\'ee} & \textbf{Description} \\
+\midrule
+$G_\B = (V_\B, E_\B, F_\B)$ &
+  Graphe de carbone lu depuis le fichier Benzai \\
+$\GD = (\VD, \ED)$ &
+  Graphe dual construit depuis $G_\B$ \\
+$\sigma(v)$ pour $v \in \VD$ &
+  Pattern des c\^ot\'es partag\'es de chaque hexagone \\
+$\posIn{v}{e}$ pour $(v,e)$ &
+  Position de l'ar\^ete $e$ dans l'hexagone $v$ (constante) \\
+$\mathcal{T}(n)$ pour $n \in \{5,6,7\}$ &
+  Table des configurations de voisinage admissibles \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsubsection{Variable}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Variable} & \textbf{Domaine} & \textbf{Condition} \\
+\midrule
+$\xv$ & $\{5, 6, 7\}$ & pour tout $v \in \VD$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsubsection{Contraintes}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{@{}cll@{}}
+\toprule
+\textbf{Code} & \textbf{Nom} & \textbf{Formulation} \\
+\midrule
+C1 & Conservation du carbone &
+  $\displaystyle\sum_{v \in \VD} x_v = 6h \;\Leftrightarrow\; n_5 = n_7$ \\[6pt]
+C2 & Cycles gel\'es &
+  $\bigl[\degv=6 \lor \text{aucune ligne de } \mathcal{T}(5)\cup\mathcal{T}(7)$
+  \text{ compatible avec } $\sigma(v)\bigr] \Rightarrow \xv=6$ \\[4pt]
+C3 & Voisinage admissible &
+  $\Lambda(v) \in \mathcal{T}(\xv)$ pour tout $v \in \VD$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsubsection{Sortie}
+
+L'ensemble de toutes les assignations $\{\xv\}_{v \in \VD}$ satisfaisant
+C1 \`a C3, encod\'ees dans le format de sortie adapt\'e du format Benzai.
+
+\subsubsection{Remarques strat\'egiques pour la r\'esolution}
+
+\begin{itemize}
+  \item \textbf{Ordre de propagation recommand\'e} :
+        C1 $\to$ C2 $\to$ C3.
+        C1 filtre globalement (\'equilibre $n_5/n_7$), C2 fige les cycles
+        incompatibles, C3 filtre par voisinage local.
+  \item \textbf{Ordre de branchement} : commencer par les cycles de bord
+        (degr\'e faible) qui ont les domaines les plus contraints par C3.
+  \item \textbf{Complexit\'e} : $|\mathbf{X}| = h$ variables, domaine de
+        taille~3. La table $\mathcal{T}(n)$ est une contrainte extensionnelle
+        trait\'ee efficacement par les solveurs CSP modernes.
+\end{itemize}
+
+\end{document}
