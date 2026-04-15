@@ -2,11 +2,12 @@
 Point d'entree du solveur CSP pour les non-benzenoides.
 
 Usage:
-    python main.py <fichier.graph> [--all] [--count]
+    python main.py <fichier.graph> [--all] [--count] [--validate]
 
 Options:
-    --all    : enumerer toutes les solutions (defaut)
-    --count  : afficher seulement le nombre de solutions
+    --all      : enumerer toutes les solutions (defaut)
+    --count    : afficher seulement le nombre de solutions
+    --validate : valider les solutions avec xTB + test planarite
 """
 
 import sys
@@ -18,23 +19,23 @@ from pathlib import Path
 _own_argv = sys.argv[:]
 filepath = _own_argv[1] if len(_own_argv) >= 2 else None
 count_only = "--count" in _own_argv
+do_validate = "--validate" in _own_argv
 enumerate_all = "--all" in _own_argv or not count_only
 
 # Nettoyer sys.argv pour que pycsp3 ne les intercepte pas
 sys.argv = [_own_argv[0]]
 
-# Ajouter le dossier courant au path pour les imports
+# Ajouter le dossier csp_solver/ au path pour les imports
 sys.path.insert(0, str(Path(__file__).parent))
 
-from parser import parse
-from table import load_table
-from preprocessing import preprocess
-from model import build_and_solve, format_solution
+from utils.parser import parse
+from utils.preprocessing import preprocess
+from utils.model import build_and_solve, format_solution
 
 
 def main():
     if filepath is None:
-        print("Usage: python main.py <fichier.graph> [--all] [--count]")
+        print("Usage: python main.py <fichier.graph> [--all] [--count] [--validate]")
         print("Exemple: python main.py data/first.graph")
         sys.exit(1)
 
@@ -97,6 +98,13 @@ def main():
         for size in (5, 6, 7):
             pct = 100 * counts[size] / total if total > 0 else 0
             print(f"  Taille {size}: {counts[size]} ({pct:.1f}%)")
+
+    # --- Etape 5 (optionnelle) : Validation xTB ---
+    if do_validate and solutions:
+        print()
+        print("=== Validation xTB + planarite ===")
+        from utils.reconstruct import reconstruct_and_validate
+        reconstruct_and_validate(graph, solutions)
 
 
 if __name__ == "__main__":

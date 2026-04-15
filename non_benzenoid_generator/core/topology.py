@@ -43,6 +43,29 @@ class MolecularGraph:
             self.vertices[v1].bonds.append((v2, order))
             self.vertices[v2].bonds.append((v1, order))
     
+    def remove_vertex(self, vid: int):
+        """Retire un sommet et toutes ses liaisons."""
+        if vid not in self.vertices:
+            return
+        # Retirer les liaisons chez les voisins
+        for neighbor_id, _ in self.vertices[vid].bonds:
+            if neighbor_id in self.vertices:
+                self.vertices[neighbor_id].bonds = [
+                    (v, o) for v, o in self.vertices[neighbor_id].bonds if v != vid
+                ]
+        del self.vertices[vid]
+
+    def remove_bond(self, v1: int, v2: int):
+        """Retire la liaison entre v1 et v2."""
+        if v1 in self.vertices:
+            self.vertices[v1].bonds = [
+                (v, o) for v, o in self.vertices[v1].bonds if v != v2
+            ]
+        if v2 in self.vertices:
+            self.vertices[v2].bonds = [
+                (v, o) for v, o in self.vertices[v2].bonds if v != v1
+            ]
+
     def get_carbon_neighbors(self, vid: int) -> List[int]:
         """Retourne les voisins carbones d'un sommet"""
         return [v for v, _ in self.vertices[vid].bonds 

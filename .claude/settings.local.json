@@ -9,7 +9,16 @@
       "Bash(python preprocessing.py)",
       "WebFetch(domain:xtb-docs.readthedocs.io)",
       "WebSearch",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(mv parser.py utils/)",
+      "Bash(mv model.py utils/)",
+      "Bash(mv preprocessing.py utils/)",
+      "Bash(mv table.py utils/)",
+      "Bash(rm -f validate.py main.xml solver_*.log)",
+      "Bash(mv reconstruct.py utils/)",
+      "Bash(mv validate.py utils/)",
+      "Bash(rm -rf __pycache__ utils/__pycache__)",
+      "Bash(rm -f model.xml solver_*.log)"
     ]
   }
 }

@@ -7,8 +7,8 @@ reduire l'espace de recherche du solveur CSP.
 
 import networkx as nx
 from itertools import permutations
-from parser import BenzenoidGraph, count_zero_blocks
-from table import load_table
+from utils.parser import BenzenoidGraph, count_zero_blocks
+from utils.table import load_table
 
 
 def compute_domains(graph: BenzenoidGraph) -> dict:

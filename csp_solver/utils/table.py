@@ -13,7 +13,7 @@ import json
 import os
 from pathlib import Path
 
-DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR = Path(__file__).parent.parent / "data"
 TABLE_PATH = DATA_DIR / "table_voisinage.json"
 
 
@@ -109,7 +109,7 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         # Chemin par défaut vers le rapport
         rapport = str(
-            Path(__file__).parent.parent
+            Path(__file__).parent.parent.parent
             / "non_benzenoid_generator"
             / "output"
             / "rapport_planarite.txt"
