@@ -162,8 +162,7 @@
 Le solveur CSP d\'ecrit dans le document pr\'ec\'edent
 (\textit{Mod\'elisation du probl\`eme comme un CSP}, v6.0) \'enum\`ere
 les assignations de tailles $\{5, 6, 7\}$ aux hexagones d'un
-benz\'eno\"ide~$\B$, sous les contraintes de conservation du carbone~(C1),
-de blocs de z\'eros~(C2) et de voisinage admissible~(C3).
+benz\'eno\"ide~$\B$, sous les certaines contraintes.
 
 Chaque solution est un dictionnaire $\{v \mapsto \text{taille}_v\}$
 o\`u $v$ parcourt les sommets du graphe dual~$\GD$. Mais une solution
@@ -174,7 +173,7 @@ une solution, il faut~:
   \item Reconstruire la mol\'ecule compl\`ete (atomes de carbone, liaisons C--C, hydrog\`enes).
   \item Lui attribuer des coordonn\'ees 3D raisonnables.
   \item Optimiser la g\'eom\'etrie avec xTB (GFN2-xTB).
-  \item Tester la planarit\'e globale (ACP, seuil de 10\,degr\'es).
+  \item Tester la planarit\'e globale (ACP, seuil de 10$^\circ$).
 \end{enumerate}
 
 \subsection{Probl\`eme de la reconstruction}
