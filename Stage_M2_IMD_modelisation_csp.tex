@@ -152,7 +152,7 @@ suivantes~:
         correctement les liaisons simples et doubles.
   \item V\'erifier que les liaisons C--H des carbones de valence~4 sont dans
         le plan de la mol\'ecule.
-  \item Optimiser la structure avec le champ de force MMFF94.
+  \item Optimiser la structure avec la m\'ethode xTB (GFN2-xTB).
 \end{enumerate}
 \end{notebox}
 
@@ -515,6 +515,51 @@ $\sigma(v)$ et peut \^etre \'evalu\'e en temps constant lors de la lecture
 du benz\'eno\"ide d'entr\'ee, avant toute r\'esolution.
 \end{remarque}
 
+\subsubsection{Construction de la table de voisinage $\mathcal{T}(n)$}
+\label{sec:table}
+
+La table $\mathcal{T}(n)$ est une \textbf{donn\'ee d'entr\'ee} du CSP,
+construite en amont par le pipeline de g\'en\'eration d\'ecrit dans la
+documentation technique (sections~2 et~7). Sa construction proc\`ede en
+deux \'etapes~:
+
+\paragraph{\'Etape~1 --- \'Enum\'eration.}
+Pour chaque taille de cycle central $n \in \{5,6,7\}$, on g\'en\`ere toutes
+les s\'equences de voisinage $(s_1, \ldots, s_n) \in \{0,5,6,7\}^n$
+satisfaisant les contraintes de voisinage (au moins 2~voisins, etc.),
+r\'eduites sous le groupe di\'edral $D_n$ pour \'eliminer les doublons
+par rotation et r\'eflexion. Cela produit 1228 configurations canoniques
+(93 pour $n\!=\!5$, 415 pour $n\!=\!6$, 720 pour $n\!=\!7$).
+
+\paragraph{\'Etape~2 --- Validation g\'eom\'etrique.}
+Chaque configuration est construite en 3D (polygones r\'eguliers fusionn\'es
+par ar\^ete), puis optimis\'ee par la m\'ethode semi-empirique quantique
+\textbf{xTB} (GFN2-xTB). Un test de planarit\'e (ACP, seuil de 10\degre)
+filtre les structures non planes. Le r\'esultat est~:
+
+\begin{center}
+\begin{tabular}{cccc}
+\toprule
+Cycle central $n$ & Planes (admises) & Non planes (rejet\'ees) & Total \\
+\midrule
+5 & 92  & 1  & 93 \\
+6 & 412 & 3  & 415 \\
+7 & 699 & 21 & 720 \\
+\midrule
+\textbf{Total} & \textbf{1203} & \textbf{25} & \textbf{1228} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Seules les configurations \textbf{planes} sont retenues dans la table~:
+$|\mathcal{T}(5)| = 92$, $|\mathcal{T}(6)| = 412$, $|\mathcal{T}(7)| = 699$.
+
+\begin{remarque}
+La m\'ethode xTB a remplac\'e le champ de force MMFF94 utilis\'e initialement.
+Contrairement \`a MMFF94 (qui \'echouait sur 169 structures \`a heptagones
+cons\'ecutifs), xTB traite les 1228 structures sans \'echec.
+\end{remarque}
+
 \subsubsection{C3 --- Voisinage admissible}
 
 \begin{definition}[Configuration locale]
@@ -544,6 +589,15 @@ $\xv$. V\'erifier $\Lambda(v) \in \mathcal{T}(\xv)$ revient donc \`a
 v\'erifier simultan\'ement la validit\'e du placement \emph{et} la compatibilit\'e
 du voisinage, sans variable suppl\'ementaire.
 \end{notebox}
+
+\begin{remarque}[Cycles de degr\'e~1]
+La table $\mathcal{T}(n)$ est construite avec un minimum de 2~voisins
+par cycle. Pour un sommet $v$ de degr\'e~1 dans $\GD$ (cycle de bord
+n'ayant qu'un seul voisin), la contrainte C3 n'est pas appliqu\'ee~:
+un cycle isol\'e d'un c\^ot\'e est toujours g\'eom\'etriquement admissible,
+quelle que soit sa taille. Seule la contrainte C1 (conservation du carbone)
+restreint alors son domaine.
+\end{remarque}
 
 \paragraph{Formulation par interdictions.}
 On peut \'egalement utiliser la table des configurations interdites
@@ -873,9 +927,10 @@ La contrainte lex-leader est~:
   \;\leq_{\mathrm{lex}}\;
   (x_{v_3}, x_{v_2}, x_{v_1}).
 \]
-Ainsi, la solution $(7, 6, 5)$ est accept\'ee mais $(5, 6, 7)$ est
-rejet\'ee car $5 < 7$ lexicographiquement (et elle est dans la m\^eme
-orbite que $(7, 6, 5)$ via~$\pi$).
+Ainsi, la solution $(5, 6, 7)$ est accept\'ee car
+$(5,6,7) \leq_{\mathrm{lex}} (7,6,5)$, tandis que $(7, 6, 5)$ est
+rejet\'ee car $(7,6,5) \not\leq_{\mathrm{lex}} (5,6,7)$
+(ces deux solutions sont dans la m\^eme orbite via~$\pi$).
 \end{exemple}
 
 % ════════════════════════════════════════════════════════════════════
