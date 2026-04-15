@@ -781,8 +781,7 @@ Les fichiers CML sont écrits dans \texttt{output/cycle5/}, \texttt{output/cycle
 \section{Bibliothèques utilisées}
 % ============================================================
 
-Le projet utilise la bibliothèque standard Python~3 et une dépendance externe obligatoire
-(NetworkX).
+Le projet utilise la bibliothèque standard Python~3 et deux dépendances externes.
 
 \begin{center}
 \begin{tabular}{lp{9cm}}
@@ -800,44 +799,233 @@ Le projet utilise la bibliothèque standard Python~3 et une dépendance externe 
   \texttt{networkx} & \textbf{Obligatoire.} \texttt{max\_weight\_matching} — algorithme de
     Blossom (Edmonds, 1965) pour le couplage maximum pondéré.
     Installation : \texttt{pip install networkx}. \\
+  \texttt{xtb} & \textbf{Obligatoire pour l'optimisation.} Programme de chimie quantique
+    semi-empirique (GFN2-xTB). Binaire externe appelé via \texttt{subprocess}.
+    Installation : binaire Windows depuis GitHub ou \texttt{conda install -c conda-forge xtb}. \\
   \bottomrule
 \end{tabular}
 \end{center}
 
 % ============================================================
-\section{État d'avancement}
+\section{Validation des structures : historique et résultats}
 % ============================================================
 
-\subsection{Fonctionnalités complètes et validées}
+Cette section retrace chronologiquement les étapes de validation des structures générées,
+les difficultés rencontrées à chaque étape, et les solutions adoptées.
 
-\begin{itemize}[label=$\checkmark$]
-  \item Énumération canonique sous le groupe diédral $D_n$ pour $n \in \{5, 6, 7\}$
-  \item Placement géométrique du cycle central et de tous les cycles voisins
-  \item Gestion correcte de la fusion coadjacente (sommets partagés entre voisins consécutifs)
-  \item Gestion du wrap-around pour le cycle 6 complet (fusion des atomes dupliqués)
-  \item \textbf{Couplage maximum pondéré} (algorithme de Blossom / NetworkX) pour le placement
-    des doubles liaisons — maximise le nombre de doubles et préfère les cycles à 7
-  \item \textbf{Gestion correcte du carbone radicalaire} : exactement 1 radical si $N_C$ impair,
-    0 si pair. Le radical de degré 2 reçoit 1 H (et non 2), le radical de degré 3 reçoit 0 H
-  \item Placement des hydrogènes dans le plan de la molécule ($z = 0$ par construction)
-  \item Export CML valide pour toutes les structures testées
-\end{itemize}
+\subsection{Phase 1 : tests manuels avec Avogadro et UFF}
 
-\subsection{Fonctionnalités prévues (travail futur)}
+Les premières validations ont été réalisées \textbf{manuellement} dans le logiciel Avogadro.
+La procédure était la suivante :
+\begin{enumerate}
+  \item Dessiner la molécule à la main dans l'éditeur d'Avogadro, en alternant les simples
+    et doubles liaisons avec l'option ``Ajuster les hydrogènes'' activée.
+  \item Optimiser la géométrie avec le champ de force \textbf{UFF} (Universal Force Field),
+    intégré dans Avogadro.
+  \item Mesurer les angles dièdres pour évaluer la planarité.
+\end{enumerate}
 
-\begin{todo}
-\begin{itemize}
-  \item \textbf{Optimisation MMFF94} : les structures générées doivent être optimisées avec le
-    champ de force MMFF94 (et non UFF qui planarise artificiellement). Si la déviation au plan
-    moyen dépasse 10°, la structure est rejetée. Actuellement réalisé manuellement dans Avogadro.
-  \item \textbf{Validation de planéité automatique} : calcul du RMSD hors-plan après optimisation
-    MMFF94 pour automatiser le filtrage des structures non planaires.
-  \item \textbf{Intégration Choco Solver} : utilisation des CML générés comme entrée du modèle
-    CSP pour construire la table de voisinage.
-  \item \textbf{Détection des isomorphismes} : vérification que deux séquences canoniques
-    différentes ne donnent pas accidentellement des graphes moléculaires identiques.
-\end{itemize}
-\end{todo}
+Cette approche a permis de valider quelques structures et de comprendre la procédure, mais
+elle présentait une limite fondamentale : avec \textbf{1228 configurations canoniques} à tester
+(cf. section~2.5), il était impossible de procéder manuellement pour l'ensemble.
+
+De plus, il est apparu par la suite que le champ de force UFF \textbf{planarise artificiellement}
+les structures (ses constantes de torsion sont trop fortes), rendant les résultats non fiables
+pour distinguer les molécules réellement planes de celles qui ne le sont pas.
+
+\subsection{Phase 2 : automatisation — génération des 1228 structures}
+
+Face au nombre de configurations, un \textbf{pipeline automatisé} a été développé en Python :
+
+\begin{enumerate}
+  \item \textbf{Énumération} : les 1228 séquences canoniques sont générées par réduction sous
+    le groupe diédral $D_n$ (section~2).
+  \item \textbf{Construction géométrique} : chaque structure est construite comme un assemblage
+    de polygones réguliers fusionnés par arête, avec gestion de la coadjacence et du
+    wrap-around (section~3).
+  \item \textbf{Structure de Kekulé} : les doubles liaisons sont placées par couplage maximum
+    pondéré (algorithme de Blossom, section~4.2), avec gestion des radicaux pour les molécules
+    à nombre impair de carbones.
+  \item \textbf{Export} : chaque structure est sauvegardée au format CML (Chemical Markup
+    Language) et XYZ (coordonnées atomiques).
+\end{enumerate}
+
+\textbf{Résultat :} 1228 fichiers CML + XYZ générés, répartis en 93 (cycle~5), 415 (cycle~6)
+et 720 (cycle~7).
+
+\subsection{Phase 3 : optimisation MMFF94 via Open Babel — limites rencontrées}
+
+Suite aux directives du chimiste du projet, la procédure de validation a été formalisée
+(section~4.5). Le champ de force \textbf{MMFF94} (Merck Molecular Force Field 94) a été adopté
+à la place d'UFF pour l'optimisation géométrique, et un seuil de \textbf{10° de déviation
+angulaire} au plan moyen a été fixé pour le critère de rejet.
+
+\subsubsection{Open Babel et MMFF94}
+
+Open Babel est une bibliothèque open source (GPL~v2) de chimie computationnelle, utilisée ici
+via la commande \texttt{obabel}. Le champ de force MMFF94 modélise les interactions moléculaires
+par des potentiels classiques (``ressorts'') : liaisons, angles, torsions, van der Waals et
+électrostatique. C'est une approche rapide mais approximative : les électrons ne sont pas
+traités explicitement.
+
+L'optimisation a d'abord été tentée en passant par le format XYZ (qui ne contient pas
+d'information de liaison). Open Babel devait alors \textbf{deviner les liaisons} à partir des
+distances interatomiques (\texttt{PerceiveBondOrders}), puis attribuer les types d'atomes MMFF94.
+
+\subsubsection{Résultats et problèmes}
+
+Sur les 1228 structures :
+
+\begin{center}
+\begin{tabular}{lr}
+  \toprule
+  Résultat & Nombre \\
+  \midrule
+  Structures planes (acceptées) & 1044 \\
+  Structures non planes (rejetées) & 15 \\
+  \textbf{Échecs d'optimisation} & \textbf{169} \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Les 169 échecs} concernaient exclusivement des structures avec \textbf{deux heptagones
+consécutifs} (motif \texttt{7\_7}). L'erreur récurrente était :
+
+\begin{lstlisting}[language={}, style={}]
+Failed to kekulize aromatic bonds in OBMol::PerceiveBondOrders
+Could not setup force field.
+\end{lstlisting}
+
+Open Babel ne parvenait pas à trouver une structure de Kekulé valide pour ces topologies
+inhabituelles, ce qui empêchait l'assignation des types d'atomes MMFF94.
+
+Une tentative de correction a été faite en passant par le format MOL~V2000 (qui inclut les
+liaisons explicitement), mais le chimiste a alors identifié un problème plus fondamental :
+les \textbf{15 structures ``non planes''} n'étaient pas simplement déformées — des
+\textbf{liaisons C--H s'étaient rompues} pendant l'optimisation MMFF94. L'optimiseur avait
+trouvé des minima locaux correspondant à des structures \textit{dissociées}, chimiquement
+incorrectes.
+
+\begin{attention}
+  Le champ de force MMFF94 ne garantit pas l'intégrité chimique de la molécule. En traitant
+  les liaisons comme des ``ressorts'', il peut trouver des minima d'énergie où des atomes se
+  détachent du squelette carboné. Ces structures dissociées sont des artefacts, pas des
+  résultats chimiquement valides.
+\end{attention}
+
+\subsection{Phase 4 : optimisation xTB — méthode semi-empirique quantique}
+
+Sur recommandation du chimiste, la méthode \textbf{xTB} (extended Tight-Binding) a été adoptée
+pour remplacer MMFF94. xTB est un programme de chimie quantique semi-empirique développé par le
+groupe Grimme (Université de Bonn), distribué sous licence LGPL-3.0.
+
+\subsubsection{Principe de xTB (GFN2-xTB)}
+
+Contrairement aux champs de force classiques (UFF, MMFF94) qui modélisent les liaisons par des
+potentiels harmoniques, xTB \textbf{traite les électrons de liaison explicitement} en résolvant
+une version approchée de l'équation de Schrödinger. La méthode GFN2-xTB (Geometry, Frequency,
+Noncovalent interactions, version~2) se situe à un niveau intermédiaire :
+
+\begin{center}
+\begin{tabular}{lccc}
+  \toprule
+  Méthode & Précision & Vitesse & Électrons \\
+  \midrule
+  Champ de force (UFF, MMFF94) & Faible & Très rapide & Ignorés (ressorts) \\
+  \textbf{xTB (GFN2-xTB)} & \textbf{Bonne} & \textbf{Rapide} & \textbf{Explicites (approx.)} \\
+  DFT (B3LYP, PBE0\ldots) & Très bonne & Lente & Traités complètement \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+L'avantage décisif pour notre projet : xTB \textbf{n'a pas besoin d'information de liaison}
+en entrée. Il lit un simple fichier XYZ (atomes + coordonnées) et calcule la structure
+électronique lui-même. Il n'y a donc plus de problème de ``kekulisation'' ni de perception de
+liaisons.
+
+\subsubsection{Utilisation}
+
+La commande d'optimisation est :
+\begin{lstlisting}[language=bash, style={}]
+xtb molecule.xyz --opt tight
+\end{lstlisting}
+La sortie est le fichier \texttt{xtbopt.xyz} contenant la géométrie optimisée.
+
+\subsubsection{Résultats finaux avec xTB}
+
+Sur les 1228 structures, avec un seuil de planarité de \textbf{10°} :
+
+\begin{center}
+\begin{tabular}{lr}
+  \toprule
+  Résultat & Nombre \\
+  \midrule
+  Structures planes (acceptées) & \textbf{1203} \\
+  Structures non planes (rejetées) & \textbf{25} \\
+  Échecs d'optimisation & \textbf{0} \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+Par cycle central :
+\begin{center}
+\begin{tabular}{cccc}
+  \toprule
+  Cycle central & Planes & Non planes & Total \\
+  \midrule
+  5 & 92  & 1  & 93 \\
+  6 & 412 & 3  & 415 \\
+  7 & 699 & 21 & 720 \\
+  \midrule
+  \textbf{Total} & \textbf{1203} & \textbf{25} & \textbf{1228} \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Aucun échec d'optimisation} : xTB a traité avec succès les 1228 structures, y compris
+les 169 qui échouaient avec MMFF94. Les 25 structures non planes sont des cas où la déviation
+angulaire maximale dépasse 10°, la plus déformée étant \texttt{5\_7\_5\_5\_0} (cycle~5, 63.6°).
+
+\begin{remarque}
+  La majorité des structures non planes (21 sur 25) sont des configurations avec cycle
+  central à 7 sommets et au moins deux heptagones dans la séquence de voisins. La seule
+  structure non plane avec cycle central à 5 est \texttt{5\_7\_5\_5\_0} (16 carbones).
+  Les 3 structures non planes avec cycle central à 6 sont \texttt{7\_7\_7\_0\_7\_0},
+  \texttt{7\_7\_7\_7\_7\_6} et \texttt{6\_5\_5\_5\_5\_5}.
+\end{remarque}
+
+\subsection{Pipeline final}
+
+Le pipeline validé se compose de deux commandes :
+
+\begin{lstlisting}[language=bash, style={}]
+python main.py generate    # Etape 1 : generer 1228 CML + XYZ
+python main.py optimize    # Etape 2 : xTB + planarite + rapport
+\end{lstlisting}
+
+\textbf{Étape 1 — Génération} (\texttt{generate}) :
+\begin{enumerate}
+  \item Énumération des séquences canoniques sous $D_n$ (Burnside)
+  \item Construction géométrique (polygones réguliers, coadjacence, wrap-around)
+  \item Résolution des valences (couplage maximum de Blossom, radical, H)
+  \item Export CML (pour le solveur CSP) et XYZ (pour xTB)
+\end{enumerate}
+
+\textbf{Étape 2 — Validation} (\texttt{optimize}) :
+\begin{enumerate}
+  \item Optimisation géométrique par xTB (GFN2-xTB, \texttt{--opt tight})
+  \item Vérification des distances interatomiques (C--C $\approx 1.42$~Å, C--H $\approx 1.08$~Å)
+  \item Test de planarité par ACP (analyse en composantes principales)
+  \item Classification : plane ($\leq 10°$) ou non plane ($> 10°$)
+  \item Génération du rapport \texttt{rapport\_planarite.txt}
+\end{enumerate}
+
+\begin{remarque}
+  Le test de planarité calcule l'angle maximal entre le vecteur centre$\to$atome et le plan
+  moyen de la molécule (obtenu par ACP). Si cet angle dépasse le seuil (10° par défaut),
+  la structure est rejetée. xTB garantit que la molécule est chimiquement valide (pas de
+  dissociation), mais ne garantit pas la planarité — d'où la nécessité des deux étapes.
+\end{remarque}
 
 % ============================================================
 \section{Exemple complet : la molécule \texttt{5\_6\_5\_5\_0}}
@@ -915,8 +1103,16 @@ les simples et les C-H complètent le total de 76. Ce bilan est vérifié par le
     célibataire).
   \item[UFF] Universal Force Field. Planarise artificiellement les structures — non fiable
     pour valider la géométrie des non-benzenoïdes.
-  \item[MMFF94] Merck Molecular Force Field 94. Champ de force recommandé pour les petites
-    molécules organiques aromatiques. Critère de rejet : déviation au plan moyen $> 10°$.
+  \item[MMFF94] Merck Molecular Force Field 94. Champ de force classique pour les petites
+    molécules organiques. Remplacé par xTB dans notre pipeline en raison de problèmes de
+    dissociation et d'échecs de kekulisation.
+  \item[xTB] Extended Tight-Binding. Programme de chimie quantique semi-empirique (groupe
+    Grimme, Bonn). La méthode GFN2-xTB traite les électrons explicitement, sans nécessiter
+    d'information de liaison en entrée. Plus robuste et plus précis que MMFF94.
+  \item[GFN2-xTB] Geometry, Frequency, Noncovalent interactions — version 2 de la méthode
+    tight-binding étendue. Méthode par défaut de xTB.
+  \item[ACP] Analyse en Composantes Principales (PCA en anglais). Utilisée ici pour
+    déterminer le plan moyen d'une molécule et mesurer les déviations angulaires.
   \item[CML] Chemical Markup Language. Format XML standard pour l'échange de données
     moléculaires.
   \item[CSP] Constraint Satisfaction Problem. Problème de satisfaction de contraintes, ici

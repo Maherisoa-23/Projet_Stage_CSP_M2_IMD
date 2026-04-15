@@ -6,7 +6,10 @@
       "Bash(head -50 *.py)",
       "Bash(python csp_solver/table.py)",
       "Bash(python csp_solver/parser.py)",
-      "Bash(python preprocessing.py)"
+      "Bash(python preprocessing.py)",
+      "WebFetch(domain:xtb-docs.readthedocs.io)",
+      "WebSearch",
+      "WebFetch(domain:github.com)"
     ]
   }
 }
