@@ -1,0 +1,16 @@
+# Cache Python
+__pycache__/
+*.pyc
+
+# Residus xTB (generes par xtb --opt)
+.xtboptok
+xtbopt.xyz
+xtbopt.log
+xtbrestart
+xtbtopo.mol
+charges
+wbo
+gfnff_topo
+
+# Fichiers de test temporaires
+test.*

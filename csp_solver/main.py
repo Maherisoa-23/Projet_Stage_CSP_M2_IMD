@@ -103,7 +103,7 @@ def main():
     if do_validate and solutions:
         print()
         print("=== Validation xTB + planarite ===")
-        from utils.reconstruct import reconstruct_and_validate
+        from reconstruction import reconstruct_and_validate
         reconstruct_and_validate(graph, solutions)
 
 

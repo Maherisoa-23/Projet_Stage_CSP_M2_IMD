@@ -1,0 +1,84 @@
+"""
+Phase C : Assemblage du MolecularGraph et export XYZ.
+
+Prend la topologie (sommets, liaisons, cycles) et les coordonnees
+pour construire un MolecularGraph complet, resoudre les valences
+(doubles liaisons + hydrogenes), et exporter en format XYZ.
+"""
+
+import sys
+from pathlib import Path
+
+from reconstruction.topology import CycleTopology
+from reconstruction.placement import CyclePlacer
+
+# Import depuis le generateur (meme pattern que validate.py)
+_gen_root = Path(__file__).parent.parent.parent / "non_benzenoid_generator"
+_gen_str = str(_gen_root)
+if _gen_str not in sys.path:
+    sys.path.insert(0, _gen_str)
+
+from core.topology import MolecularGraph, Cycle
+from core.valence_solver import ValenceSolver
+
+
+def build_molecular_graph(topo: CycleTopology, placer: CyclePlacer) -> MolecularGraph:
+    """Construit le MolecularGraph a partir de la topologie et des coordonnees.
+
+    1. Cree les atomes de carbone avec leurs coordonnees 2D (z=0)
+    2. Ajoute toutes les liaisons C-C (ordre 1)
+    3. Enregistre les cycles (necessaires pour ValenceSolver)
+    4. Appelle ValenceSolver pour les doubles liaisons et les hydrogenes
+
+    Args:
+        topo: CycleTopology apres build() — fournit vertex_set, bond_set, cycle_vertices
+        placer: CyclePlacer apres build() — fournit coords
+
+    Returns:
+        MolecularGraph complet avec C, H, liaisons simples et doubles
+    """
+    mol = MolecularGraph()
+
+    # Mapping label -> vertex id dans le MolecularGraph
+    label_to_id: dict[str, int] = {}
+
+    # Ajouter tous les carbones
+    for label in topo.vertex_set:
+        x, y = placer.coords[label]
+        vid = mol.add_vertex("C", x, y, 0.0)
+        label_to_id[label] = vid
+
+    # Ajouter toutes les liaisons C-C
+    for bond in topo.bond_set:
+        labels = list(bond)
+        a, b = labels[0], labels[1]
+        if a in label_to_id and b in label_to_id:
+            mol.add_bond(label_to_id[a], label_to_id[b], order=1)
+
+    # Enregistrer les cycles (necessaires pour le placement des doubles liaisons)
+    for v_idx in sorted(topo.cycle_vertices.keys()):
+        verts = topo.cycle_vertices[v_idx]
+        ids = [label_to_id[label] for label in verts]
+        mol.cycles.append(Cycle(vertices=ids, size=len(ids)))
+
+    # Resoudre les valences : doubles liaisons + hydrogenes
+    solver = ValenceSolver(mol)
+    solver.solve()
+
+    return mol
+
+
+def export_xyz(mol: MolecularGraph, filepath: str, comment: str = ""):
+    """Exporte le MolecularGraph au format XYZ.
+
+    Args:
+        mol: MolecularGraph complet (C + H)
+        filepath: chemin du fichier de sortie
+        comment: ligne de commentaire dans le fichier XYZ
+    """
+    atoms = sorted(mol.vertices.values(), key=lambda v: v.id)
+    with open(filepath, "w") as f:
+        f.write(f"{len(atoms)}\n")
+        f.write(f"{comment}\n")
+        for a in atoms:
+            f.write(f"{a.element:<2s}  {a.x:14.5f}  {a.y:14.5f}  {a.z:14.5f}\n")
