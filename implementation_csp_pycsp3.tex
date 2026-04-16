@@ -1,0 +1,822 @@
+% ============================================================
+%  Implémentation du modèle CSP avec PyCSP3
+%  Stage AMU — Master 2 IMD
+% ============================================================
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tcolorbox}
+\usepackage{float}
+\usepackage{microtype}
+\usepackage{parskip}
+\usepackage{tikz}
+
+% ---- couleurs ----
+\definecolor{codebg}{rgb}{0.96,0.96,0.96}
+\definecolor{codeframe}{rgb}{0.75,0.75,0.75}
+\definecolor{primary}{RGB}{0,90,160}
+\definecolor{accent}{RGB}{200,60,0}
+\definecolor{notegreen}{RGB}{0,120,60}
+
+% ---- listings ----
+\lstdefinestyle{python}{
+  language=Python,
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{codeframe},
+  basicstyle=\ttfamily\small,
+  keywordstyle=\bfseries\color{primary},
+  commentstyle=\itshape\color{notegreen},
+  stringstyle=\color{accent},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  numbersep=8pt,
+  breaklines=true,
+  showstringspaces=false,
+  tabsize=4,
+}
+\lstdefinestyle{benzai}{
+  backgroundcolor=\color{codebg},
+  frame=single,
+  rulecolor=\color{codeframe},
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  showstringspaces=false,
+}
+\lstset{style=python}
+
+% ---- boîtes ----
+\tcbuselibrary{skins, breakable}
+\newtcolorbox{remarque}[1][]{
+  colback=blue!5, colframe=primary, fonttitle=\bfseries,
+  title=Remarque, #1
+}
+\newtcolorbox{attention}[1][]{
+  colback=orange!8, colframe=accent, fonttitle=\bfseries,
+  title=Attention, #1
+}
+
+% ---- theoremes ----
+\theoremstyle{definition}
+\newtheorem{definition}{Définition}[section]
+
+% ---- en-têtes ----
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\textcolor{gray}{\small Implémentation CSP — Stage AMU M2}}
+\lhead{\textcolor{gray}{\small \leftmark}}
+\cfoot{\thepage}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=primary,
+  urlcolor=primary,
+  citecolor=primary
+}
+
+% ---- raccourcis ----
+\newcommand{\GD}{G_{\!D}}
+\newcommand{\Tn}{\mathcal{T}(n)}
+
+% ============================================================
+\begin{document}
+
+\begin{titlepage}
+  \centering
+  \vspace*{2cm}
+  {\huge\bfseries\color{primary}
+    Implémentation du Modèle CSP\\[0.4em]
+    avec PyCSP3 et ACE\\[1em]}
+  {\large\color{gray} Documentation technique — Stage AMU, Master 2 IMD}\\[0.5em]
+  {\large\color{gray} Solveur de contraintes pour les non-benzenoïdes}\\[3em]
+  \rule{\linewidth}{0.5pt}\\[1em]
+  {\large
+    \textbf{Objectif :} étant donné un benzénoïde (graphe hexagonal),\\
+    déterminer toutes les substitutions valides de pentagones et heptagones\\
+    par satisfaction de contraintes
+  }\\[1em]
+  \rule{\linewidth}{0.5pt}\\[3em]
+  {\normalsize
+    \textbf{Implémentation :} Python 3 + PyCSP3 + ACE (Java)\\[0.5em]
+    \textbf{Modèle formel :} voir \textit{Stage\_M2\_IMD\_modelisation\_csp.tex}\\[0.5em]
+    \textbf{Date :} Avril 2026
+  }
+  \vfill
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Introduction et objectif}
+% ============================================================
+
+\subsection{Contexte}
+
+Ce document décrit l'implémentation concrète du solveur CSP (Constraint Satisfaction Problem)
+pour la génération de structures polycycliques non-benzenoïdes. Il complète le document de
+modélisation formelle (\textit{Stage\_M2\_IMD\_modelisation\_csp.tex}) qui définit les contraintes
+mathématiques, et le document de validation (\textit{validation\_reconstruction\_csp.tex}) qui
+traite de la reconstruction 3D.
+
+\subsection{Le problème}
+
+Étant donné un \textbf{benzénoïde} (assemblage plan d'hexagones fusionnés par arête), on cherche
+toutes les façons de remplacer certains hexagones par des \textbf{pentagones} (5 côtés) ou des
+\textbf{heptagones} (7 côtés), sous les contraintes suivantes :
+\begin{enumerate}
+  \item Le nombre total de carbones est conservé (contrainte d'Euler).
+  \item Chaque voisinage local est chimiquement réalisable (table de voisinage).
+  \item Deux solutions structurellement identiques ne sont comptées qu'une fois (symétrie).
+\end{enumerate}
+
+La \textbf{table de voisinage} est issue du générateur (cf. \textit{documentation.tex}) :
+1203 configurations locales validées par optimisation xTB (GFN2-xTB) et test de planarité
+(seuil 10°).
+
+% ============================================================
+\section{Outils et technologies}
+% ============================================================
+
+\subsection{Python 3}
+
+Le programme de modélisation et d'orchestration du pipeline est écrit en Python~3. Python a été
+choisi pour sa flexibilité, l'écosystème scientifique riche, et la compatibilité directe avec
+la bibliothèque PyCSP3. Le solveur de contraintes proprement dit est ACE (Java), appelé en
+subprocess depuis Python.
+
+\subsection{PyCSP3 — Modélisation de contraintes}
+
+\begin{definition}[PyCSP3]
+  PyCSP3~\cite{pycsp3} est une bibliothèque Python développée par Christophe Lecoutre (CRIL,
+  Université d'Artois) qui permet de \textbf{modéliser des problèmes de satisfaction de
+  contraintes} au format standard XCSP3~\cite{xcsp3}. Elle fournit une API Python pour
+  déclarer des variables, domaines et contraintes, puis génère un fichier XML exploitable
+  par n'importe quel solveur compatible XCSP3.
+\end{definition}
+
+Principales fonctions utilisées :
+\begin{itemize}
+  \item \texttt{VarArray(size, dom)} — déclaration d'un tableau de variables avec domaines
+  \item \texttt{satisfy(...)} — ajout d'une contrainte au modèle
+  \item \texttt{Sum(x) == k} — contrainte de somme
+  \item \texttt{scope in table} — contrainte extensionnelle (table de compatibilité)
+  \item \texttt{LexIncreasing(x, y)} — $x \leq_{\text{lex}} y$ (brisure de symétrie)
+  \item \texttt{compile(filename)} — génération du fichier XCSP3
+\end{itemize}
+
+\begin{attention}
+  PyCSP3 intercepte \texttt{sys.argv} dès son importation, ce qui entre en conflit avec les
+  arguments du script appelant. La solution adoptée consiste à sauvegarder \texttt{sys.argv}
+  avant l'import de PyCSP3, puis à le restaurer.
+  \begin{lstlisting}
+_own_argv = sys.argv[:]
+sys.argv = [_own_argv[0]]
+from pycsp3 import *
+  \end{lstlisting}
+\end{attention}
+
+\subsection{ACE — Solveur de contraintes}
+
+\begin{definition}[ACE]
+  ACE~\cite{ace} (Adaptive Constraint Engine) est un solveur de contraintes développé par
+  Christophe Lecoutre. C'est un programme Java qui lit un fichier XCSP3 et énumère les
+  solutions. Il est distribué avec PyCSP3 sous forme de fichier JAR
+  (\texttt{ACE-2.5.jar}).
+\end{definition}
+
+ACE est appelé en \textbf{subprocess} plutôt que via l'API interne de PyCSP3 (qui retournait
+\texttt{UNKNOWN} dans certains cas). La commande utilisée :
+
+\begin{lstlisting}[style=benzai]
+java -jar ACE-2.5.jar model.xml -s=all -xe
+\end{lstlisting}
+
+Où \texttt{-s=all} demande l'énumération de toutes les solutions et \texttt{-xe} active
+l'export XML de chaque solution.
+
+\subsection{XCSP3 — Format standard}
+
+\begin{definition}[XCSP3]
+  XCSP3~\cite{xcsp3} est un format XML standardisé pour la représentation de problèmes de
+  satisfaction de contraintes. Il est maintenu par le réseau de recherche XCSP
+  (\url{https://xcsp.org}) et sert de format d'échange universel entre modélisateurs et
+  solveurs.
+\end{definition}
+
+\subsection{NetworkX — Graphes en Python}
+
+\begin{definition}[NetworkX]
+  NetworkX~\cite{networkx} est une bibliothèque Python pour la création, la manipulation et
+  l'étude de graphes. Dans ce projet, elle est utilisée pour :
+  \begin{itemize}
+    \item Représenter le \textbf{graphe dual} $\GD$ du benzénoïde
+    \item Calculer les \textbf{automorphismes} via \texttt{GraphMatcher}
+    \item Déterminer les \textbf{degrés} et \textbf{voisinages}
+  \end{itemize}
+\end{definition}
+
+\subsection{xTB — Validation par chimie quantique semi-empirique}
+
+\begin{definition}[xTB]
+  xTB~\cite{xtb} (extended Tight-Binding) est un programme de chimie quantique semi-empirique
+  développé par le groupe Grimme (Université de Bonn). La méthode GFN2-xTB~\cite{gfn2xtb}
+  traite les électrons de liaison explicitement (contrairement aux champs de force classiques)
+  tout en restant rapide. Elle est utilisée dans le pipeline pour optimiser la géométrie des
+  solutions reconstruites et vérifier leur planarité.
+\end{definition}
+
+\subsection{Benzai — Générateur de benzénoïdes}
+
+\begin{definition}[Benzai]
+  Benzai~\cite{benzai} est un logiciel de génération de structures benzénoïdes développé au
+  LS2N (Université de Nantes). Il produit des fichiers \texttt{.graph} au format DIMACS étendu,
+  décrivant la topologie d'un benzénoïde (sommets = carbones, arêtes = liaisons, faces =
+  hexagones). Ces fichiers constituent l'entrée du programme CSP.
+\end{definition}
+
+% ============================================================
+\section{Traitement de l'entrée : du benzénoïde au graphe dual}
+% ============================================================
+
+\subsection{Exemple fil rouge : \texttt{first.graph}}
+
+L'exemple utilisé tout au long de cette section est un benzénoïde linéaire à 3 hexagones
+(14 carbones), illustré ci-dessous. Les hexagones sont numérotés $v_0$, $v_1$, $v_2$.
+
+\begin{center}
+\begin{tikzpicture}[scale=0.8, every node/.style={font=\large}]
+  % Hexagone v0
+  \foreach \i in {0,...,5} {
+    \coordinate (A\i) at ({cos(60*\i+30)*1.2}, {sin(60*\i+30)*1.2});
+  }
+  \draw[thick] (A0) -- (A1) -- (A2) -- (A3) -- (A4) -- (A5) -- cycle;
+  \node at (0,0) {$v_0$};
+  % Hexagone v1 (decale a droite)
+  \foreach \i in {0,...,5} {
+    \coordinate (B\i) at ({cos(60*\i+30)*1.2 + 2*1.2*cos(30)}, {sin(60*\i+30)*1.2});
+  }
+  \draw[thick] (B0) -- (B1) -- (B2) -- (B3) -- (B4) -- (B5) -- cycle;
+  \node at ({2*1.2*cos(30)},0) {$v_1$};
+  % Hexagone v2 (decale a droite x2)
+  \foreach \i in {0,...,5} {
+    \coordinate (C\i) at ({cos(60*\i+30)*1.2 + 4*1.2*cos(30)}, {sin(60*\i+30)*1.2});
+  }
+  \draw[thick] (C0) -- (C1) -- (C2) -- (C3) -- (C4) -- (C5) -- cycle;
+  \node at ({4*1.2*cos(30)},0) {$v_2$};
+\end{tikzpicture}
+\end{center}
+
+Le graphe dual correspondant est le chemin $v_0 - v_1 - v_2$ (deux arêtes).
+
+\subsection{Format d'entrée Benzai}
+
+Le fichier \texttt{.graph} utilise un format inspiré de DIMACS. Voici l'exemple
+\texttt{first.graph} (3 hexagones linéaires, 14 carbones) :
+
+\begin{lstlisting}[style=benzai]
+p DIMACS 14 16 3
+e 0_0 1_1
+e 0_0 -1_1
+e 1_1 1_2
+e -1_1 -1_2
+e 1_2 0_3
+...
+h 0_0 1_1 1_2 0_3 -1_2 -1_1
+h -1_2 0_3 0_4 -1_5 -2_4 -2_3
+h -2_4 -1_5 -1_6 -2_7 -3_6 -3_5
+\end{lstlisting}
+
+\begin{itemize}
+  \item \texttt{p DIMACS V E F} : en-tête avec $V$ sommets (carbones), $E$ arêtes (liaisons)
+    et $F$ faces (hexagones).
+  \item \texttt{e s1 s2} : arête entre les carbones \texttt{s1} et \texttt{s2}. Les identifiants
+    sont des coordonnées du réseau hexagonal (\texttt{x\_y}).
+  \item \texttt{h s1 s2 s3 s4 s5 s6} : hexagone défini par ses 6 sommets dans l'ordre
+    cyclique.
+\end{itemize}
+
+\subsection{Construction du graphe dual $\GD$}
+
+Le \textbf{graphe dual} est la structure centrale du modèle CSP. Chaque hexagone du benzénoïde
+devient un \textbf{sommet} du dual, et deux sommets du dual sont reliés par une arête si les
+hexagones correspondants \textbf{partagent un côté}.
+
+\begin{definition}[Graphe dual]
+  Soit $\mathcal{B}$ un benzénoïde à $h$ hexagones. Le graphe dual
+  $\GD = (V_D, E_D)$ est défini par :
+  \begin{itemize}
+    \item $V_D = \{0, 1, \ldots, h-1\}$ (un sommet par hexagone)
+    \item $(u, v) \in E_D$ ssi les hexagones $u$ et $v$ partagent une arête
+  \end{itemize}
+\end{definition}
+
+L'implémentation utilise NetworkX :
+
+\begin{lstlisting}
+# Construction du graphe dual (parser.py)
+# hex_edges[u] = ensemble des aretes de l'hexagone u
+for u in range(h):
+    for v in range(u + 1, h):
+        shared = hex_edges[u] & hex_edges[v]
+        if shared:
+            graph.dual.add_edge(u, v)
+            # Enregistrer la position de l'arete partagee
+            shared_edge = next(iter(shared))
+            s1, s2 = tuple(shared_edge)
+            pos_u = _find_edge_position(hexagons[u], s1, s2)
+            pos_v = _find_edge_position(hexagons[v], s1, s2)
+            graph.edge_positions[(u, v)] = (pos_u, pos_v)
+\end{lstlisting}
+
+\subsection{Motif d'occupation $\sigma(v)$}
+
+Pour chaque hexagone $v$, le \textbf{motif d'occupation} (ou \textit{pattern})
+$\sigma(v) \in \{0, 1\}^6$ indique quels côtés sont partagés avec un voisin dans le dual.
+C'est un masque binaire qui décrit la ``forme'' du voisinage de l'hexagone.
+
+\begin{definition}[Motif d'occupation]
+  $\sigma(v) = (\sigma_0, \sigma_1, \ldots, \sigma_5)$ où $\sigma_i = 1$ si le côté $i$
+  de l'hexagone $v$ est partagé avec un hexagone voisin, et $\sigma_i = 0$ sinon.
+\end{definition}
+
+\begin{lstlisting}
+# Calcul des patrons (parser.py)
+for v in range(h):
+    pattern = [0] * 6
+    for u in graph.dual.neighbors(v):
+        pos = graph.edge_positions[(v, u)][0]
+        pattern[pos] = 1
+    graph.patterns[v] = tuple(pattern)
+\end{lstlisting}
+
+\textbf{Exemple} pour \texttt{first.graph} (3 hexagones linéaires) :
+\begin{center}
+\begin{tabular}{ccl}
+  \toprule
+  Hexagone & Degré & Patron $\sigma(v)$ \\
+  \midrule
+  $v_0$ & 1 & $(0, 0, 0, 1, 0, 0)$ \\
+  $v_1$ & 2 & $(1, 0, 0, 1, 0, 0)$ \\
+  $v_2$ & 1 & $(1, 0, 0, 0, 0, 0)$ \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Comptage des blocs de zéros $b(v)$}
+
+Le nombre de \textbf{blocs de 0 consécutifs} dans le motif cyclique détermine si un hexagone
+est gelé (ne peut pas changer de taille).
+
+\begin{lstlisting}
+def count_zero_blocks(pattern):
+    # Trouver un 1 comme point de depart
+    start = next(i for i, p in enumerate(pattern) if p == 1)
+    blocks, in_zero = 0, False
+    for offset in range(len(pattern)):
+        idx = (start + offset) % len(pattern)
+        if pattern[idx] == 0:
+            if not in_zero:
+                blocks += 1
+                in_zero = True
+        else:
+            in_zero = False
+    return blocks
+\end{lstlisting}
+
+Si $b(v) \geq 2$, l'hexagone $v$ est \textbf{gelé} : ses côtés partagés ne forment pas un
+bloc consécutif unique, et il est impossible de redimensionner le cycle en préservant les
+arêtes partagées.
+
+% ============================================================
+\section{Pré-traitement et réduction du domaine}
+% ============================================================
+
+Le pré-traitement exploite la structure du graphe dual \textit{avant} la résolution pour
+réduire l'espace de recherche. L'idée centrale est que la table de voisinage complète (1203
+entrées) est un catalogue \textit{générique}. Une fois le graphe dual du benzénoïde d'entrée
+connu, il est possible de ne conserver que le \textbf{sous-ensemble pertinent} de la table pour
+chaque hexagone, en fonction de son motif $\sigma(v)$ et de son degré dans le dual. Ce filtrage
+réduit considérablement le nombre de combinaisons que le solveur doit explorer.
+
+\subsection{Calcul des domaines}
+
+Chaque variable $x_v$ représente la taille du cycle à la position $v$. Le domaine est réduit
+selon la nature de l'hexagone :
+
+\begin{lstlisting}
+def compute_domains(graph):
+    domains = {}
+    for v in range(graph.h):
+        if graph.is_frozen(v):
+            domains[v] = {6}       # gele : reste hexagone
+        else:
+            domains[v] = {5, 6, 7}  # libre : peut changer
+    return domains
+\end{lstlisting}
+
+Un hexagone est gelé si :
+\begin{itemize}
+  \item son degré dans le dual est 6 (entouré de tous côtés), \textbf{ou}
+  \item $b(v) \geq 2$ (les côtés partagés ne forment pas un bloc unique).
+\end{itemize}
+
+\subsection{Filtrage de la table de voisinage}
+
+La table de voisinage $\mathcal{T}$ contient 1203 entrées réparties en :
+$\mathcal{T}(5)$ = 92 entrées, $\mathcal{T}(6)$ = 412 entrées, $\mathcal{T}(7)$ = 699 entrées.
+
+Pour chaque hexagone libre $v$ de degré $\geq 2$, on filtre la table pour ne garder que les
+entrées \textbf{compatibles} avec le patron $\sigma(v)$ :
+
+\begin{lstlisting}
+def filter_table_for_vertex(graph, v, full_table):
+    pattern = graph.patterns[v]
+    deg = graph.degree(v)
+    shared_positions = [i for i, p in enumerate(pattern) if p == 1]
+
+    compatible = []
+    for n in (5, 6, 7):
+        for seq in full_table[n]:
+            seq_shared = [i for i, s in enumerate(seq) if s != 0]
+            # Le nombre de voisins doit correspondre
+            if len(seq_shared) != deg:
+                continue
+            # Les positions non-nulles doivent former un bloc consecutif
+            if not _is_consecutive_block(seq_shared, n):
+                continue
+            # Construire le tuple pour la contrainte extensionnelle
+            neighbor_sizes = [seq[i] for i in seq_shared]
+            compatible.append((n,) + tuple(neighbor_sizes))
+
+    return compatible
+\end{lstlisting}
+
+Le filtrage vérifie deux conditions :
+\begin{enumerate}
+  \item Le nombre de voisins non nuls dans la séquence correspond au degré de $v$ dans le dual.
+  \item Les positions non nulles forment un \textbf{bloc consécutif} (cyclique) — condition
+    nécessaire puisque $b(v) = 1$ pour les hexagones libres.
+\end{enumerate}
+
+\begin{remarque}
+  Les hexagones de degré 1 (un seul voisin) ne nécessitent pas de contrainte de table :
+  un cycle avec un unique voisin est toujours géométriquement admissible, quelle que soit
+  sa taille.
+\end{remarque}
+
+\subsection{Calcul des automorphismes}
+
+Les \textbf{automorphismes} du graphe dual sont utilisés pour la brisure de symétrie
+(contrainte C4). Un automorphisme est une permutation des sommets qui préserve la structure
+d'adjacence.
+
+\begin{lstlisting}
+def compute_automorphisms(graph):
+    G = graph.dual
+    matcher = nx.algorithms.isomorphism.GraphMatcher(G, G)
+    # Collecter tous les automorphismes (sauf l'identite)
+    all_auts = [iso for iso in matcher.isomorphisms_iter()
+                if any(iso[v] != v for v in iso)]
+    # Extraire un ensemble minimal de generateurs
+    return _extract_generators(all_auts, list(G.nodes()))
+\end{lstlisting}
+
+L'extraction des générateurs utilise une approche gloutonne : on ajoute un automorphisme au
+jeu de générateurs s'il produit de nouvelles permutations par composition avec les générateurs
+existants. On s'arrête quand la fermeture du sous-groupe couvre tous les automorphismes.
+
+% ============================================================
+\section{Le modèle CSP : variables, contraintes, résolution}
+% ============================================================
+
+\subsection{Variables}
+
+Pour un benzénoïde à $h$ hexagones, on définit $h$ variables :
+\[
+  x_v \in \text{domaine}(v) \quad \text{pour } v = 0, 1, \ldots, h-1
+\]
+Le domaine est $\{6\}$ pour les hexagones gelés et $\{5, 6, 7\}$ pour les libres.
+
+\begin{lstlisting}
+x = VarArray(size=h, dom=lambda i: domains[i])
+\end{lstlisting}
+
+\subsection{Contrainte C1 — Conservation du carbone}
+
+La formule d'Euler pour les graphes planaires impose que le nombre total de carbones soit
+conservé. Cela se traduit par :
+\[
+  \sum_{v=0}^{h-1} x_v = 6h
+\]
+Autrement dit, le nombre de pentagones ($n_5$) doit être égal au nombre d'heptagones ($n_7$).
+
+\begin{lstlisting}
+satisfy(
+    Sum(x) == 6 * h
+)
+\end{lstlisting}
+
+\subsection{Contrainte C3 — Admissibilité du voisinage}
+
+Pour chaque hexagone libre $v$ de degré $\geq 2$, la configuration locale
+$(x_v, x_{u_1}, x_{u_2}, \ldots)$ — où $u_1, u_2, \ldots$ sont les voisins de $v$ dans le
+dual — doit apparaître dans la table filtrée. C'est une \textbf{contrainte extensionnelle}.
+
+\begin{lstlisting}
+for v in free:
+    if v in tables and tables[v]:
+        neighbors_v = graph.neighbors(v)
+        scope = [x[v]] + [x[u] for u in neighbors_v]
+        satisfy(
+            scope in tables[v]
+        )
+\end{lstlisting}
+
+La table filtrée pour $v$ est une liste de tuples compatibles. Par exemple, pour un hexagone
+libre de degré 2, les tuples sont de la forme $(x_v, x_{u_1}, x_{u_2})$.
+
+\subsection{Contrainte C4 — Brisure de symétrie (lex-leader)}
+
+Deux solutions qui ne diffèrent que par un automorphisme du graphe dual décrivent la
+\textbf{même molécule}. Pour éviter les doublons, on impose que chaque solution soit
+lexicographiquement inférieure ou égale à toutes ses images par les automorphismes.
+
+Pour chaque générateur $\pi$ du groupe d'automorphismes :
+\[
+  (x_0, x_1, \ldots, x_{h-1}) \leq_{\text{lex}} (x_{\pi(0)}, x_{\pi(1)}, \ldots, x_{\pi(h-1)})
+\]
+
+\begin{lstlisting}
+for gen in generators:
+    permuted = [x[gen[i]] for i in range(h)]
+    satisfy(
+        LexIncreasing(x, permuted)
+    )
+\end{lstlisting}
+
+\begin{remarque}
+  La justification théorique de cette contrainte repose sur le théorème de Whitney
+  (unicité du plongement planaire pour les graphes 3-connexes) et la 2-connexité des
+  benzénoïdes. Voir le document de modélisation pour la preuve complète.
+\end{remarque}
+
+\subsection{Compilation et résolution}
+
+Le modèle est compilé en XCSP3 (fichier XML), puis ACE est appelé en subprocess :
+
+\begin{lstlisting}
+# Generation du fichier XCSP3
+compile(filename="model.xml")
+
+# Appel d'ACE (solveur Java)
+ace_jar = _find_ace_jar()  # dans l'installation de pycsp3
+cmd = ["java", "-jar", ace_jar, "model.xml", "-s=all", "-xe"]
+result = subprocess.run(cmd, capture_output=True, text=True)
+\end{lstlisting}
+
+Les drapeaux :
+\begin{itemize}
+  \item \texttt{-s=all} : énumérer toutes les solutions (pas seulement la première).
+  \item \texttt{-xe} : exporter chaque solution au format XML dans la sortie standard.
+\end{itemize}
+
+\subsection{Parsing de la sortie ACE}
+
+ACE écrit chaque solution sous forme de balise XML \texttt{<values>}. Le format utilise
+une notation compacte : \texttt{6x3} signifie ``6 répété 3 fois''.
+
+\begin{lstlisting}
+def _parse_ace_output(output, h):
+    solutions = []
+    for match in re.finditer(r'<values>\s*(.+?)\s*</values>', output):
+        vals_str = match.group(1).strip()
+        values = []
+        for token in vals_str.split():
+            if "x" in token:
+                val, count = token.split("x")
+                values.extend([int(val)] * int(count))
+            else:
+                values.append(int(token))
+        if len(values) == h:
+            solutions.append({i: values[i] for i in range(h)})
+    return solutions
+\end{lstlisting}
+
+% ============================================================
+\section{Format de sortie et résultats}
+% ============================================================
+
+\subsection{Structure d'une solution}
+
+Chaque solution est un dictionnaire \texttt{\{hexagone\_id: taille\}} où la taille est 5
+(pentagone), 6 (hexagone inchangé) ou 7 (heptagone). Par exemple, pour \texttt{first.graph}
+(3 hexagones) :
+
+\begin{lstlisting}[style=benzai]
+solution 1: v0=5 v1=6 v2=7
+solution 2: v0=7 v1=6 v2=5
+\end{lstlisting}
+
+Cela signifie : l'hexagone 0 devient un pentagone, l'hexagone 1 reste un hexagone,
+l'hexagone 2 devient un heptagone (et vice versa pour la solution 2).
+
+\subsection{Résultats expérimentaux}
+
+\subsubsection{\texttt{first.graph} — 3 hexagones linéaires}
+
+\begin{center}
+\begin{tabular}{lr}
+  \toprule
+  Caractéristique & Valeur \\
+  \midrule
+  Hexagones & 3 \\
+  Carbones & 14 \\
+  Arêtes du dual & 2 \\
+  Hexagones gelés & 0 \\
+  Hexagones libres & 3 \\
+  Générateurs Aut($\GD$) & 1 (réflexion) \\
+  \textbf{Solutions distinctes} & \textbf{2} \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+Les 2 solutions : $v_0 = 5, v_1 = 6, v_2 = 7$ et $v_0 = 7, v_1 = 6, v_2 = 5$.
+La contrainte C1 impose $n_5 = n_7$, donc le central reste à 6.
+
+\subsubsection{\texttt{second.graph} — 16 hexagones}
+
+\begin{center}
+\begin{tabular}{lr}
+  \toprule
+  Caractéristique & Valeur \\
+  \midrule
+  Hexagones & 16 \\
+  Carbones & 60 \\
+  Arêtes du dual & 19 \\
+  Hexagones gelés & 5 \\
+  Hexagones libres & 11 \\
+  Générateurs Aut($\GD$) & 1 \\
+  \textbf{Solutions distinctes} & \textbf{41} \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+Les 41 solutions ont été énumérées en moins d'une seconde par ACE. La répartition des
+tailles sur l'ensemble des solutions montre que la majorité des hexagones restent à 6, avec
+des substitutions ponctuelles en pentagones et heptagones.
+
+% ============================================================
+\section{Reconstruction 3D et validation (résumé)}
+% ============================================================
+
+\subsection{Pipeline de reconstruction}
+
+Chaque solution CSP (assignation de tailles) est reconstruite en une molécule 3D selon
+trois phases :
+
+\begin{enumerate}
+  \item \textbf{Phase A — Modifications topologiques} : pour chaque hexagone dont la taille
+    assignée diffère de 6, le cycle est modifié (un sommet retiré pour un pentagone, un sommet
+    ajouté pour un heptagone). Seuls les côtés libres ($\sigma_i = 0$) sont touchés.
+
+  \item \textbf{Phase B — Placement géométrique} : un parcours BFS sur le graphe dual place
+    les cycles comme des polygones réguliers fusionnés. L'hexagone de plus haut degré est
+    choisi comme racine, puis chaque cycle enfant est placé par rapport au parent via l'arête
+    partagée.
+
+  \item \textbf{Phase C — Assemblage moléculaire} : les coordonnées sont injectées dans un
+    \texttt{MolecularGraph}, les doubles liaisons sont placées par couplage maximum (Blossom),
+    les hydrogènes sont ajoutés, et le tout est exporté en XYZ.
+\end{enumerate}
+
+Le détail de chaque phase est documenté dans \textit{validation\_reconstruction\_csp.tex}.
+
+\subsection{Validation xTB + planarité}
+
+Chaque XYZ reconstruit est :
+\begin{enumerate}
+  \item Optimisé par xTB (GFN2-xTB, \texttt{--opt tight})
+  \item Testé en planarité par ACP (angle maximal $\leq 10°$)
+\end{enumerate}
+
+\textbf{Résultats :}
+\begin{itemize}
+  \item \texttt{first.graph} : \textbf{2/2 solutions planes}
+  \item \texttt{second.graph} : \textbf{0/41 solutions planes}
+\end{itemize}
+
+\begin{remarque}
+  Le fait que les 41 solutions de \texttt{second.graph} soient toutes non planes suggère que
+  les contraintes locales (table de voisinage) ne suffisent pas pour les grands benzénoïdes.
+  Un déficit angulaire cumulatif se crée lorsque trop de pentagones et heptagones sont présents
+  dans une structure étendue. La question de contraintes globales (courbure de Gauss discrète,
+  contraintes de planéité) reste ouverte et sera discutée avec le chimiste et le tuteur.
+\end{remarque}
+
+% ============================================================
+\section{Architecture du code}
+% ============================================================
+
+\begin{lstlisting}[style=benzai]
+csp_solver/
+  main.py                    # Point d'entree, orchestration
+  utils/
+    parser.py                # Lecture Benzai (.graph) -> graphe dual
+    table.py                 # Chargement table voisinage (JSON, 1203 entrees)
+    preprocessing.py         # Domaines, filtrage tables, automorphismes
+    model.py                 # Modele PyCSP3 + appel ACE
+    validate.py              # xTB + planarite
+  reconstruction/
+    topology.py              # Phase A : modifications topologiques
+    placement.py             # Phase B : placement geometrique BFS
+    assembler.py             # Phase C : MolecularGraph + export XYZ
+    pipeline.py              # Orchestration reconstruction + validation
+  data/
+    table_voisinage.json     # Table T(5)=92, T(6)=412, T(7)=699
+    first.graph              # Test : 3 hexagones lineaires
+    second.graph             # Test : 16 hexagones
+\end{lstlisting}
+
+\textbf{Flux de données :}
+
+\begin{enumerate}
+  \item \texttt{parser.py} lit le \texttt{.graph} $\to$ \texttt{BenzenoidGraph} (dual + patrons)
+  \item \texttt{preprocessing.py} calcule domaines, filtre tables, extrait automorphismes
+  \item \texttt{model.py} construit le CSP (PyCSP3), compile en XCSP3, appelle ACE
+  \item ACE énumère les solutions $\to$ parsing de la sortie XML
+  \item \texttt{reconstruction/} reconstruit chaque solution en molécule 3D (XYZ)
+  \item \texttt{validate.py} optimise (xTB) et teste la planarité (ACP, seuil 10°)
+\end{enumerate}
+
+\textbf{Commandes :}
+\begin{lstlisting}[style=benzai]
+python main.py data/first.graph               # Resoudre
+python main.py data/first.graph --validate    # + reconstruction + xTB
+\end{lstlisting}
+
+% ============================================================
+\section*{Références}
+% ============================================================
+
+\begin{thebibliography}{99}
+  \bibitem{pycsp3}
+    C.~Lecoutre, \textit{PyCSP3: Modeling Combinatorial Constrained Problems in Python},
+    \url{https://pycsp3.org/}, 2020.
+
+  \bibitem{ace}
+    C.~Lecoutre, \textit{ACE: Adaptive Constraint Engine},
+    CRIL, Université d'Artois,
+    \url{https://github.com/xcsp3team/ACE}.
+
+  \bibitem{xcsp3}
+    F.~Boussemart, C.~Lecoutre, G.~Audemard, C.~Piette,
+    \textit{XCSP3: An Integrated Format for Benchmarking Combinatorial Constrained Problems},
+    \url{https://xcsp.org/}, 2016.
+
+  \bibitem{networkx}
+    A.~Hagberg, D.~Schult, P.~Swart,
+    \textit{Exploring Network Structure, Dynamics, and Function using NetworkX},
+    Proc. SciPy Conference, pp.~11--15, 2008.
+
+  \bibitem{xtb}
+    S.~Grimme, C.~Bannwarth, P.~Shushkov,
+    \textit{A Robust and Accurate Tight-Binding Quantum Chemical Method for Structures,
+    Vibrational Frequencies, and Noncovalent Interactions of Large Molecular Systems
+    Parametrized for All spd-Block Elements (Z = 1--86)},
+    J. Chem. Theory Comput., 13(5), pp.~1989--2009, 2017.
+
+  \bibitem{gfn2xtb}
+    C.~Bannwarth, S.~Ehlert, S.~Grimme,
+    \textit{GFN2-xTB — An Accurate and Broadly Parametrized Self-Consistent Tight-Binding
+    Quantum Chemical Method with Multipole Electrostatics and Density-Dependent Dispersion
+    Contributions},
+    J. Chem. Theory Comput., 15(3), pp.~1652--1671, 2019.
+
+  \bibitem{benzai}
+    Y.~Carissan, D.~Hagebaum-Reignier, N.~Prcovic, C.~Terrioux, A.~Varet,
+    \textit{Benzai: a software for the generation of benzenoid systems},
+    LS2N / LIS, 2021.
+
+  \bibitem{varet2022}
+    A.~Varet,
+    \textit{Approches à base de contraintes pour la génération de structures benzenoïdes},
+    Thèse de doctorat, Aix-Marseille Université, 2022.
+\end{thebibliography}
+
+\end{document}
