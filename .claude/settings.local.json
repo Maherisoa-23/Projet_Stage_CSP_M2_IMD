@@ -18,7 +18,14 @@
       "Bash(mv reconstruct.py utils/)",
       "Bash(mv validate.py utils/)",
       "Bash(rm -rf __pycache__ utils/__pycache__)",
-      "Bash(rm -f model.xml solver_*.log)"
+      "Bash(rm -f model.xml solver_*.log)",
+      "Bash(xargs grep *)",
+      "Bash(find \"e:/Stage AMU CSP IMD M2/Generation des molecules pour la table de voisinage/second try with scipt and CSP/csp_solver/data\" -type f -name \"*.graph\" -exec ls -lh {} \\\\;)",
+      "Bash(awk '{print $5, $9}')",
+      "Bash(find . -name \"*.graph\" -type f -exec sh -c 'ls -lh \"$1\" | awk \"{print \\\\$5, \\\\$9}\"' _ {} \\\\;)",
+      "Bash(ls -lh \"e:/Stage AMU CSP IMD M2/Generation des molecules pour la table de voisinage/second try with scipt and CSP/csp_solver/data\"/*.graph)",
+      "Bash(ls -lh \"e:/Stage AMU CSP IMD M2/Generation des molecules pour la table de voisinage/second try with scipt and CSP/csp_solver/data/sure plane/5 hexagones\"/*.graph)",
+      "Bash(python -c \"import json; t=json.load\\(open\\('csp_solver/data/table_voisinage.json'\\)\\); print\\('T\\(5\\):', len\\(t['5']\\), 'entries'\\); print\\('T\\(6\\):', len\\(t['6']\\), 'entries'\\); print\\('T\\(7\\):', len\\(t['7']\\), 'entries'\\)\")"
     ]
   }
 }

@@ -1,0 +1,126 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{xcolor}
+
+\title{Rapport d'experimentation\\
+\large Etude systematique de la planarite des solutions CSP\\
+pour les benzenoides non-benzenoides}
+\author{Toky}
+\date{Avril 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Ce rapport presente les resultats de l'exploration experimentale systematique
+du solveur CSP pour les substitutions pentagone/heptagone dans les benzenoides.
+L'objectif est d'etudier les proprietes des solutions CSP --- nombre de solutions,
+distribution des tailles de cycles, planarite --- en fonction de la taille, de la forme,
+de la symetrie et des motifs des benzenoides d'entree. Les benzenoides testes proviennent
+de la base BenzDB (exhaustive pour h$\leq$9) et de generateurs parametriques.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%% ===================================================================
+\section{Introduction}
+
+\subsection{Cadre experimental}
+
+\textbf{Outils :}
+\begin{itemize}
+    \item Solveur CSP : PyCSP3 + ACE (contraintes C1--C4, table de voisinage T(n))
+    \item Table T(n) : T(5)=92, T(6)=418, T(7)=699 entrees (1209 total)
+    \item Validation : reconstruction 3D + optimisation xTB (GFN2-xTB)
+    \item Seuil de planarite : $\theta_{\max} \leq 10\degree$
+\end{itemize}
+
+\textbf{Metriques par benzenoide :}
+\begin{itemize}
+    \item h (nb hexagones), $|V|$, $|E|$, degres du dual, pattern $\sigma(v)$, b(v)
+    \item Nb hexagones geles/libres, nb hexagones internes
+    \item Nb generateurs d'automorphismes, diametre du dual
+\end{itemize}
+
+\textbf{Metriques par resolution CSP :}
+\begin{itemize}
+    \item Nb solutions (avec/sans freeze), temps de resolution
+    \item Distribution des tailles (pentagones/hexagones/heptagones)
+\end{itemize}
+
+\textbf{Metriques par solution validee :}
+\begin{itemize}
+    \item Angle max, RMSD plan, hauteur, statut plan/non plan
+\end{itemize}
+
+\subsection{Sources de donnees}
+\begin{itemize}
+    \item BenzDB (these Varet 2022) : tous les benzenoides $h \leq 9$ (8392 molecules)
+    \item Generateur parametrique : formes lineaires, rectangulaires, coronenoides, etc.
+    \item Reference : these Varet (2022), BenzAI
+\end{itemize}
+
+%% ===================================================================
+\section{Serie 0 : Validation sur BenzDB (h$\leq$9)}
+
+\textit{A completer avec les resultats.}
+
+\subsection{S0a : h=3..5 (26 benzenoides)}
+%% Tableau des resultats
+
+\subsection{S0b : h=6..7 (412 benzenoides)}
+%% Tableau des resultats
+
+\subsection{S0c : h=8..9 (7946 benzenoides)}
+%% Tableau des resultats
+
+%% ===================================================================
+\section{Series thematiques}
+
+\subsection{Catacondenses}
+%% Resultats
+
+\subsection{Rectangulaires}
+%% Resultats
+
+\subsection{Coronenoides}
+%% Resultats
+
+\subsection{Symetries}
+%% Resultats
+
+\subsection{Coronoides (avec trous)}
+%% Resultats
+
+\subsection{Motifs de bordure}
+%% Resultats
+
+\subsection{Parametre d'irregularite}
+%% Resultats
+
+%% ===================================================================
+\section{Observations transversales}
+
+\textit{A completer : comparaisons inter-categories, tendances generales.}
+
+%% ===================================================================
+\section{Resultats remarquables}
+
+\textit{A completer : cas surprenants, patterns inattendus.}
+
+%% ===================================================================
+\section{Pistes ouvertes}
+
+\textit{A completer : questions soulevees par les resultats.}
+
+\end{document}

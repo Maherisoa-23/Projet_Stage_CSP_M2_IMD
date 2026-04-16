@@ -24,8 +24,16 @@ def compute_domains(graph: BenzenoidGraph, freeze_b2: bool = True) -> dict:
     """
     domains = {}
     for v in range(graph.h):
-        if graph.is_frozen(v, freeze_b2=freeze_b2):
+        if graph.is_fully_surrounded(v):
+            # deg=6 : toujours gele
             domains[v] = {6}
+        elif freeze_b2 and graph.has_separated_free_edges(v):
+            # b(v)>=2 avec freeze actif : gele
+            domains[v] = {6}
+        elif not freeze_b2 and graph.has_separated_free_edges(v):
+            # b(v)>=2 sans freeze : heptagone OK, mais pas pentagone
+            # (pas 2 cotes libres consecutifs = pas de sommet interieur a retirer)
+            domains[v] = {6, 7}
         else:
             domains[v] = {5, 6, 7}
     return domains
