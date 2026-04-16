@@ -146,8 +146,8 @@ toutes les façons de remplacer certains hexagones par des \textbf{pentagones} (
 \end{enumerate}
 
 La \textbf{table de voisinage} est issue du générateur (cf. \textit{documentation.tex}) :
-1203 configurations locales validées par optimisation xTB (GFN2-xTB) et test de planarité
-(seuil 10°).
+1209 configurations locales validées par optimisation xTB (GFN2-xTB) et test de planarité
+(seuil 10°), dont 6 configurations purement benzenoïdes.
 
 % ============================================================
 \section{Outils et technologies}
@@ -414,32 +414,58 @@ connu, il est possible de ne conserver que le \textbf{sous-ensemble pertinent} d
 chaque hexagone, en fonction de son motif $\sigma(v)$ et de son degré dans le dual. Ce filtrage
 réduit considérablement le nombre de combinaisons que le solveur doit explorer.
 
-\subsection{Calcul des domaines}
+\subsection{Calcul des domaines et hexagones gelés}
 
 Chaque variable $x_v$ représente la taille du cycle à la position $v$. Le domaine est réduit
-selon la nature de l'hexagone :
+selon la nature de l'hexagone. Deux règles de gel distinctes sont appliquées :
+
+\begin{enumerate}
+  \item \textbf{Règle deg=6} (toujours active) : si un hexagone est entouré de 6 voisins,
+    il ne peut pas changer de taille. Son domaine est fixé à $\{6\}$.
+  \item \textbf{Règle $b(v) \geq 2$} (désactivable) : si les arêtes partagées découpent le
+    bord de l'hexagone en deux blocs ou plus d'arêtes libres, la substitution est impossible
+    car elle déformerait un seul bloc sans affecter les autres. Le domaine est fixé à $\{6\}$.
+\end{enumerate}
 
 \begin{lstlisting}
-def compute_domains(graph):
+def compute_domains(graph, freeze_b2=True):
     domains = {}
     for v in range(graph.h):
-        if graph.is_frozen(v):
-            domains[v] = {6}       # gele : reste hexagone
+        if graph.is_fully_surrounded(v):     # deg = 6
+            domains[v] = {6}
+        elif freeze_b2 and graph.has_separated_free_edges(v):  # b(v) >= 2
+            domains[v] = {6}
         else:
-            domains[v] = {5, 6, 7}  # libre : peut changer
+            domains[v] = {5, 6, 7}
     return domains
 \end{lstlisting}
 
-Un hexagone est gelé si :
-\begin{itemize}
-  \item son degré dans le dual est 6 (entouré de tous côtés), \textbf{ou}
-  \item $b(v) \geq 2$ (les côtés partagés ne forment pas un bloc unique).
-\end{itemize}
+La séparation en deux règles permet de tester l'impact de la contrainte $b(v) \geq 2$ sur
+le nombre de solutions. Le drapeau \texttt{--no-freeze} désactive cette seconde règle tout
+en conservant la première :
+
+\begin{lstlisting}[style=benzai]
+python main.py data/5.graph              # les deux regles actives
+python main.py data/5.graph --no-freeze  # seul deg=6 est gele
+\end{lstlisting}
+
+\begin{remarque}
+  Désactiver la règle $b(v) \geq 2$ augmente le nombre de variables libres et donc l'espace
+  de recherche, mais permet d'explorer des solutions qui seraient autrement interdites. Cette
+  option est utile pour évaluer si la contrainte est trop restrictive.
+\end{remarque}
 
 \subsection{Filtrage de la table de voisinage}
 
-La table de voisinage $\mathcal{T}$ contient 1203 entrées réparties en :
-$\mathcal{T}(5)$ = 92 entrées, $\mathcal{T}(6)$ = 412 entrées, $\mathcal{T}(7)$ = 699 entrées.
+La table de voisinage $\mathcal{T}$ contient 1209 entrées réparties en :
+$\mathcal{T}(5)$ = 92 entrées, $\mathcal{T}(6)$ = 418 entrées, $\mathcal{T}(7)$ = 699 entrées.
+
+\begin{remarque}
+  La table $\mathcal{T}(6)$ inclut 6 entrées purement benzenoïdes (hexagone central avec
+  uniquement des voisins hexagonaux). Ces entrées sont nécessaires pour que le solveur CSP
+  considère le benzénoïde d'origine (toutes les tailles à 6) comme une solution valide —
+  un benzénoïde peut lui-même être non planaire pour les structures suffisamment grandes.
+\end{remarque}
 
 Pour chaque hexagone libre $v$ de degré $\geq 2$, on filtre la table pour ne garder que les
 entrées \textbf{compatibles} avec le patron $\sigma(v)$ :
@@ -715,9 +741,53 @@ Chaque XYZ reconstruit est :
   \item Testé en planarité par ACP (angle maximal $\leq 10°$)
 \end{enumerate}
 
+\subsubsection{Perturbation des coordonnées initiales}
+
+La reconstruction place tous les atomes dans le plan $z = 0$ (géométrie de polygones
+réguliers). Or, xTB utilise un algorithme de descente de gradient pour minimiser l'énergie :
+si la géométrie initiale est parfaitement plane, les forces perpendiculaires au plan sont
+nulles par symétrie, et xTB \textbf{reste piégé dans le minimum local plat}.
+
+Ce problème a été mis en évidence en comparant deux approches pour tester la planarité d'un
+même benzénoïde à 5 hexagones :
+\begin{itemize}
+  \item Placement par coordonnées du réseau hexagonal $\to$ xTB $\to$ \textbf{non plan} (58.6°)
+  \item Placement par BFS polygones réguliers $\to$ xTB $\to$ \textbf{plan} (0.0°)
+\end{itemize}
+
+Les deux géométries initiales étaient planes ($z = 0$), mais les légères différences de
+coordonnées faisaient que xTB convergeait vers des minima différents. La solution adoptée
+est d'ajouter une \textbf{perturbation aléatoire} de $\pm 0.1$~\AA{} sur les coordonnées $z$
+de chaque atome avant l'optimisation :
+
+\begin{lstlisting}
+def _write_perturbed_xyz(input_path, output_path, amplitude=0.1):
+    atoms = _read_atoms_from_xyz(input_path)
+    with open(output_path, 'w') as f:
+        f.write(f"{len(atoms)}\n")
+        f.write("perturbed for xTB optimization\n")
+        for elem, x, y, z in atoms:
+            z_perturbed = z + random.uniform(-amplitude, amplitude)
+            f.write(f"{elem} {x:.6f} {y:.6f} {z_perturbed:.6f}\n")
+\end{lstlisting}
+
+Si la molécule est réellement plane, xTB la ramène à $z \approx 0$ malgré la perturbation.
+Si elle ne l'est pas, xTB trouve le vrai minimum non plan. C'est l'équivalent numérique de la
+procédure manuelle suggérée par le chimiste : \textit{``déplacer un atome pendant l'optimisation
+pour vérifier s'il revient à sa place''}.
+
+\subsubsection{Inclusion du benzénoïde comme solution}
+
+Le benzénoïde d'origine (toutes les tailles à 6) est désormais inclus dans les solutions du
+CSP. Il passe par le même pipeline de reconstruction et de validation xTB que les solutions
+non hexagonales. Cela permet de vérifier si le benzénoïde lui-même est planaire — ce qui n'est
+pas garanti pour les grandes structures.
+
+\subsubsection{Résultats}
+
 \textbf{Résultats :}
 \begin{itemize}
-  \item \texttt{first.graph} : \textbf{2/2 solutions planes}
+  \item \texttt{first.graph} : \textbf{2/2 solutions planes} (dont le benzénoïde)
   \item \texttt{second.graph} : \textbf{0/41 solutions planes}
 \end{itemize}
 
@@ -738,7 +808,7 @@ csp_solver/
   main.py                    # Point d'entree, orchestration
   utils/
     parser.py                # Lecture Benzai (.graph) -> graphe dual
-    table.py                 # Chargement table voisinage (JSON, 1203 entrees)
+    table.py                 # Chargement table voisinage (JSON, 1209 entrees)
     preprocessing.py         # Domaines, filtrage tables, automorphismes
     model.py                 # Modele PyCSP3 + appel ACE
     validate.py              # xTB + planarite
@@ -766,7 +836,8 @@ csp_solver/
 
 \textbf{Commandes :}
 \begin{lstlisting}[style=benzai]
-python main.py data/first.graph               # Resoudre
+python main.py data/first.graph               # Resoudre (avec gel b>=2)
+python main.py data/first.graph --no-freeze   # Sans gel b>=2
 python main.py data/first.graph --validate    # + reconstruction + xTB
 \end{lstlisting}
 

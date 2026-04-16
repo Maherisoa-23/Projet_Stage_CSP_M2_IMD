@@ -20,6 +20,7 @@ _own_argv = sys.argv[:]
 filepath = _own_argv[1] if len(_own_argv) >= 2 else None
 count_only = "--count" in _own_argv
 do_validate = "--validate" in _own_argv
+no_freeze = "--no-freeze" in _own_argv
 enumerate_all = "--all" in _own_argv or not count_only
 
 # Nettoyer sys.argv pour que pycsp3 ne les intercepte pas
@@ -35,7 +36,8 @@ from utils.model import build_and_solve, format_solution
 
 def main():
     if filepath is None:
-        print("Usage: python main.py <fichier.graph> [--all] [--count] [--validate]")
+        print("Usage: python main.py <fichier.graph> [--all] [--count] [--validate] [--no-freeze]")
+        print("  --no-freeze : desactiver la contrainte des hexagones geles (b(v)>=2)")
         print("Exemple: python main.py data/first.graph")
         sys.exit(1)
 
@@ -47,7 +49,9 @@ def main():
 
     # --- Etape 2 : Pre-traitement ---
     print("=== Pre-traitement ===")
-    preprocessed = preprocess(graph)
+    preprocessed = preprocess(graph, freeze_b2=not no_freeze)
+    if no_freeze:
+        print("  (contrainte b(v)>=2 DESACTIVEE, seuls les deg=6 sont geles)")
 
     frozen = preprocessed['frozen']
     free = preprocessed['free']

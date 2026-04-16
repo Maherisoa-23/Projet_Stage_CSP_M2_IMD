@@ -48,25 +48,42 @@ class BenzenoidGraph:
         """Voisins de v dans le graphe dual, triés."""
         return sorted(self.dual.neighbors(v))
 
-    def is_frozen(self, v: int) -> bool:
-        """True si l'hexagone v est gele (deg=6 ou b(v)≥2)."""
-        return self.degree(v) == 6 or count_zero_blocks(self.patterns[v]) >= 2
+    def is_fully_surrounded(self, v: int) -> bool:
+        """True si l'hexagone v a 6 voisins (completement entoure)."""
+        return self.degree(v) == 6
+
+    def has_separated_free_edges(self, v: int) -> bool:
+        """True si b(v) >= 2 (aretes libres en blocs separes)."""
+        return count_zero_blocks(self.patterns[v]) >= 2
+
+    def is_frozen(self, v: int, freeze_b2: bool = True) -> bool:
+        """True si l'hexagone v est gele.
+
+        Args:
+            freeze_b2: si True, geler aussi les hexagones avec b(v)>=2.
+                       Si False, ne geler que ceux avec deg=6.
+        """
+        if self.is_fully_surrounded(v):
+            return True
+        if freeze_b2 and self.has_separated_free_edges(v):
+            return True
+        return False
 
     def summary(self) -> str:
         """Résumé textuel du graphe."""
-        frozen = [v for v in range(self.h) if self.is_frozen(v)]
-        free = [v for v in range(self.h) if not self.is_frozen(v)]
         lines = [
             f"Benzenoide : h={self.h}, |V|={len(self.vertices)}, |E|={len(self.edges)}",
             f"Graphe dual : {self.dual.number_of_nodes()} sommets, {self.dual.number_of_edges()} arêtes",
-            f"Geles ({len(frozen)}) : {frozen}",
-            f"Libres ({len(free)}) : {free}",
         ]
         for v in range(self.h):
+            status = "libre"
+            if self.is_fully_surrounded(v):
+                status = "GELE (deg=6)"
+            elif self.has_separated_free_edges(v):
+                status = "GELE (b>=2)"
             lines.append(
                 f"  v{v}: deg={self.degree(v)}, pattern={self.patterns[v]}, "
-                f"b={count_zero_blocks(self.patterns[v])}, "
-                f"{'GELE' if self.is_frozen(v) else 'libre'}"
+                f"b={count_zero_blocks(self.patterns[v])}, {status}"
             )
         return "\n".join(lines)
 

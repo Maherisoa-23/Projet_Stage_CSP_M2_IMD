@@ -11,15 +11,20 @@ from utils.parser import BenzenoidGraph, count_zero_blocks
 from utils.table import load_table
 
 
-def compute_domains(graph: BenzenoidGraph) -> dict:
+def compute_domains(graph: BenzenoidGraph, freeze_b2: bool = True) -> dict:
     """Calcule le domaine de chaque variable x_v.
+
+    Args:
+        graph: le graphe dual
+        freeze_b2: si True, les hexagones avec b(v)>=2 sont geles a {6}.
+                   Si False, seuls les hexagones avec deg=6 sont geles.
 
     Returns:
         dict {v: set} -- domaine de x_v (sous-ensemble de {5,6,7})
     """
     domains = {}
     for v in range(graph.h):
-        if graph.is_frozen(v):
+        if graph.is_frozen(v, freeze_b2=freeze_b2):
             domains[v] = {6}
         else:
             domains[v] = {5, 6, 7}
@@ -203,8 +208,13 @@ def _generate_group(generators: list, nodes: list) -> set:
     return elements
 
 
-def preprocess(graph: BenzenoidGraph) -> dict:
+def preprocess(graph: BenzenoidGraph, freeze_b2: bool = True) -> dict:
     """Execute tout le pre-traitement.
+
+    Args:
+        graph: le graphe dual
+        freeze_b2: si True, geler les hexagones avec b(v)>=2.
+                   Si False, ne geler que ceux avec deg=6 (completement entoures).
 
     Returns:
         dict avec :
@@ -217,11 +227,11 @@ def preprocess(graph: BenzenoidGraph) -> dict:
     full_table = load_table()
 
     # Domaines
-    domains = compute_domains(graph)
+    domains = compute_domains(graph, freeze_b2=freeze_b2)
 
     # Hexagones geles / libres
-    frozen = [v for v in range(graph.h) if graph.is_frozen(v)]
-    free = [v for v in range(graph.h) if not graph.is_frozen(v)]
+    frozen = [v for v in range(graph.h) if graph.is_frozen(v, freeze_b2=freeze_b2)]
+    free = [v for v in range(graph.h) if not graph.is_frozen(v, freeze_b2=freeze_b2)]
 
     # Tables filtrees pour les sommets libres avec deg >= 2
     # Les sommets de deg=1 n'ont pas besoin de contrainte de table :
