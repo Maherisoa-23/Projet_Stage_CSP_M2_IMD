@@ -81,13 +81,7 @@ def reconstruct_and_validate(graph: BenzenoidGraph, solutions: list,
 
         print(f"\n--- Solution {i}/{len(solutions)} : {sol_str} ---")
 
-        if not substituted:
-            print("  Tous hexagones, pas de reconstruction necessaire.")
-            results.append({"index": i, "planar": True,
-                            "message": "Tout hexagonal"})
-            continue
-
-        # Reconstruction
+        # Reconstruction (y compris pour le benzenoide tout-hexagonal)
         try:
             mol = reconstruct_molecule(graph, sol)
         except Exception as e:

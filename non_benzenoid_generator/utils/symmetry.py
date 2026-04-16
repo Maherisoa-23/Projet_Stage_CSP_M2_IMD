@@ -65,10 +65,6 @@ def generate_canonical_sequences(central_size: int, n_positions: int,
         if k < min_neighbors or k > max_neighbors:
             continue
         
-        # Exclure benzenoïde pur pour cycle 6
-        if central_size == 6 and all(s == 6 or s == 0 for s in seq):
-            continue
-        
         # Forme canonique
         canon = canonical_form(seq)
         sequences.add((central_size, canon))
