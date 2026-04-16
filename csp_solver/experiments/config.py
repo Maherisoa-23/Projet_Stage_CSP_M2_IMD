@@ -39,7 +39,12 @@ EXPECTED_COUNTS = {
     9: 6510,
 }
 
-# --- Fichiers CSV ---
+# --- Solutions sauvegardees (JSON) ---
+SOLUTIONS_DIR = RESULTS_DIR / "solutions"
+
+# --- Fichiers de resultats ---
 STRUCTURAL_CSV = RESULTS_DIR / "structural.csv"
-CSP_RESULTS_CSV = RESULTS_DIR / "csp_results.csv"
-VALIDATION_CSV = RESULTS_DIR / "validation.csv"
+# JSON : results/benzdb/h4/0-5-6-11.json (un fichier par benzenoide)
+RESULTS_BENZDB_DIR = RESULTS_DIR / "benzdb"
+# HTML : results/rapport_h4.html (un rapport par serie)
+HTML_DIR = RESULTS_DIR
