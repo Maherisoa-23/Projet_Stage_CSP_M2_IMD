@@ -11,17 +11,25 @@ Sortie   : xtbopt.xyz (geometrie optimisee)
 import subprocess
 import os
 import math
+import random
+import shutil
 from pathlib import Path
 from typing import Tuple, List
 
 
 def optimize_xtb(input_xyz: str, output_xyz: str,
-                 opt_level: str = "tight") -> Tuple[bool, str]:
+                 opt_level: str = "tight",
+                 perturb_z: float = 0.1) -> Tuple[bool, str]:
     """
     Optimise une structure XYZ avec xTB (GFN2-xTB).
 
-    xTB ecrit toujours dans le repertoire courant (xtbopt.xyz, etc.),
-    donc on se place dans le dossier du fichier d'entree.
+    Avant l'optimisation, une perturbation aleatoire est ajoutee aux
+    coordonnees z (amplitude ±perturb_z en Angstroms). Cela empeche xTB
+    de rester coince dans un minimum local plat lorsque la geometrie
+    initiale est parfaitement plane (z=0 partout).
+
+    Si la molecule est reellement plane, xTB la ramene a plat malgre
+    la perturbation. Si elle ne l'est pas, xTB trouve le vrai minimum.
 
     Retourne (succes: bool, message: str).
     """
@@ -29,9 +37,13 @@ def optimize_xtb(input_xyz: str, output_xyz: str,
     output_path = Path(output_xyz).resolve()
     work_dir = input_path.parent
 
+    # Creer une copie perturbee (ne pas modifier l'original)
+    perturbed_path = work_dir / f"_perturbed_{input_path.name}"
+    _write_perturbed_xyz(str(input_path), str(perturbed_path), perturb_z)
+
     cmd = [
         "xtb",
-        str(input_path),
+        str(perturbed_path),
         "--opt", opt_level,
     ]
 
@@ -41,17 +53,20 @@ def optimize_xtb(input_xyz: str, output_xyz: str,
             cwd=str(work_dir), encoding='utf-8', errors='replace'
         )
     except FileNotFoundError:
+        _cleanup(perturbed_path)
         return False, "xtb non trouve dans le PATH"
     except subprocess.TimeoutExpired:
+        _cleanup(perturbed_path)
         return False, "Timeout apres 300s"
+
+    # Supprimer la copie perturbee
+    _cleanup(perturbed_path)
 
     # xTB ecrit xtbopt.xyz dans le repertoire de travail
     xtbopt = work_dir / "xtbopt.xyz"
 
     if not xtbopt.exists() or xtbopt.stat().st_size == 0:
-        # Extraire le message d'erreur
         err = result.stderr.strip() if result.stderr else result.stdout.strip()
-        # Garder juste les dernieres lignes pertinentes
         err_lines = err.split('\n')[-5:] if err else ["Fichier xtbopt.xyz non genere"]
         return False, " | ".join(l.strip() for l in err_lines if l.strip())
 
@@ -67,6 +82,17 @@ def optimize_xtb(input_xyz: str, output_xyz: str,
     _cleanup_xtb(work_dir)
 
     return True, status
+
+
+def _write_perturbed_xyz(input_path: str, output_path: str, amplitude: float):
+    """Ecrit une copie du XYZ avec perturbations aleatoires en z."""
+    atoms = _read_atoms_from_xyz(input_path)
+    with open(output_path, 'w') as f:
+        f.write(f"{len(atoms)}\n")
+        f.write("perturbed for xTB optimization\n")
+        for elem, x, y, z in atoms:
+            z_perturbed = z + random.uniform(-amplitude, amplitude)
+            f.write(f"{elem:<2s} {x:14.6f} {y:14.6f} {z_perturbed:14.6f}\n")
 
 
 def verify_distances(xyz_path: str) -> Tuple[bool, str]:
@@ -138,6 +164,14 @@ def _read_coords_from_xyz(xyz_path: str) -> List[List[float]]:
     return coords
 
 
+def _cleanup(path: Path):
+    """Supprime un fichier sans erreur si absent."""
+    try:
+        Path(path).unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
 def _cleanup_xtb(work_dir: Path):
     """Supprime les fichiers temporaires generes par xTB."""
     xtb_files = [
@@ -145,8 +179,7 @@ def _cleanup_xtb(work_dir: Path):
         "xtbopt.log", ".xtboptok"
     ]
     for name in xtb_files:
-        p = work_dir / name
-        try:
-            p.unlink(missing_ok=True)
-        except Exception:
-            pass
+        _cleanup(work_dir / name)
+    # Nettoyer les copies perturbees residuelles
+    for f in work_dir.glob("_perturbed_*"):
+        _cleanup(f)
