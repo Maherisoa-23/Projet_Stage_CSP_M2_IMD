@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Experimentation — Structures planes BenzAI DB</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f5f6fa; color: #2d3436; padding: 32px; max-width: 1100px; margin: 0 auto; line-height: 1.6; }
+  h1 { font-size: 1.6em; margin-bottom: 4px; color: #2d3436; }
+  h2 { font-size: 1.2em; margin: 32px 0 12px; color: #0984e3; border-bottom: 2px solid #dfe6e9; padding-bottom: 6px; }
+  h3 { font-size: 1em; margin: 20px 0 8px; color: #636e72; }
+  p { margin-bottom: 12px; }
+  .meta { color: #636e72; font-size: 0.85em; margin-bottom: 24px; }
+  .pipeline { background: #fff; border-radius: 8px; padding: 16px 20px; margin: 12px 0;
+              box-shadow: 0 1px 3px rgba(0,0,0,0.08); font-family: monospace; font-size: 0.9em;
+              display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .pipeline .step { background: #dfe6e9; padding: 6px 12px; border-radius: 4px; }
+  .pipeline .arrow { color: #0984e3; font-weight: bold; }
+  .config { background: #fff; border-radius: 8px; padding: 16px 20px; margin: 12px 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  .config table { width: 100%; border-collapse: collapse; }
+  .config td { padding: 4px 12px; font-size: 0.9em; }
+  .config td:first-child { font-weight: 600; color: #636e72; width: 220px; }
+  .cards { display: flex; gap: 16px; margin: 16px 0; flex-wrap: wrap; }
+  .card { background: #fff; border-radius: 8px; padding: 16px 20px; min-width: 140px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.08); text-align: center; }
+  .card .value { font-size: 1.8em; font-weight: 700; }
+  .card .label { font-size: 0.75em; color: #636e72; margin-top: 2px; }
+  .card.green .value { color: #00b894; }
+  .card.red .value { color: #d63031; }
+  .card.blue .value { color: #0984e3; }
+  table.results { width: 100%; background: #fff; border-radius: 8px; overflow: hidden;
+                  box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-collapse: collapse; margin: 16px 0; }
+  table.results th { background: #dfe6e9; padding: 10px 14px; text-align: center; font-size: 0.8em;
+                     text-transform: uppercase; letter-spacing: 0.5px; color: #636e72; }
+  table.results td { padding: 8px 14px; border-top: 1px solid #f0f0f0; text-align: center; font-size: 0.9em; }
+  table.results tr:hover { background: #f8f9fa; }
+  .planar { color: #00b894; font-weight: 600; }
+  .non-planar { color: #d63031; font-weight: 600; }
+  .note { background: #ffeaa7; border-left: 4px solid #fdcb6e; padding: 12px 16px; border-radius: 0 8px 8px 0;
+          margin: 16px 0; font-size: 0.9em; }
+  .observation { background: #fff; border-left: 4px solid #0984e3; padding: 12px 16px; border-radius: 0 8px 8px 0;
+                 margin: 12px 0; font-size: 0.9em; }
+  .placeholder { background: #dfe6e9; border-radius: 8px; padding: 32px; text-align: center; color: #636e72;
+                 margin: 16px 0; font-style: italic; }
+  ul { margin: 8px 0 8px 24px; }
+  li { margin-bottom: 4px; }
+  code { background: #dfe6e9; padding: 2px 6px; border-radius: 3px; font-size: 0.85em; }
+  a { color: #0984e3; }
+</style>
+</head>
+<body>
+
+<h1>Phase experimentale — Structures planes</h1>
+<p class="meta">Source : BenzAI DB &mdash; Structures planes h3 a h6 &mdash; Avril 2026</p>
+
+<!-- ============================================================ -->
+<h2>1. Introduction</h2>
+
+<p>
+  Le modele de generation de non-benzenoides (solveur CSP + reconstruction 3D + optimisation xTB)
+  est operationnel. Les premiers tests ont revele des solutions marquees comme non planes,
+  ce qui a motive le lancement d'une phase experimentale systematique.
+</p>
+<p>
+  L'objectif est de tester le pipeline sur des structures dont la planarite est connue :
+  les benzenoides plans issus de <strong>BenzAI DB</strong>, de h=3 a h=6.
+  Puisque ces structures sont planes par construction, toutes les solutions tout-hexagonales (6,6,...,6)
+  doivent etre validees comme planes. Les solutions avec substitutions 5/7 sont les cas d'interet.
+</p>
+
+<!-- ============================================================ -->
+<h2>2. Methodologie</h2>
+
+<h3>Pipeline</h3>
+<div class="pipeline">
+  <span class="step">.graph (BenzAI DB)</span>
+  <span class="arrow">&rarr;</span>
+  <span class="step">Solveur CSP (ACE)</span>
+  <span class="arrow">&rarr;</span>
+  <span class="step">Reconstruction 3D</span>
+  <span class="arrow">&rarr;</span>
+  <span class="step">xTB (GFN2-xTB)</span>
+  <span class="arrow">&rarr;</span>
+  <span class="step">Test planarite (ACP)</span>
+</div>
+
+<h3>Configuration xTB</h3>
+<div class="config">
+  <table>
+    <tr><td>Methode</td><td>GFN2-xTB (semi-empirique, tight-binding etendu)</td></tr>
+    <tr><td>Niveau d'optimisation</td><td><code>--opt tight</code></td></tr>
+    <tr><td>Perturbation initiale</td><td>&plusmn;0.1 &Aring; aleatoire sur les coordonnees z</td></tr>
+    <tr><td>Timeout</td><td>300 secondes par molecule</td></tr>
+  </table>
+</div>
+
+<h3>Test de planarite</h3>
+<div class="config">
+  <table>
+    <tr><td>Methode</td><td>Analyse en Composantes Principales (ACP) sur les coordonnees atomiques</td></tr>
+    <tr><td>Metrique</td><td>Angle maximal de deviation par rapport au plan moyen</td></tr>
+    <tr><td>Seuil</td><td><strong>10&deg;</strong> &mdash; en dessous = plan, au dessus = non plan</td></tr>
+  </table>
+</div>
+
+<div class="note">
+  <strong>Non-determinisme :</strong> xTB est un optimiseur local (descente de gradient).
+  La perturbation aleatoire en z fait que le point de depart differe a chaque run,
+  ce qui peut mener a des minima locaux legerement differents.
+  Les angles observes peuvent varier de &plusmn;3-5&deg; entre executions successives.
+</div>
+
+<!-- ============================================================ -->
+<h2>3. Resultats</h2>
+
+<h3>Vue d'ensemble</h3>
+<div class="cards">
+  <div class="card blue"><div class="value">69</div><div class="label">Molecules testees</div></div>
+  <div class="card blue"><div class="value">245</div><div class="label">Solutions CSP</div></div>
+  <div class="card green"><div class="value">176</div><div class="label">Solutions planes</div></div>
+  <div class="card red"><div class="value">69</div><div class="label">Solutions non planes</div></div>
+</div>
+
+<h3>Par taille de benzenoide</h3>
+<table class="results">
+  <thead>
+    <tr>
+      <th>h</th>
+      <th>Molecules</th>
+      <th>Solutions</th>
+      <th>Planes</th>
+      <th>Non planes</th>
+      <th>% plan</th>
+      <th>Originaux plans</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>h=3</strong></td>
+      <td>3</td>
+      <td>5</td>
+      <td class="planar">5</td>
+      <td>0</td>
+      <td>100%</td>
+      <td class="planar">3/3</td>
+    </tr>
+    <tr>
+      <td><strong>h=4</strong></td>
+      <td>6</td>
+      <td>12</td>
+      <td class="planar">10</td>
+      <td class="non-planar">2</td>
+      <td>83%</td>
+      <td class="planar">6/6</td>
+    </tr>
+    <tr>
+      <td><strong>h=5</strong></td>
+      <td>16</td>
+      <td>36</td>
+      <td class="planar">28</td>
+      <td class="non-planar">8</td>
+      <td>78%</td>
+      <td class="planar">16/16</td>
+    </tr>
+    <tr>
+      <td><strong>h=6</strong></td>
+      <td>44</td>
+      <td>192</td>
+      <td class="planar">133</td>
+      <td class="non-planar">59</td>
+      <td>69%</td>
+      <td class="planar">44/44</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ============================================================ -->
+<h2>4. Observations</h2>
+
+<div class="observation">
+  <strong>Les originaux sont tous plans.</strong>
+  Les 69 structures originales (tout hexagonal, solution 6,6,...,6) sont systematiquement
+  validees comme planes (&lt; 1&deg;). Cela confirme que le pipeline de reconstruction + xTB
+  fonctionne correctement sur les benzenoides connus.
+</div>
+
+<div class="observation">
+  <strong>Les solutions tout-6 sont toujours planes.</strong>
+  Quand la solution CSP est identique au benzenoide original (tous les cycles a 6),
+  l'angle maximal est systematiquement &lt; 1&deg;. Le pipeline est coherent.
+</div>
+
+<div class="observation">
+  <strong>Le taux de non-planarite augmente avec h.</strong>
+  De 0% (h=3) a 31% (h=6). Plus le benzenoide est grand, plus les substitutions 5/7
+  ont de chances de produire des structures non planes.
+</div>
+
+<div class="observation">
+  <strong>Les angles non plans se situent entre 10&deg; et 42&deg;.</strong>
+  Aucune solution ne tombe dans une zone "grise" etroite autour du seuil.
+  Les cas non plans sont generalement bien au-dessus de 10&deg; (mediane ~15-18&deg;).
+</div>
+
+<div class="observation">
+  <strong>Non-determinisme observe.</strong>
+  Sur 5 executions identiques (h=4), le nombre de solutions non planes varie de 1 a 3.
+  Les solutions concernees oscillent autour de 12-17&deg;, proches du seuil.
+  Les solutions clairement planes (&lt; 1&deg;) ou clairement non planes (&gt; 20&deg;)
+  sont stables entre les runs.
+</div>
+
+<!-- ============================================================ -->
+<h2>5. Analyses a venir</h2>
+
+<div class="placeholder">
+  Espace reserve pour les analyses futures : graphes, charts, correlations
+  entre topologie et planarite, etude de la position des 5/7 dans la structure, etc.
+</div>
+
+<!-- ============================================================ -->
+<h2>Liens</h2>
+<ul>
+  <li>Resultats detailles : <a href="../output/h3/view.html">h3</a> |
+      <a href="../output/h4/view.html">h4</a> |
+      <a href="../output/h5/view.html">h5</a> |
+      <a href="../output/h6/view.html">h6</a></li>
+</ul>
+
+</body>
+</html>
