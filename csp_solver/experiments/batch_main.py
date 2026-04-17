@@ -13,6 +13,7 @@ Exemple:
 
 import sys
 import subprocess
+import shutil
 from pathlib import Path
 
 def main():
@@ -43,6 +44,10 @@ def main():
     for i, graph_file in enumerate(graphs, 1):
         print(f"--- [{i}/{len(graphs)}] {graph_file.name} ---")
         mol_dir = output_base / dossier.name / graph_file.stem
+
+        # Nettoyer les anciens resultats
+        if mol_dir.exists():
+            shutil.rmtree(mol_dir)
 
         # Test de l'original (tout-6) si --validate
         if do_validate:

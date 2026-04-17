@@ -27,8 +27,14 @@ def _find_ace_jar():
     raise FileNotFoundError("ACE jar introuvable dans pycsp3")
 
 
-def build_and_solve(graph, preprocessed, enumerate_all=True):
+def build_and_solve(graph, preprocessed, enumerate_all=True, adj_57=False):
     """Construit le modele CSP, genere le XML, et appelle ACE.
+
+    Args:
+        graph: BenzenoidGraph
+        preprocessed: dict du pre-traitement
+        enumerate_all: enumerer toutes les solutions
+        adj_57: activer la contrainte C5 (adjacence 5-7)
 
     Returns:
         Liste de solutions, chaque solution est un dict {v: taille}
@@ -64,6 +70,20 @@ def build_and_solve(graph, preprocessed, enumerate_all=True):
         satisfy(
             LexIncreasing(x, permuted)
         )
+
+    # --- Contrainte C5 : adjacence 5-7 (optionnelle) ---
+    if adj_57:
+        for v in range(h):
+            neighbors_v = graph.neighbors(v)
+            if neighbors_v:
+                # x[v]=5 => au moins un voisin vaut 7
+                satisfy(
+                    If(x[v] == 5, Then=Sum(x[u] == 7 for u in neighbors_v) >= 1)
+                )
+                # x[v]=7 => au moins un voisin vaut 5
+                satisfy(
+                    If(x[v] == 7, Then=Sum(x[u] == 5 for u in neighbors_v) >= 1)
+                )
 
     # --- Generer le XML ---
     xml_path = str(Path.cwd() / "model.xml")
@@ -123,7 +143,9 @@ def _parse_ace_output(output: str, h: int) -> list:
                 values.extend([int(val)] * int(count))
             else:
                 values.append(int(token))
-        if len(values) == h:
+        if len(values) >= h:
+            # Prendre seulement les h premieres valeurs (variables x[])
+            # Les suivantes sont des variables auxiliaires (aux_gb, _ax_, etc.)
             sol = {i: values[i] for i in range(h)}
             solutions.append(sol)
 

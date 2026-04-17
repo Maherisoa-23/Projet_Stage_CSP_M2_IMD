@@ -934,6 +934,54 @@ rejet\'ee car $(7,6,5) \not\leq_{\mathrm{lex}} (5,6,7)$
 \end{exemple}
 
 % ════════════════════════════════════════════════════════════════════
+\section{Contrainte exp\'erimentale~: adjacence 5--7}
+% ════════════════════════════════════════════════════════════════════
+
+\subsection{Motivation}
+
+Dans les structures azul\'eniques, les pentagones et heptagones apparaissent
+naturellement en \textbf{paires adjacentes} (motif 5--7). Un pentagone isol\'e
+(entour\'e uniquement d'hexagones) cr\'ee une courbure locale positive non
+compens\'ee, et un heptagone isol\'e cr\'ee une courbure n\'egative. En revanche,
+lorsqu'un pentagone et un heptagone sont adjacents, leurs courbures se compensent
+partiellement, ce qui favorise la planarit\'e globale de la structure.
+
+Cette contrainte est \textbf{optionnelle} (activ\'ee par le drapeau \texttt{--adj-57})
+et vise \`a r\'eduire l'espace de solutions aux configurations chimiquement
+les plus plausibles.
+
+\subsection{Formalisation}
+
+\begin{contrainte}[Adjacence 5--7]
+\label{c:adj57}
+\[
+  \forall\, v \in \VD,\quad
+  \xv = 5 \;\Longrightarrow\; \exists\, u \in \mathcal{N}(v),\; x_u = 7
+\]
+\[
+  \forall\, v \in \VD,\quad
+  \xv = 7 \;\Longrightarrow\; \exists\, u \in \mathcal{N}(v),\; x_u = 5
+\]
+\end{contrainte}
+
+Autrement dit~: chaque pentagone doit avoir au moins un voisin heptagone, et chaque
+heptagone doit avoir au moins un voisin pentagone.
+
+\begin{remarque}
+Cette contrainte n'interdit pas les paires 5--5 ou 7--7, tant qu'il existe
+\textit{aussi} un voisin du type compl\'ementaire. Par exemple, un pentagone
+ayant pour voisins $(5, 7, 6)$ est admissible car il a un voisin~7.
+\end{remarque}
+
+\subsection{Impact attendu}
+
+La contrainte C5 \'elimine les solutions o\`u un pentagone ou heptagone est
+compl\`etement isol\'e dans un ``oc\'ean'' d'hexagones. Sur les petits benz\'eno\"ides
+(3 hexagones), l'impact est nul car les solutions existantes poss\`edent d\'ej\`a
+des paires 5--7 adjacentes. Sur les grands benz\'eno\"ides, le nombre de solutions
+devrait diminuer significativement.
+
+% ════════════════════════════════════════════════════════════════════
 \section{Choix de l'outil de r\'esolution}
 % ════════════════════════════════════════════════════════════════════
 

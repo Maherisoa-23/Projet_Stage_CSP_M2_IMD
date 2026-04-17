@@ -602,6 +602,37 @@ for gen in generators:
   benzénoïdes. Voir le document de modélisation pour la preuve complète.
 \end{remarque}
 
+\subsection{Contrainte C5 — Adjacence 5--7 (optionnelle)}
+
+Contrainte expérimentale activée par le drapeau \texttt{--adj-57}. Elle impose que chaque
+pentagone ait au moins un voisin heptagone, et inversement :
+\[
+  x_v = 5 \;\Longrightarrow\; \exists\, u \in \mathcal{N}(v),\; x_u = 7
+  \qquad\text{et}\qquad
+  x_v = 7 \;\Longrightarrow\; \exists\, u \in \mathcal{N}(v),\; x_u = 5
+\]
+
+L'implémentation utilise les constructions \texttt{If}/\texttt{Sum} de PyCSP3 :
+
+\begin{lstlisting}
+if adj_57:
+    for v in range(h):
+        neighbors_v = graph.neighbors(v)
+        if neighbors_v:
+            satisfy(
+                If(x[v] == 5, Then=Sum(x[u] == 7 for u in neighbors_v) >= 1)
+            )
+            satisfy(
+                If(x[v] == 7, Then=Sum(x[u] == 5 for u in neighbors_v) >= 1)
+            )
+\end{lstlisting}
+
+\begin{remarque}
+  Cette contrainte réduit l'espace de solutions aux configurations où les pentagones et
+  heptagones forment des paires adjacentes (motif azulénique). Elle n'interdit pas les
+  paires 5--5 ou 7--7, tant qu'il existe aussi un voisin du type complémentaire.
+\end{remarque}
+
 \subsection{Compilation et résolution}
 
 Le modèle est compilé en XCSP3 (fichier XML), puis ACE est appelé en subprocess :

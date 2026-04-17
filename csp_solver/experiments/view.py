@@ -187,7 +187,7 @@ def write_html(h_dir, data):
                     f'<tr class="detail-row" data-parent="{name}">'
                     f'<td></td>'
                     f'<td></td>'
-                    f'<td class="sizes">{s["sizes"]}</td>'
+                    f'<td class="sizes"><a href="{name}/solutions/{s["file"]}" target="_blank">{s["sizes"]}</a></td>'
                     f'<td><span class="{cls}">{"PLAN" if s["planar"] else "NON PLAN"}</span></td>'
                     f'<td>{s["angle_deg"]}&deg;</td>'
                     f'</tr>\n'
@@ -231,6 +231,8 @@ def write_html(h_dir, data):
   .detail-row {{ background: #fafbfc; display: none; }}
   .detail-row td {{ padding-left: 32px; font-size: 0.85em; }}
   .detail-row .sizes {{ font-family: monospace; font-size: 0.8em; }}
+  .detail-row .sizes a {{ color: #0984e3; text-decoration: none; }}
+  .detail-row .sizes a:hover {{ text-decoration: underline; }}
   .planar {{ color: #00b894; font-weight: 600; }}
   .non-planar {{ color: #d63031; font-weight: 600; }}
   .na {{ color: #b2bec3; }}

@@ -21,6 +21,7 @@ filepath = _own_argv[1] if len(_own_argv) >= 2 else None
 count_only = "--count" in _own_argv
 do_validate = "--validate" in _own_argv
 no_freeze = "--no-freeze" in _own_argv
+adj_57 = "--adj-57" in _own_argv
 enumerate_all = "--all" in _own_argv or not count_only
 output_dir = None
 if "--output-dir" in _own_argv:
@@ -41,8 +42,9 @@ from utils.model import build_and_solve, format_solution
 
 def main():
     if filepath is None:
-        print("Usage: python main.py <fichier.graph> [--all] [--count] [--validate] [--no-freeze]")
+        print("Usage: python main.py <fichier.graph> [--all] [--count] [--validate] [--no-freeze] [--adj-57]")
         print("  --no-freeze : desactiver la contrainte des hexagones geles (b(v)>=2)")
+        print("  --adj-57    : activer la contrainte d'adjacence 5-7 (C5)")
         print("Exemple: python main.py data/first.graph")
         sys.exit(1)
 
@@ -76,7 +78,9 @@ def main():
 
     # --- Etape 3 : Resolution ---
     print("=== Resolution CSP ===")
-    solutions = build_and_solve(graph, preprocessed, enumerate_all=enumerate_all)
+    if adj_57:
+        print("  Contrainte C5 (adjacence 5-7) : ACTIVEE")
+    solutions = build_and_solve(graph, preprocessed, enumerate_all=enumerate_all, adj_57=adj_57)
 
     if not solutions:
         print("Aucune solution trouvee.")

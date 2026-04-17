@@ -10,6 +10,7 @@ Exemple:
 
 import sys
 import subprocess
+import shutil
 from pathlib import Path
 
 def main():
@@ -37,6 +38,9 @@ def main():
         print(f"--- [{i}/{len(graphs)}] {graph_file.name} ---")
         # output/h4/0-5-6-11/
         out_dir = output_base / dossier.name / graph_file.stem
+        # Nettoyer les anciens resultats
+        if out_dir.exists():
+            shutil.rmtree(out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         cmd = [sys.executable, str(test_py), str(graph_file),
                "--output-dir", str(out_dir)]
