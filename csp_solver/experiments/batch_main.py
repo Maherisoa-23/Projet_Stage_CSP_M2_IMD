@@ -52,6 +52,13 @@ def main():
 
     print(f"=== Termine : {len(graphs)} fichiers traites ===")
 
+    # Generer le rapport si --validate
+    if "--validate" in extra_args:
+        h_dir = output_base / dossier.name
+        view_py = Path(__file__).parent / "view.py"
+        print(f"\n=== Generation du rapport ===")
+        subprocess.run([sys.executable, str(view_py), str(h_dir)])
+
 
 if __name__ == "__main__":
     main()

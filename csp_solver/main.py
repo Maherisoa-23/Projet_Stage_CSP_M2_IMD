@@ -22,6 +22,11 @@ count_only = "--count" in _own_argv
 do_validate = "--validate" in _own_argv
 no_freeze = "--no-freeze" in _own_argv
 enumerate_all = "--all" in _own_argv or not count_only
+output_dir = None
+if "--output-dir" in _own_argv:
+    idx = _own_argv.index("--output-dir")
+    if idx + 1 < len(_own_argv):
+        output_dir = _own_argv[idx + 1]
 
 # Nettoyer sys.argv pour que pycsp3 ne les intercepte pas
 sys.argv = [_own_argv[0]]
@@ -108,7 +113,7 @@ def main():
         print()
         print("=== Validation xTB + planarite ===")
         from reconstruction import reconstruct_and_validate
-        reconstruct_and_validate(graph, solutions)
+        reconstruct_and_validate(graph, solutions, output_dir=output_dir)
 
 
 if __name__ == "__main__":

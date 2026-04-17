@@ -89,7 +89,11 @@ def main():
         sys.exit(1)
 
     filepath = sys.argv[1]
-    output_dir = Path(__file__).parent / "output" / "test"
+    if "--output-dir" in sys.argv:
+        idx = sys.argv.index("--output-dir")
+        output_dir = Path(sys.argv[idx + 1])
+    else:
+        output_dir = Path(__file__).parent / "output" / "test"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Parse
