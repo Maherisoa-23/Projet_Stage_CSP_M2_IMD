@@ -220,13 +220,64 @@
 </div>
 
 <!-- ============================================================ -->
-<h2>Liens</h2>
-<ul>
-  <li>Resultats detailles : <a href="../output/h3/view.html">h3</a> |
-      <a href="../output/h4/view.html">h4</a> |
-      <a href="../output/h5/view.html">h5</a> |
-      <a href="../output/h6/view.html">h6</a></li>
-</ul>
+<h2>Resultats detailles</h2>
+<div class="cards">
+  <a href="../output/h3/view.html" target="_blank" class="card blue" style="text-decoration:none; cursor:pointer;">
+    <div class="value">h3</div><div class="label">3 molecules</div>
+  </a>
+  <a href="../output/h4/view.html" target="_blank" class="card blue" style="text-decoration:none; cursor:pointer;">
+    <div class="value">h4</div><div class="label">6 molecules</div>
+  </a>
+  <a href="../output/h5/view.html" target="_blank" class="card blue" style="text-decoration:none; cursor:pointer;">
+    <div class="value">h5</div><div class="label">16 molecules</div>
+  </a>
+  <a href="../output/h6/view.html" target="_blank" class="card blue" style="text-decoration:none; cursor:pointer;">
+    <div class="value">h6</div><div class="label">44 molecules</div>
+  </a>
+</div>
+
+<!-- ============================================================ -->
+<h2>Commandes</h2>
+
+<p>Toutes les commandes se lancent depuis le dossier <code>csp_solver/experiments/</code>.</p>
+
+<h3>Lancer les tests sur un dossier (CSP + validation + original)</h3>
+<div class="config">
+  <table>
+    <tr><td>h3</td><td><code>python batch_main.py plane/benzdb/h3 --validate</code></td></tr>
+    <tr><td>h4</td><td><code>python batch_main.py plane/benzdb/h4 --validate</code></td></tr>
+    <tr><td>h5</td><td><code>python batch_main.py plane/benzdb/h5 --validate</code></td></tr>
+    <tr><td>h6</td><td><code>python batch_main.py plane/benzdb/h6 --validate</code></td></tr>
+  </table>
+</div>
+<p>
+  Cela lance pour chaque <code>.graph</code> : le test de l'original (tout-6) via <code>test.py</code>,
+  puis le solveur CSP + validation xTB via <code>main.py --validate</code>.
+  Le rapport <code>view.html</code> est genere automatiquement a la fin dans <code>output/hX/</code>.
+</p>
+
+<h3>Tester seulement les originaux</h3>
+<div class="config">
+  <table>
+    <tr><td>h3</td><td><code>python batch_test.py plane/benzdb/h3</code></td></tr>
+  </table>
+</div>
+
+<h3>Regenerer un rapport sans relancer les calculs</h3>
+<div class="config">
+  <table>
+    <tr><td>h4</td><td><code>python view.py output/h4</code></td></tr>
+  </table>
+</div>
+
+<h3>Lancer un seul fichier manuellement</h3>
+<p>Depuis le dossier <code>csp_solver/</code> :</p>
+<div class="config">
+  <table>
+    <tr><td>CSP + validation</td><td><code>python main.py data/fichier.graph --validate</code></td></tr>
+    <tr><td>Test original seul</td><td><code>python test.py data/fichier.graph</code></td></tr>
+  </table>
+</div>
 
 </body>
 </html>
