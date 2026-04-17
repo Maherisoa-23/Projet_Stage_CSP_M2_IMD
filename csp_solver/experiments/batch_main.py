@@ -23,7 +23,9 @@ def main():
     dossier = Path(sys.argv[1])
     extra_args = sys.argv[2:]
     main_py = Path(__file__).parent.parent / "main.py"
+    test_py = Path(__file__).parent.parent / "test.py"
     output_base = Path(__file__).parent / "output"
+    do_validate = "--validate" in extra_args
 
     if not dossier.is_dir():
         print(f"ERREUR : {dossier} n'est pas un dossier.")
@@ -40,11 +42,20 @@ def main():
 
     for i, graph_file in enumerate(graphs, 1):
         print(f"--- [{i}/{len(graphs)}] {graph_file.name} ---")
-        # output/h4/0-5-6-11/solutions/
-        out_dir = output_base / dossier.name / graph_file.stem / "solutions"
-        out_dir.mkdir(parents=True, exist_ok=True)
+        mol_dir = output_base / dossier.name / graph_file.stem
+
+        # Test de l'original (tout-6) si --validate
+        if do_validate:
+            mol_dir.mkdir(parents=True, exist_ok=True)
+            cmd_test = [sys.executable, str(test_py), str(graph_file),
+                        "--output-dir", str(mol_dir)]
+            subprocess.run(cmd_test)
+
+        # Resolution CSP + validation des solutions
+        sol_dir = mol_dir / "solutions"
+        sol_dir.mkdir(parents=True, exist_ok=True)
         cmd = [sys.executable, str(main_py), str(graph_file),
-               "--output-dir", str(out_dir)] + extra_args
+               "--output-dir", str(sol_dir)] + extra_args
         result = subprocess.run(cmd)
         if result.returncode != 0:
             print(f"  ECHEC (code {result.returncode})")

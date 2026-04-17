@@ -176,20 +176,20 @@ def write_html(h_dir, data):
         else:
             n_plan = sum(1 for s in mol["solutions"] if s["planar"])
             n_non = n_sol - n_plan
+            non_part = f', <span class="non-planar">{n_non} non plan</span>' if n_non else ""
             sol_cell = (f'{n_sol} solutions '
                         f'(<span class="planar">{n_plan} plan</span>'
-                        f'{f", <span class=&quot;non-planar&quot;>{n_non} non plan</span>" if n_non else ""})')
+                        f'{non_part})')
             detail_rows = ""
             for s in mol["solutions"]:
                 cls = "planar" if s["planar"] else "non-planar"
                 detail_rows += (
                     f'<tr class="detail-row" data-parent="{name}">'
                     f'<td></td>'
+                    f'<td></td>'
                     f'<td class="sizes">{s["sizes"]}</td>'
                     f'<td><span class="{cls}">{"PLAN" if s["planar"] else "NON PLAN"}</span></td>'
                     f'<td>{s["angle_deg"]}&deg;</td>'
-                    f'<td>{s["rmsd"]}</td>'
-                    f'<td>{s["height"]}</td>'
                     f'</tr>\n'
                 )
 
@@ -197,7 +197,7 @@ def write_html(h_dir, data):
             f'<tr class="mol-row" onclick="toggleDetails(\'{name}\')">'
             f'<td class="mol-name">{name}</td>'
             f'<td>{orig_cell}</td>'
-            f'<td colspan="4">{sol_cell}</td>'
+            f'<td colspan="2">{sol_cell}</td>'
             f'</tr>\n'
             f'{detail_rows}'
         )
@@ -305,9 +305,8 @@ function collapseAll() {{
     <th>Molecule</th>
     <th>Original</th>
     <th>Solutions / Tailles</th>
-    <th>Statut</th>
+    <th>Planarite</th>
     <th>Angle max</th>
-    <th>RMSD</th>
   </tr>
 </thead>
 <tbody>

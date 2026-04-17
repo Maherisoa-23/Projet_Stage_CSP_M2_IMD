@@ -2,12 +2,14 @@
 Test rapide : reconstruit un benzenoide (tout hexagonal) depuis un .graph
 et verifie sa planarite avec xTB.
 
+Utilise le meme pipeline de reconstruction que main.py (reconstruct_molecule)
+avec la solution {v: 6 pour tout v}, pour garantir des resultats comparables.
+
 Usage:
     python test.py data/second.graph
 """
 
 import sys
-import math
 import shutil
 import importlib.util
 from pathlib import Path
@@ -18,8 +20,6 @@ _gen_str = str(_gen_root)
 if _gen_str not in sys.path:
     sys.path.insert(0, _gen_str)
 
-from core.topology import MolecularGraph
-from core.valence_solver import ValenceSolver
 from core.optimizer import optimize_xtb, read_optimized_coords
 
 # planarity via importlib (evite conflit avec utils/ local)
@@ -30,57 +30,11 @@ _plan_spec.loader.exec_module(_plan_mod)
 compute_planarity = _plan_mod.compute_planarity
 is_planar = _plan_mod.is_planar
 
-# --- Import du parser ---
+# --- Import du parser et du pipeline de reconstruction ---
 sys.path.insert(0, str(Path(__file__).parent))
 from utils.parser import parse
-
-# --- Coordonnees hexagonales -> cartesiennes ---
-BOND_CC = 1.42
-
-def hex_to_cartesian(label):
-    parts = label.split("_")
-    hx, hy = int(parts[0]), int(parts[1])
-    x = BOND_CC * (hx + hy * 0.5)
-    y = BOND_CC * (hy * math.sqrt(3) / 2)
-    return x, y, 0.0
-
-
-def build_benzenoid_xyz(graph, output_path):
-    """Construit le XYZ du benzenoide original (tout hexagonal)."""
-    mol = MolecularGraph()
-    label_to_id = {}
-
-    # Carbones
-    all_labels = set()
-    for hex_verts in graph.hexagons:
-        for label in hex_verts:
-            all_labels.add(label)
-
-    for label in all_labels:
-        x, y, z = hex_to_cartesian(label)
-        vid = mol.add_vertex("C", x, y, z)
-        label_to_id[label] = vid
-
-    # Liaisons C-C
-    for s1, s2 in graph.edges:
-        if s1 in label_to_id and s2 in label_to_id:
-            mol.add_bond(label_to_id[s1], label_to_id[s2], order=1)
-
-    # Hydrogenes
-    solver = ValenceSolver(mol)
-    solver.solve()
-
-    # Export XYZ
-    atoms = sorted(mol.vertices.values(), key=lambda v: v.id)
-    with open(output_path, 'w') as f:
-        f.write(f"{len(atoms)}\n")
-        f.write(f"Benzenoide original (tout hexagonal)\n")
-        for a in atoms:
-            f.write(f"{a.element:<2s}  {a.x:14.5f}  {a.y:14.5f}  {a.z:14.5f}\n")
-
-    print(f"  XYZ genere : {output_path}")
-    print(f"  Atomes : {len(atoms)} ({sum(1 for a in atoms if a.element=='C')} C, "
-          f"{sum(1 for a in atoms if a.element=='H')} H)")
+from reconstruction.pipeline import reconstruct_molecule
+from reconstruction.assembler import export_xyz
 
 
 def main():
@@ -101,11 +55,18 @@ def main():
     graph = parse(filepath)
     print(f"  {graph.h} hexagones, {len(graph.vertices)} carbones, {len(graph.edges)} liaisons")
 
-    # Construire le XYZ
+    # Construire le XYZ via le pipeline de reconstruction (solution tout-6)
     name = Path(filepath).stem
     xyz_path = output_dir / f"{name}_original.xyz"
-    print(f"\n=== Construction du benzenoide ===")
-    build_benzenoid_xyz(graph, str(xyz_path))
+    print(f"\n=== Construction du benzenoide (reconstruction, tout hexagonal) ===")
+    solution_all_6 = {v: 6 for v in range(graph.h)}
+    mol = reconstruct_molecule(graph, solution_all_6)
+    export_xyz(mol, str(xyz_path), comment="Benzenoide original (tout hexagonal)")
+
+    atoms = sorted(mol.vertices.values(), key=lambda v: v.id)
+    print(f"  XYZ genere : {xyz_path}")
+    print(f"  Atomes : {len(atoms)} ({sum(1 for a in atoms if a.element=='C')} C, "
+          f"{sum(1 for a in atoms if a.element=='H')} H)")
 
     # xTB
     if not shutil.which("xtb"):
