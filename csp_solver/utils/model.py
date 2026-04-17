@@ -27,7 +27,8 @@ def _find_ace_jar():
     raise FileNotFoundError("ACE jar introuvable dans pycsp3")
 
 
-def build_and_solve(graph, preprocessed, enumerate_all=True, adj_57=False):
+def build_and_solve(graph, preprocessed, enumerate_all=True,
+                    adj_57=False, no_table=False):
     """Construit le modele CSP, genere le XML, et appelle ACE.
 
     Args:
@@ -35,6 +36,7 @@ def build_and_solve(graph, preprocessed, enumerate_all=True, adj_57=False):
         preprocessed: dict du pre-traitement
         enumerate_all: enumerer toutes les solutions
         adj_57: activer la contrainte C5 (adjacence 5-7)
+        no_table: desactiver la contrainte C3 (table de voisinage)
 
     Returns:
         Liste de solutions, chaque solution est un dict {v: taille}
@@ -56,13 +58,14 @@ def build_and_solve(graph, preprocessed, enumerate_all=True, adj_57=False):
     )
 
     # --- Contrainte C3 : voisinage admissible (tables extensionnelles) ---
-    for v in free:
-        if v in tables and tables[v]:
-            neighbors_v = graph.neighbors(v)
-            scope = [x[v]] + [x[u] for u in neighbors_v]
-            satisfy(
-                scope in tables[v]
-            )
+    if not no_table:
+        for v in free:
+            if v in tables and tables[v]:
+                neighbors_v = graph.neighbors(v)
+                scope = [x[v]] + [x[u] for u in neighbors_v]
+                satisfy(
+                    scope in tables[v]
+                )
 
     # --- Rupture de symetrie : lex-leader ---
     for gen in generators:

@@ -22,6 +22,7 @@ count_only = "--count" in _own_argv
 do_validate = "--validate" in _own_argv
 no_freeze = "--no-freeze" in _own_argv
 adj_57 = "--adj-57" in _own_argv
+no_table = "--no-table" in _own_argv
 enumerate_all = "--all" in _own_argv or not count_only
 output_dir = None
 if "--output-dir" in _own_argv:
@@ -44,6 +45,7 @@ def main():
     if filepath is None:
         print("Usage: python main.py <fichier.graph> [--all] [--count] [--validate] [--no-freeze] [--adj-57]")
         print("  --no-freeze : desactiver la contrainte des hexagones geles (b(v)>=2)")
+        print("  --no-table  : desactiver la contrainte de table de voisinage (C3)")
         print("  --adj-57    : activer la contrainte d'adjacence 5-7 (C5)")
         print("Exemple: python main.py data/first.graph")
         sys.exit(1)
@@ -80,7 +82,10 @@ def main():
     print("=== Resolution CSP ===")
     if adj_57:
         print("  Contrainte C5 (adjacence 5-7) : ACTIVEE")
-    solutions = build_and_solve(graph, preprocessed, enumerate_all=enumerate_all, adj_57=adj_57)
+    if no_table:
+        print("  Contrainte C3 (table voisinage) : DESACTIVEE")
+    solutions = build_and_solve(graph, preprocessed, enumerate_all=enumerate_all,
+                                adj_57=adj_57, no_table=no_table)
 
     if not solutions:
         print("Aucune solution trouvee.")
