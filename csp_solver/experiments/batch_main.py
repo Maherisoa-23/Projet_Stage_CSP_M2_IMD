@@ -23,6 +23,7 @@ def main():
     dossier = Path(sys.argv[1])
     extra_args = sys.argv[2:]
     main_py = Path(__file__).parent.parent / "main.py"
+    output_base = Path(__file__).parent / "output"
 
     if not dossier.is_dir():
         print(f"ERREUR : {dossier} n'est pas un dossier.")
@@ -39,7 +40,11 @@ def main():
 
     for i, graph_file in enumerate(graphs, 1):
         print(f"--- [{i}/{len(graphs)}] {graph_file.name} ---")
-        cmd = [sys.executable, str(main_py), str(graph_file)] + extra_args
+        # output/h4/0-5-6-11/solutions/
+        out_dir = output_base / dossier.name / graph_file.stem / "solutions"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        cmd = [sys.executable, str(main_py), str(graph_file),
+               "--output-dir", str(out_dir)] + extra_args
         result = subprocess.run(cmd)
         if result.returncode != 0:
             print(f"  ECHEC (code {result.returncode})")

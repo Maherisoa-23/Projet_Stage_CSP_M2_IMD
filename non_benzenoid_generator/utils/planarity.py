@@ -120,10 +120,13 @@ def compute_planarity(coords: List[List[float]]) -> Dict[str, float]:
 
     # Angle diedre maximal : angle entre le vecteur centre->atome et le plan
     # Pour l'atome le plus eloigne du plan : sin(theta) = deviation / distance_au_centre
+    # On ignore les atomes a moins de 1.0 A du centroide car d/r diverge
+    # et ne donne pas d'angle geometriquement significatif.
+    MIN_R = 1.0
     max_angle_deg = 0.0
     for c, d in zip(centered, dists):
         r = math.sqrt(c[0]**2 + c[1]**2 + c[2]**2)
-        if r > 1e-6:
+        if r > MIN_R:
             angle = math.degrees(math.asin(min(d / r, 1.0)))
             if angle > max_angle_deg:
                 max_angle_deg = angle

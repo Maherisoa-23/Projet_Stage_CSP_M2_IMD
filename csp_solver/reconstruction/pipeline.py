@@ -67,22 +67,26 @@ MAX_VARIANTS = 50  # Limite pour eviter l'explosion combinatoire
 
 
 def reconstruct_and_validate(graph: BenzenoidGraph, solutions: list,
-                             threshold=10.0, opt_level="tight"):
+                             threshold=10.0, opt_level="tight",
+                             output_dir=None):
     """Pour chaque solution CSP, reconstruit la molecule et la valide.
 
     Pour les solutions avec des hexagones multi-blocs (b>=2, taille=7),
     toutes les variantes de placement sont testees et la meilleure
     (plus petit angle) est conservee.
     """
-    output_dir = Path(__file__).parent.parent / "output" / "molecules"
-
-    if output_dir.exists():
-        for f in output_dir.iterdir():
-            try:
-                if f.is_file():
-                    f.unlink()
-            except OSError:
-                pass
+    if output_dir is None:
+        output_dir = Path(__file__).parent.parent / "output" / "molecules"
+        # Nettoyage seulement pour le dossier par defaut
+        if output_dir.exists():
+            for f in output_dir.iterdir():
+                try:
+                    if f.is_file():
+                        f.unlink()
+                except OSError:
+                    pass
+    else:
+        output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if not shutil.which("xtb"):
