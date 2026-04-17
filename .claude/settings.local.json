@@ -25,7 +25,12 @@
       "Bash(find . -name \"*.graph\" -type f -exec sh -c 'ls -lh \"$1\" | awk \"{print \\\\$5, \\\\$9}\"' _ {} \\\\;)",
       "Bash(ls -lh \"e:/Stage AMU CSP IMD M2/Generation des molecules pour la table de voisinage/second try with scipt and CSP/csp_solver/data\"/*.graph)",
       "Bash(ls -lh \"e:/Stage AMU CSP IMD M2/Generation des molecules pour la table de voisinage/second try with scipt and CSP/csp_solver/data/sure plane/5 hexagones\"/*.graph)",
-      "Bash(python -c \"import json; t=json.load\\(open\\('csp_solver/data/table_voisinage.json'\\)\\); print\\('T\\(5\\):', len\\(t['5']\\), 'entries'\\); print\\('T\\(6\\):', len\\(t['6']\\), 'entries'\\); print\\('T\\(7\\):', len\\(t['7']\\), 'entries'\\)\")"
+      "Bash(python -c \"import json; t=json.load\\(open\\('csp_solver/data/table_voisinage.json'\\)\\); print\\('T\\(5\\):', len\\(t['5']\\), 'entries'\\); print\\('T\\(6\\):', len\\(t['6']\\), 'entries'\\); print\\('T\\(7\\):', len\\(t['7']\\), 'entries'\\)\")",
+      "Bash(mkdir -p /tmp/benzdb_backup)",
+      "Bash(cp -r benzenoids/benzdb/h3 benzenoids/benzdb/h4 benzenoids/benzdb/h5 benzenoids/benzdb/h6 benzenoids/benzdb/h7 benzenoids/benzdb/h8 benzenoids/benzdb/h9 /tmp/benzdb_backup/)",
+      "Bash(rm -rf *)",
+      "Bash(mkdir -p plane/benzdb)",
+      "Bash(cp -r /tmp/benzdb_backup/h3 /tmp/benzdb_backup/h4 /tmp/benzdb_backup/h5 /tmp/benzdb_backup/h6 /tmp/benzdb_backup/h7 /tmp/benzdb_backup/h8 /tmp/benzdb_backup/h9 plane/benzdb/)"
     ]
   }
 }
