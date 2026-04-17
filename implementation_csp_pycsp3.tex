@@ -577,6 +577,16 @@ for v in free:
 La table filtrée pour $v$ est une liste de tuples compatibles. Par exemple, pour un hexagone
 libre de degré 2, les tuples sont de la forme $(x_v, x_{u_1}, x_{u_2})$.
 
+\begin{remarque}
+  La contrainte C3 peut être désactivée avec le drapeau \texttt{--no-table}. Sans elle,
+  seules C1 (conservation carbone) et C4 (symétrie) restreignent les solutions, ce qui
+  permet de mesurer l'impact du filtrage par la table.
+  \begin{lstlisting}[style=benzai]
+python main.py data/fichier.graph              # C3 active (defaut)
+python main.py data/fichier.graph --no-table   # C3 desactive
+  \end{lstlisting}
+\end{remarque}
+
 \subsection{Contrainte C4 — Brisure de symétrie (lex-leader)}
 
 Deux solutions qui ne diffèrent que par un automorphisme du graphe dual décrivent la
@@ -865,11 +875,33 @@ csp_solver/
   \item \texttt{validate.py} optimise (xTB) et teste la planarité (ACP, seuil 10°)
 \end{enumerate}
 
-\textbf{Commandes :}
+\textbf{Commandes et drapeaux :}
+
+\begin{center}
+\begin{tabular}{lp{9cm}}
+  \toprule
+  Drapeau & Effet \\
+  \midrule
+  \texttt{--no-freeze} & Désactive C2 ($b(v) \geq 2$). Les hexagones avec arêtes libres
+    séparées deviennent libres (domaine $\{6, 7\}$). \\
+  \texttt{--no-table} & Désactive C3 (table de voisinage). Seules C1 et C4 restreignent
+    les solutions. \\
+  \texttt{--adj-57} & Active C5 (adjacence 5--7). Chaque 5 doit avoir un voisin 7 et
+    inversement. \\
+  \texttt{--validate} & Reconstruit chaque solution en 3D, optimise avec xTB, et teste
+    la planarité. \\
+  \texttt{--count} & Affiche seulement le nombre de solutions. \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
 \begin{lstlisting}[style=benzai]
-python main.py data/first.graph               # Resoudre (avec gel b>=2)
-python main.py data/first.graph --no-freeze   # Sans gel b>=2
-python main.py data/first.graph --validate    # + reconstruction + xTB
+python main.py data/fichier.graph                          # Defaut (C1+C2+C3+C4)
+python main.py data/fichier.graph --no-freeze              # Sans C2 (b>=2)
+python main.py data/fichier.graph --no-table               # Sans C3 (table)
+python main.py data/fichier.graph --adj-57                 # Avec C5 (adj 5-7)
+python main.py data/fichier.graph --no-freeze --adj-57     # Combinaison
+python main.py data/fichier.graph --validate               # + reconstruction + xTB
 \end{lstlisting}
 
 % ============================================================

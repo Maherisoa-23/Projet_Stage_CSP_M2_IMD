@@ -515,6 +515,17 @@ $\sigma(v)$ et peut \^etre \'evalu\'e en temps constant lors de la lecture
 du benz\'eno\"ide d'entr\'ee, avant toute r\'esolution.
 \end{remarque}
 
+\begin{notebox}[Activation / d\'esactivation]
+La r\`egle $\deg(v) = 6$ est \textbf{toujours active}. La r\`egle $b(v) \geq 2$ peut
+\^etre d\'esactiv\'ee avec le drapeau \texttt{--no-freeze}, ce qui lib\`ere les hexagones
+correspondants (domaine $\{6, 7\}$ au lieu de $\{6\}$ --- le pentagone reste interdit car
+il n'y a pas de sommet int\'erieur libre).
+\begin{lstlisting}[style=benzai]
+python main.py data/fichier.graph              # C2 active (defaut)
+python main.py data/fichier.graph --no-freeze  # C2 (b>=2) desactive
+\end{lstlisting}
+\end{notebox}
+
 \subsubsection{Construction de la table de voisinage $\mathcal{T}(n)$}
 \label{sec:table}
 
@@ -598,6 +609,17 @@ un cycle isol\'e d'un c\^ot\'e est toujours g\'eom\'etriquement admissible,
 quelle que soit sa taille. Seule la contrainte C1 (conservation du carbone)
 restreint alors son domaine.
 \end{remarque}
+
+\begin{notebox}[Activation / d\'esactivation]
+La contrainte C3 peut \^etre d\'esactiv\'ee avec le drapeau \texttt{--no-table}.
+Sans cette contrainte, seules C1 (conservation carbone) et C4 (sym\'etrie) restreignent
+les solutions. Cela permet d'\'evaluer l'impact du filtrage par la table de voisinage sur
+le nombre de solutions.
+\begin{lstlisting}[style=benzai]
+python main.py data/fichier.graph              # C3 active (defaut)
+python main.py data/fichier.graph --no-table   # C3 desactive
+\end{lstlisting}
+\end{notebox}
 
 \paragraph{Formulation par interdictions.}
 On peut \'egalement utiliser la table des configurations interdites
@@ -980,6 +1002,17 @@ compl\`etement isol\'e dans un ``oc\'ean'' d'hexagones. Sur les petits benz\'eno
 (3 hexagones), l'impact est nul car les solutions existantes poss\`edent d\'ej\`a
 des paires 5--7 adjacentes. Sur les grands benz\'eno\"ides, le nombre de solutions
 devrait diminuer significativement.
+
+\begin{notebox}[Activation / d\'esactivation]
+La contrainte C5 est \textbf{d\'esactiv\'ee par d\'efaut} et s'active avec le drapeau
+\texttt{--adj-57}. La solution purement hexagonale (benz\'eno\"ide d'origine) n'est pas
+affect\'ee par cette contrainte~: les implications sont trivialement satisfaites quand
+$\xv = 6$ (ni l'ant\'ec\'edent $\xv = 5$ ni $\xv = 7$ n'est vrai).
+\begin{lstlisting}[style=benzai]
+python main.py data/fichier.graph            # C5 desactive (defaut)
+python main.py data/fichier.graph --adj-57   # C5 active
+\end{lstlisting}
+\end{notebox}
 
 % ════════════════════════════════════════════════════════════════════
 \section{Choix de l'outil de r\'esolution}
