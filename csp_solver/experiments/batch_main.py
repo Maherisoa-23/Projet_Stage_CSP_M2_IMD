@@ -5,16 +5,25 @@ Usage:
     python batch_main.py <dossier> [options main.py...]
 
 Exemple:
-    python batch_main.py plane/benzdb/h4
-    python batch_main.py plane/benzdb/h4 --no-freeze
     python batch_main.py plane/benzdb/h4 --validate
-    python batch_main.py plane/benzdb/h4 --count
+    python batch_main.py plane/benzdb/h4 --validate --no-freeze
+    python batch_main.py plane/benzdb/h4 --validate --no-freeze --adj-57
 """
 
 import sys
 import subprocess
 import shutil
 from pathlib import Path
+
+# Flags CSP qui definissent une configuration (ordre alphabetique)
+CSP_FLAGS = sorted(["--no-freeze", "--no-table", "--adj-57"])
+
+
+def config_name(extra_args):
+    """Derive le nom de config a partir des flags CSP presents."""
+    flags = [f.lstrip("-") for f in CSP_FLAGS if f in extra_args]
+    return "_".join(flags) if flags else "default"
+
 
 def main():
     if len(sys.argv) < 2:
@@ -26,6 +35,7 @@ def main():
     main_py = Path(__file__).parent.parent / "main.py"
     test_py = Path(__file__).parent.parent / "test.py"
     output_base = Path(__file__).parent / "output"
+    view_py = Path(__file__).parent / "view.py"
     do_validate = "--validate" in extra_args
 
     if not dossier.is_dir():
@@ -37,15 +47,20 @@ def main():
         print(f"Aucun fichier .graph dans {dossier}")
         sys.exit(1)
 
+    cfg = config_name(extra_args)
+    h_dir = output_base / dossier.name
+    config_dir = h_dir / cfg
+
     print(f"=== Batch main.py sur {dossier} ({len(graphs)} fichiers) ===")
+    print(f"Config: {cfg}")
     print(f"Options: {extra_args if extra_args else '(aucune)'}")
     print()
 
     for i, graph_file in enumerate(graphs, 1):
         print(f"--- [{i}/{len(graphs)}] {graph_file.name} ---")
-        mol_dir = output_base / dossier.name / graph_file.stem
+        mol_dir = config_dir / graph_file.stem
 
-        # Nettoyer les anciens resultats
+        # Nettoyer les anciens resultats de cette config
         if mol_dir.exists():
             shutil.rmtree(mol_dir)
 
@@ -68,12 +83,13 @@ def main():
 
     print(f"=== Termine : {len(graphs)} fichiers traites ===")
 
-    # Generer le rapport si --validate
-    if "--validate" in extra_args:
-        h_dir = output_base / dossier.name
-        view_py = Path(__file__).parent / "view.py"
-        print(f"\n=== Generation du rapport ===")
-        subprocess.run([sys.executable, str(view_py), str(h_dir)])
+    # Generer les rapports si --validate
+    if do_validate:
+        print(f"\n=== Generation du rapport ({cfg}) ===")
+        # 1. data.json pour cette config
+        subprocess.run([sys.executable, str(view_py), str(config_dir)])
+        # 2. view.html agrege au niveau hX
+        subprocess.run([sys.executable, str(view_py), str(h_dir), "--aggregate"])
 
 
 if __name__ == "__main__":

@@ -30,7 +30,12 @@
       "Bash(cp -r benzenoids/benzdb/h3 benzenoids/benzdb/h4 benzenoids/benzdb/h5 benzenoids/benzdb/h6 benzenoids/benzdb/h7 benzenoids/benzdb/h8 benzenoids/benzdb/h9 /tmp/benzdb_backup/)",
       "Bash(rm -rf *)",
       "Bash(mkdir -p plane/benzdb)",
-      "Bash(cp -r /tmp/benzdb_backup/h3 /tmp/benzdb_backup/h4 /tmp/benzdb_backup/h5 /tmp/benzdb_backup/h6 /tmp/benzdb_backup/h7 /tmp/benzdb_backup/h8 /tmp/benzdb_backup/h9 plane/benzdb/)"
+      "Bash(cp -r /tmp/benzdb_backup/h3 /tmp/benzdb_backup/h4 /tmp/benzdb_backup/h5 /tmp/benzdb_backup/h6 /tmp/benzdb_backup/h7 /tmp/benzdb_backup/h8 /tmp/benzdb_backup/h9 plane/benzdb/)",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('view.py', doraise=True\\)\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('update_report.py', doraise=True\\)\")",
+      "Bash(python view.py output/h4 --aggregate)",
+      "Bash(python update_report.py)"
     ]
   }
 }

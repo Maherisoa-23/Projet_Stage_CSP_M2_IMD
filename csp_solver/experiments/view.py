@@ -1,17 +1,13 @@
 """
-Genere data.json et view.html a partir des resultats d'un dossier output.
+Genere data.json et view.html a partir des resultats.
 
 Usage:
-    python view.py <dossier_output>
+    python view.py <dossier_config>                 # Mode config : genere data.json + view.html
+    python view.py <dossier_hX> --aggregate         # Mode agrege : genere view.html interactif
 
-Exemple:
-    python view.py output/h3
-    python view.py output/h4
-
-Scanne le dossier pour trouver les fichiers _opt.xyz (test.py et main.py),
-calcule la planarite, et produit :
-  - data.json  : resultats structures
-  - view.html  : tableau de bord visuel
+Exemples:
+    python view.py output/h4/default                # Scan une config, genere data.json
+    python view.py output/h4 --aggregate            # Charge tous les data.json, genere view.html
 """
 
 import sys
@@ -33,8 +29,11 @@ is_planar = _plan_mod.is_planar
 THRESHOLD_DEG = 10.0
 
 
+# =====================================================================
+#  Utilitaires lecture XYZ
+# =====================================================================
+
 def read_xyz_coords(xyz_path):
-    """Lit les coordonnees 3D depuis un fichier XYZ."""
     coords = []
     with open(xyz_path, 'r') as f:
         lines = f.readlines()
@@ -49,7 +48,6 @@ def read_xyz_coords(xyz_path):
 
 
 def read_xyz_comment(xyz_path):
-    """Lit la ligne de commentaire (ligne 2) d'un XYZ."""
     with open(xyz_path, 'r') as f:
         lines = f.readlines()
     if len(lines) >= 2:
@@ -58,7 +56,6 @@ def read_xyz_comment(xyz_path):
 
 
 def analyze_opt_xyz(opt_path):
-    """Analyse un fichier _opt.xyz et retourne les metriques."""
     coords = read_xyz_coords(str(opt_path))
     if len(coords) < 3:
         return None
@@ -72,41 +69,33 @@ def analyze_opt_xyz(opt_path):
 
 
 def parse_solution_comment(comment):
-    """Extrait les tailles depuis un commentaire XYZ de solution.
-    Ex: 'Solution 1: v0=6 v1=5 v2=7' -> 'v0=6 v1=5 v2=7'
-    """
     if ":" in comment:
         return comment.split(":", 1)[1].strip()
     return comment
 
 
-def scan_directory(h_dir):
-    """Scanne un dossier output/hX/ et collecte les resultats."""
-    h_dir = Path(h_dir)
-    molecules = {}
+# =====================================================================
+#  Mode config : scan + data.json + view.html simple
+# =====================================================================
 
-    for mol_dir in sorted(h_dir.iterdir()):
+def scan_directory(config_dir):
+    config_dir = Path(config_dir)
+    molecules = {}
+    for mol_dir in sorted(config_dir.iterdir()):
         if not mol_dir.is_dir():
             continue
         name = mol_dir.name
         entry = {"name": name, "original": None, "solutions": []}
-
-        # Test original (batch_test.py)
         for opt_file in mol_dir.glob("*_original_opt.xyz"):
             result = analyze_opt_xyz(opt_file)
             if result:
                 entry["original"] = result
-
-        # Solutions (batch_main.py --validate)
         sol_dir = mol_dir / "solutions"
         if sol_dir.is_dir():
-            # Lire les XYZ non-optimises pour le commentaire (metadata)
-            sol_files = sorted(sol_dir.glob("sol_*_opt.xyz"))
-            for opt_file in sol_files:
+            for opt_file in sorted(sol_dir.glob("sol_*_opt.xyz")):
                 result = analyze_opt_xyz(opt_file)
                 if result is None:
                     continue
-                # Trouver le XYZ source pour le commentaire
                 src_name = opt_file.name.replace("_opt.xyz", ".xyz")
                 src_file = sol_dir / src_name
                 if src_file.exists():
@@ -116,205 +105,683 @@ def scan_directory(h_dir):
                     result["sizes"] = opt_file.stem.replace("_opt", "")
                 result["file"] = opt_file.name
                 entry["solutions"].append(result)
-
         molecules[name] = entry
-
     return molecules
 
 
-def write_json(h_dir, molecules):
-    """Ecrit data.json."""
+def write_json(config_dir, molecules):
     data = {
-        "source": h_dir.name,
+        "source": config_dir.parent.name,
+        "config": config_dir.name,
         "generated": datetime.now().isoformat(timespec="seconds"),
         "threshold_deg": THRESHOLD_DEG,
         "molecules": molecules,
     }
-    out = h_dir / "data.json"
+    out = config_dir / "data.json"
     with open(out, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
     print(f"  data.json -> {out}")
     return data
 
 
-def write_html(h_dir, data):
-    """Ecrit view.html."""
-    molecules = data["molecules"]
+# =====================================================================
+#  Mode agrege : charge tous les data.json et genere view.html interactif
+# =====================================================================
 
-    # Stats
-    total = len(molecules)
-    has_original = [m for m in molecules.values() if m["original"]]
-    originals_planar = sum(1 for m in has_original if m["original"]["planar"])
-    originals_non_planar = len(has_original) - originals_planar
+def load_all_configs(h_dir):
+    """Charge tous les data.json des sous-dossiers de config."""
+    configs = {}
+    for sub in sorted(h_dir.iterdir()):
+        if sub.is_dir() and (sub / "data.json").exists():
+            with open(sub / "data.json", "r", encoding="utf-8") as f:
+                configs[sub.name] = json.load(f)
+    return configs
 
-    has_solutions = [m for m in molecules.values() if m["solutions"]]
-    total_solutions = sum(len(m["solutions"]) for m in molecules.values())
-    solutions_planar = sum(
-        1 for m in molecules.values()
-        for s in m["solutions"] if s["planar"]
+
+def write_aggregate_html(h_dir, configs):
+    """Genere un view.html interactif avec toutes les configs."""
+    h_name = h_dir.name
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
+    configs_json = json.dumps(configs, ensure_ascii=False)
+    config_names = sorted(configs.keys())
+    n_configs = len(config_names)
+
+    # Boutons de config
+    config_buttons = "\n".join(
+        f'    <button class="cfg-btn" data-cfg="{c}" onclick="selectConfig(\'{c}\')">{c}</button>'
+        for c in config_names
     )
-    solutions_non_planar = total_solutions - solutions_planar
-
-    # Lignes du tableau
-    rows_html = ""
-    for name, mol in sorted(molecules.items()):
-        # Original
-        orig = mol["original"]
-        if orig:
-            cls = "planar" if orig["planar"] else "non-planar"
-            orig_cell = (f'<span class="{cls}">'
-                         f'{"PLAN" if orig["planar"] else "NON PLAN"}</span>'
-                         f' ({orig["angle_deg"]}&deg;)')
-        else:
-            orig_cell = '<span class="na">-</span>'
-
-        # Solutions
-        n_sol = len(mol["solutions"])
-        if n_sol == 0:
-            sol_cell = '<span class="na">-</span>'
-            detail_rows = ""
-        else:
-            n_plan = sum(1 for s in mol["solutions"] if s["planar"])
-            n_non = n_sol - n_plan
-            non_part = f', <span class="non-planar">{n_non} non plan</span>' if n_non else ""
-            sol_cell = (f'{n_sol} solutions '
-                        f'(<span class="planar">{n_plan} plan</span>'
-                        f'{non_part})')
-            detail_rows = ""
-            for s in mol["solutions"]:
-                cls = "planar" if s["planar"] else "non-planar"
-                detail_rows += (
-                    f'<tr class="detail-row" data-parent="{name}">'
-                    f'<td></td>'
-                    f'<td></td>'
-                    f'<td class="sizes"><a href="{name}/solutions/{s["file"]}" target="_blank">{s["sizes"]}</a></td>'
-                    f'<td><span class="{cls}">{"PLAN" if s["planar"] else "NON PLAN"}</span></td>'
-                    f'<td>{s["angle_deg"]}&deg;</td>'
-                    f'</tr>\n'
-                )
-
-        rows_html += (
-            f'<tr class="mol-row" onclick="toggleDetails(\'{name}\')">'
-            f'<td class="mol-name">{name}</td>'
-            f'<td>{orig_cell}</td>'
-            f'<td colspan="2">{sol_cell}</td>'
-            f'</tr>\n'
-            f'{detail_rows}'
-        )
 
     html = f"""<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>Resultats - {data["source"]}</title>
+<title>Resultats - {h_name}</title>
 <style>
+  :root {{
+    --bg: #f0f2f5; --surface: #ffffff; --surface-alt: #f8f9fa;
+    --border: #e1e4e8; --text: #24292e; --text-muted: #6a737d;
+    --accent: #0969da; --accent-subtle: #ddf4ff;
+    --green: #1a7f37; --green-bg: #dafbe1;
+    --red: #cf222e; --red-bg: #ffebe9;
+    --yellow-bg: #fff8c5;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.06);
+    --shadow-md: 0 3px 8px rgba(0,0,0,0.08);
+    --radius: 8px;
+  }}
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-  body {{ font-family: 'Segoe UI', system-ui, sans-serif; background: #f5f6fa; color: #2d3436; padding: 24px; }}
-  h1 {{ font-size: 1.4em; margin-bottom: 4px; }}
-  .meta {{ color: #636e72; font-size: 0.85em; margin-bottom: 20px; }}
-  .cards {{ display: flex; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }}
-  .card {{ background: #fff; border-radius: 8px; padding: 16px 20px; min-width: 160px;
-           box-shadow: 0 1px 3px rgba(0,0,0,0.08); }}
-  .card .value {{ font-size: 1.8em; font-weight: 700; }}
-  .card .label {{ font-size: 0.8em; color: #636e72; margin-top: 2px; }}
-  .card.green .value {{ color: #00b894; }}
-  .card.red .value {{ color: #d63031; }}
-  .card.blue .value {{ color: #0984e3; }}
-  table {{ width: 100%; background: #fff; border-radius: 8px; overflow: hidden;
-           box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-collapse: collapse; }}
-  th {{ background: #dfe6e9; padding: 10px 12px; text-align: left; font-size: 0.85em;
-        text-transform: uppercase; letter-spacing: 0.5px; color: #636e72; }}
-  td {{ padding: 8px 12px; border-top: 1px solid #f0f0f0; font-size: 0.9em; }}
-  .mol-row {{ cursor: pointer; }}
-  .mol-row:hover {{ background: #f8f9fa; }}
-  .mol-name {{ font-weight: 600; font-family: monospace; }}
-  .detail-row {{ background: #fafbfc; display: none; }}
-  .detail-row td {{ padding-left: 32px; font-size: 0.85em; }}
-  .detail-row .sizes {{ font-family: monospace; font-size: 0.8em; }}
-  .detail-row .sizes a {{ color: #0984e3; text-decoration: none; }}
-  .detail-row .sizes a:hover {{ text-decoration: underline; }}
-  .planar {{ color: #00b894; font-weight: 600; }}
-  .non-planar {{ color: #d63031; font-weight: 600; }}
+  body {{ font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg);
+         color: var(--text); padding: 0; line-height: 1.5; font-size: 15px; }}
+
+  /* Header & Footer */
+  .page-header {{ background: var(--surface); border-bottom: 1px solid var(--border);
+                  padding: 20px 24px; margin-bottom: 20px; box-shadow: var(--shadow-sm); }}
+  .page-header h1 {{ font-size: 1.4em; margin-bottom: 2px; }}
+  .page-header .meta {{ color: var(--text-muted); font-size: 0.82em; }}
+  .page-footer {{ margin-top: 32px; padding: 16px 24px; text-align: center;
+                  font-size: 0.78em; color: var(--text-muted); border-top: 1px solid var(--border); }}
+  .page-footer span {{ margin: 0 12px; }}
+
+  /* Container */
+  .container {{ max-width: 1200px; margin: 0 auto; padding: 0 24px 40px; }}
+
+  /* Config bar */
+  .config-bar {{ background: var(--surface); border-radius: var(--radius); padding: 12px 16px;
+                 margin-bottom: 20px; box-shadow: var(--shadow-sm);
+                 display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }}
+  .config-bar .label {{ font-weight: 600; color: var(--text-muted); font-size: 0.82em; white-space: nowrap; }}
+  .cfg-btn {{ padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface);
+              cursor: pointer; font-size: 0.82em; font-family: 'SFMono-Regular', Consolas, monospace;
+              transition: all 0.15s; color: var(--text); }}
+  .cfg-btn:hover {{ border-color: var(--accent); color: var(--accent); }}
+  .cfg-btn.active {{ background: var(--accent); color: #fff; border-color: var(--accent); }}
+  .compare-toggle {{ margin-left: auto; padding: 6px 14px; border: 1px solid var(--border); border-radius: 6px;
+                     background: var(--surface); cursor: pointer; font-size: 0.82em;
+                     transition: all 0.15s; color: var(--text-muted); }}
+  .compare-toggle:hover {{ border-color: #bf8700; color: #bf8700; }}
+  .compare-toggle.active {{ background: #bf8700; color: #fff; border-color: #bf8700; }}
+
+  /* Cards */
+  .cards {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 14px; margin-bottom: 20px; }}
+  .card {{ background: var(--surface); border-radius: var(--radius); padding: 16px 20px;
+           box-shadow: var(--shadow-sm); border-top: 3px solid var(--border);
+           transition: transform 0.15s, box-shadow 0.15s; }}
+  .card:hover {{ transform: translateY(-1px); box-shadow: var(--shadow-md); }}
+  .card .value {{ font-size: 1.7em; font-weight: 700; }}
+  .card .label {{ font-size: 0.78em; color: var(--text-muted); margin-top: 2px; }}
+  .card.green {{ border-top-color: var(--green); }}  .card.green .value {{ color: var(--green); }}
+  .card.red {{ border-top-color: var(--red); }}      .card.red .value {{ color: var(--red); }}
+  .card.blue {{ border-top-color: var(--accent); }}  .card.blue .value {{ color: var(--accent); }}
+
+  /* Toolbar */
+  .toolbar {{ background: var(--surface); border-radius: var(--radius); padding: 10px 16px;
+              margin-bottom: 16px; box-shadow: var(--shadow-sm);
+              display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }}
+  .search-input {{ padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px;
+                   font-size: 0.85em; width: 220px; outline: none;
+                   transition: border-color 0.15s; font-family: inherit; }}
+  .search-input:focus {{ border-color: var(--accent); box-shadow: 0 0 0 3px rgba(9,105,218,0.15); }}
+  .filter-group {{ display: flex; align-items: center; gap: 4px; }}
+  .filter-group .flabel {{ font-size: 0.78em; color: var(--text-muted); font-weight: 600;
+                           margin-right: 4px; white-space: nowrap; }}
+  .filter-btn {{ padding: 4px 10px; border: 1px solid var(--border); border-radius: 12px;
+                 background: var(--surface); cursor: pointer; font-size: 0.78em;
+                 transition: all 0.15s; color: var(--text-muted); }}
+  .filter-btn:hover {{ border-color: var(--accent); color: var(--accent); }}
+  .filter-btn.active {{ background: var(--accent); color: #fff; border-color: var(--accent); }}
+  .btn-group {{ display: flex; gap: 4px; margin-left: auto; }}
+  .btn-group button {{ cursor: pointer; padding: 5px 12px; border: 1px solid var(--border);
+                       border-radius: 6px; background: var(--surface); font-size: 0.8em;
+                       color: var(--text-muted); transition: all 0.15s; }}
+  .btn-group button:hover {{ border-color: var(--accent); color: var(--accent); }}
+
+  /* Table */
+  .table-wrap {{ overflow-x: auto; border-radius: var(--radius); box-shadow: var(--shadow-sm); }}
+  table {{ width: 100%; background: var(--surface); border-collapse: collapse; }}
+  th {{ background: #f6f8fa; padding: 10px 14px; text-align: left; font-size: 0.78em;
+       text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);
+       border-bottom: 1px solid var(--border); white-space: nowrap; }}
+  th.sortable {{ cursor: pointer; user-select: none; }}
+  th.sortable:hover {{ color: var(--accent); }}
+  th.sortable::after {{ content: ' \\25B3'; font-size: 0.8em; color: var(--border); }}
+  th.sort-asc::after {{ content: ' \\25B2'; color: var(--accent); }}
+  th.sort-desc::after {{ content: ' \\25BC'; color: var(--accent); }}
+  td {{ padding: 8px 14px; border-top: 1px solid #f0f0f0; font-size: 0.88em; }}
+  .mol-row {{ cursor: pointer; transition: background 0.1s; }}
+  .mol-row:hover {{ background: var(--accent-subtle); }}
+  .mol-row .expand-icon {{ display: inline-block; width: 16px; font-size: 0.7em;
+                           color: var(--text-muted); transition: transform 0.2s; }}
+  .mol-row.expanded .expand-icon {{ transform: rotate(90deg); }}
+  .mol-name {{ font-weight: 600; font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.88em; }}
+  .detail-row {{ background: var(--surface-alt); display: none; }}
+  .detail-row td {{ padding: 6px 14px 6px 48px; font-size: 0.82em; border-left: 3px solid var(--border); }}
+  .detail-row td:first-child {{ border-left: none; }}
+  .sizes {{ font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.82em; }}
+  .sizes a {{ color: var(--accent); text-decoration: none; }}
+  .sizes a:hover {{ text-decoration: underline; }}
+  .planar {{ color: var(--green); font-weight: 600; }}
+  .non-planar {{ color: var(--red); font-weight: 600; }}
   .na {{ color: #b2bec3; }}
-  .threshold {{ background: #ffeaa7; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; }}
+  .count-badge {{ font-size: 0.75em; color: var(--text-muted); font-weight: 400; margin-left: 4px; }}
+
+  /* Comparison */
+  .compare-stats {{ display: flex; gap: 14px; margin-bottom: 16px; flex-wrap: wrap; }}
+  .compare-stat-card {{ background: var(--surface); border-radius: var(--radius); padding: 12px 16px;
+                        flex: 1; min-width: 200px; box-shadow: var(--shadow-sm);
+                        border-top: 3px solid var(--accent); }}
+  .compare-stat-card .cfg-name {{ font-size: 0.78em; font-weight: 700; color: var(--accent);
+                                  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }}
+  .compare-stat-card .stat-row {{ display: flex; justify-content: space-between;
+                                  font-size: 0.85em; padding: 2px 0; }}
+  .compare-stat-card .stat-val {{ font-weight: 600; }}
+  .compare-header th {{ text-align: center; }}
+  .config-group-header {{ background: #eef2f6 !important; font-size: 0.85em !important;
+                          text-transform: none !important; letter-spacing: 0 !important;
+                          font-weight: 700 !important; color: var(--text) !important;
+                          text-align: center !important; border-left: 2px solid var(--border); }}
+  .config-group-header:first-of-type {{ border-left: none; }}
+  #compareTable td {{ text-align: center; }}
+  #compareTable td:first-child {{ text-align: left; }}
+  #compareTable tr:hover {{ background: var(--surface-alt); }}
+  .diff-highlight {{ background: var(--yellow-bg) !important; }}
+  .diff-highlight:hover {{ background: #fff0b3 !important; }}
+
+  /* Responsive */
+  @media (max-width: 768px) {{
+    .container {{ padding: 0 12px 24px; }}
+    .cards {{ grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }}
+    .toolbar {{ flex-direction: column; align-items: stretch; gap: 8px; }}
+    .search-input {{ width: 100%; }}
+    .btn-group {{ margin-left: 0; }}
+    .config-bar {{ flex-direction: column; align-items: stretch; }}
+    .compare-toggle {{ margin-left: 0; }}
+    th, td {{ padding: 6px 8px; font-size: 0.8em; }}
+  }}
 </style>
-<script>
-function toggleDetails(name) {{
-  document.querySelectorAll('.detail-row[data-parent="' + name + '"]').forEach(function(row) {{
-    row.style.display = row.style.display === 'table-row' ? 'none' : 'table-row';
-  }});
-}}
-function expandAll() {{
-  document.querySelectorAll('.detail-row').forEach(function(row) {{
-    row.style.display = 'table-row';
-  }});
-}}
-function collapseAll() {{
-  document.querySelectorAll('.detail-row').forEach(function(row) {{
-    row.style.display = 'none';
-  }});
-}}
-</script>
 </head>
 <body>
-<h1>Resultats : {data["source"]}</h1>
-<p class="meta">
-  Genere le {data["generated"]} &mdash;
-  Seuil de planarite : <span class="threshold">{data["threshold_deg"]}&deg;</span>
-</p>
 
-<div class="cards">
-  <div class="card blue">
-    <div class="value">{total}</div>
-    <div class="label">Molecules</div>
-  </div>
-  {"".join(f'''
-  <div class="card green">
-    <div class="value">{originals_planar}</div>
-    <div class="label">Originaux plans</div>
-  </div>
-  <div class="card red">
-    <div class="value">{originals_non_planar}</div>
-    <div class="label">Originaux non plans</div>
-  </div>
-  ''' if has_original else '''
-  ''')}
-  {"".join(f'''
-  <div class="card blue">
-    <div class="value">{total_solutions}</div>
-    <div class="label">Solutions CSP</div>
-  </div>
-  <div class="card green">
-    <div class="value">{solutions_planar}</div>
-    <div class="label">Solutions planes</div>
-  </div>
-  <div class="card red">
-    <div class="value">{solutions_non_planar}</div>
-    <div class="label">Solutions non planes</div>
-  </div>
-  ''' if has_solutions else '''
-  ''')}
+<header class="page-header">
+  <h1>Resultats : {h_name}</h1>
+  <p class="meta">Mis a jour le {now} &mdash; Seuil de planarite : {THRESHOLD_DEG}&deg;</p>
+</header>
+
+<div class="container">
+
+<div class="config-bar">
+  <span class="label">Configuration :</span>
+{config_buttons}
+  <button class="compare-toggle" id="compareModeBtn" onclick="toggleCompareMode()">Comparer</button>
 </div>
 
-<div style="margin-bottom: 8px;">
-  <button onclick="expandAll()" style="cursor:pointer; padding: 4px 12px; border: 1px solid #ddd; border-radius: 4px; background: #fff;">Tout ouvrir</button>
-  <button onclick="collapseAll()" style="cursor:pointer; padding: 4px 12px; border: 1px solid #ddd; border-radius: 4px; background: #fff;">Tout fermer</button>
+<!-- ====== Normal view ====== -->
+<div id="normalView">
+  <div class="cards" id="cards"></div>
+
+  <div class="toolbar">
+    <input type="text" class="search-input" id="searchInput"
+           placeholder="Rechercher une molecule..." oninput="applyFilters()">
+    <div class="filter-group">
+      <span class="flabel">Originaux :</span>
+      <button class="filter-btn active" data-filter="orig-all" onclick="setFilter('orig','all')">Tous</button>
+      <button class="filter-btn" data-filter="orig-planar" onclick="setFilter('orig','planar')">Plans</button>
+      <button class="filter-btn" data-filter="orig-nonplanar" onclick="setFilter('orig','nonplanar')">Non plans</button>
+    </div>
+    <div class="filter-group">
+      <span class="flabel">Solutions :</span>
+      <button class="filter-btn active" data-filter="sol-all" onclick="setFilter('sol','all')">Toutes</button>
+      <button class="filter-btn" data-filter="sol-planar" onclick="setFilter('sol','planar')">Planes</button>
+      <button class="filter-btn" data-filter="sol-nonplanar" onclick="setFilter('sol','nonplanar')">Non planes</button>
+    </div>
+    <div class="btn-group">
+      <button onclick="expandAll()">Tout ouvrir</button>
+      <button onclick="collapseAll()">Tout fermer</button>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+    <thead>
+      <tr>
+        <th class="sortable sort-asc" data-sort="name" onclick="sortTable('name')">Molecule</th>
+        <th class="sortable" data-sort="original" onclick="sortTable('original')">Original</th>
+        <th class="sortable" data-sort="solutions" onclick="sortTable('solutions')">Solutions</th>
+        <th class="sortable" data-sort="planar" onclick="sortTable('planar')">Planarite</th>
+        <th class="sortable" data-sort="angle" onclick="sortTable('angle')">Angle max</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+    </table>
+  </div>
 </div>
 
-<table>
-<thead>
-  <tr>
-    <th>Molecule</th>
-    <th>Original</th>
-    <th>Solutions / Tailles</th>
-    <th>Planarite</th>
-    <th>Angle max</th>
-  </tr>
-</thead>
-<tbody>
-{rows_html}
-</tbody>
-</table>
+<!-- ====== Comparison view ====== -->
+<div id="compareView" style="display:none;">
+  <div class="compare-stats" id="compareStats"></div>
+
+  <div class="toolbar">
+    <input type="text" class="search-input" id="compareSearchInput"
+           placeholder="Rechercher une molecule..." oninput="applyFilters()">
+    <div class="filter-group">
+      <span class="flabel">Afficher :</span>
+      <button class="filter-btn active" data-filter="diff-all" onclick="setCompareFilter('all')">Tous</button>
+      <button class="filter-btn" data-filter="diff-only" onclick="setCompareFilter('diff')">Differences</button>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table id="compareTable">
+    <thead id="compareThead"></thead>
+    <tbody id="compareTbody"></tbody>
+    </table>
+  </div>
+</div>
+
+</div>
+
+<footer class="page-footer">
+  <span>Genere le {now}</span>
+  <span>Seuil : {THRESHOLD_DEG}&deg;</span>
+  <span>{n_configs} configuration(s)</span>
+</footer>
+
+<script>
+var ALL_CONFIGS = {configs_json};
+var currentConfig = null;
+var selectedConfigs = [];
+var compareMode = false;
+var sortCol = 'name';
+var sortAsc = true;
+var filterOrig = 'all';
+var filterSol = 'all';
+var searchQuery = '';
+var expandedMols = {{}};
+var compareFilter = 'all';
+
+/* ---- Config selection ---- */
+function selectConfig(name) {{
+  if (compareMode) {{
+    var idx = selectedConfigs.indexOf(name);
+    if (idx >= 0) selectedConfigs.splice(idx, 1);
+    else selectedConfigs.push(name);
+    document.querySelectorAll('.cfg-btn').forEach(function(b) {{
+      b.classList.toggle('active', selectedConfigs.indexOf(b.dataset.cfg) >= 0);
+    }});
+    renderComparison();
+  }} else {{
+    currentConfig = name;
+    selectedConfigs = [name];
+    document.querySelectorAll('.cfg-btn').forEach(function(b) {{
+      b.classList.toggle('active', b.dataset.cfg === name);
+    }});
+    render(ALL_CONFIGS[name]);
+  }}
+}}
+
+/* ---- Data pipeline: build, filter, sort ---- */
+function buildRows(data) {{
+  var mols = data.molecules;
+  var rows = [];
+  Object.keys(mols).forEach(function(name) {{
+    var m = mols[name];
+    var nP = 0, nN = 0, maxA = 0;
+    m.solutions.forEach(function(s) {{
+      if (s.planar) nP++; else nN++;
+      if (s.angle_deg > maxA) maxA = s.angle_deg;
+    }});
+    rows.push({{
+      name: name, mol: m,
+      origPlanar: m.original ? m.original.planar : null,
+      origAngle: m.original ? m.original.angle_deg : null,
+      numSol: m.solutions.length, numPlan: nP, numNon: nN, maxAngle: maxA
+    }});
+  }});
+  return rows;
+}}
+
+function filterRows(rows) {{
+  if (searchQuery) {{
+    var q = searchQuery.toLowerCase();
+    rows = rows.filter(function(r) {{ return r.name.toLowerCase().indexOf(q) >= 0; }});
+  }}
+  if (filterOrig === 'planar') rows = rows.filter(function(r) {{ return r.origPlanar === true; }});
+  else if (filterOrig === 'nonplanar') rows = rows.filter(function(r) {{ return r.origPlanar === false; }});
+  if (filterSol === 'planar') rows = rows.filter(function(r) {{ return r.numPlan > 0; }});
+  else if (filterSol === 'nonplanar') rows = rows.filter(function(r) {{ return r.numNon > 0; }});
+  return rows;
+}}
+
+function sortRows(rows) {{
+  rows.sort(function(a, b) {{
+    var va, vb;
+    switch (sortCol) {{
+      case 'name': return sortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+      case 'original':
+        va = a.origPlanar === true ? 1 : (a.origPlanar === false ? -1 : 0);
+        vb = b.origPlanar === true ? 1 : (b.origPlanar === false ? -1 : 0); break;
+      case 'solutions': va = a.numSol; vb = b.numSol; break;
+      case 'planar': va = a.numPlan; vb = b.numPlan; break;
+      case 'angle': va = a.maxAngle; vb = b.maxAngle; break;
+      default: va = a.name; vb = b.name;
+    }}
+    var c = (va < vb) ? -1 : (va > vb) ? 1 : 0;
+    return sortAsc ? c : -c;
+  }});
+  return rows;
+}}
+
+/* ---- Main render (single config) ---- */
+function render(data) {{
+  var cfg = data.config || currentConfig;
+  var allRows = buildRows(data);
+  var rows = sortRows(filterRows(allRows.slice()));
+
+  /* Stats from ALL rows (unfiltered) */
+  var nMol = allRows.length, nOrigP = 0, nOrigN = 0, nSol = 0, nPlan = 0, nNon = 0;
+  allRows.forEach(function(r) {{
+    if (r.origPlanar === true) nOrigP++;
+    else if (r.origPlanar === false) nOrigN++;
+    nSol += r.numSol; nPlan += r.numPlan; nNon += r.numNon;
+  }});
+
+  var badge = rows.length < allRows.length
+    ? '<span class="count-badge">(' + rows.length + '/' + allRows.length + ')</span>' : '';
+
+  var el = document.getElementById('cards');
+  el.innerHTML =
+    '<div class="card blue"><div class="value">' + nMol + '</div><div class="label">Molecules' + badge + '</div></div>' +
+    '<div class="card green"><div class="value">' + nOrigP + '</div><div class="label">Originaux plans</div></div>' +
+    '<div class="card red"><div class="value">' + nOrigN + '</div><div class="label">Originaux non plans</div></div>' +
+    '<div class="card blue"><div class="value">' + nSol + '</div><div class="label">Solutions CSP</div></div>' +
+    '<div class="card green"><div class="value">' + nPlan + '</div><div class="label">Solutions planes</div></div>' +
+    '<div class="card red"><div class="value">' + nNon + '</div><div class="label">Solutions non planes</div></div>';
+
+  /* Table rows */
+  var html = '';
+  rows.forEach(function(r) {{
+    var m = r.mol;
+    var origCell;
+    if (m.original) {{
+      var cls = m.original.planar ? 'planar' : 'non-planar';
+      var txt = m.original.planar ? 'PLAN' : 'NON PLAN';
+      origCell = '<span class="' + cls + '">' + txt + '</span> (' + m.original.angle_deg + '&deg;)';
+    }} else {{
+      origCell = '<span class="na">-</span>';
+    }}
+
+    var solCell = r.numSol === 0
+      ? '<span class="na">-</span>'
+      : r.numSol + ' solution' + (r.numSol > 1 ? 's' : '');
+
+    var planCell;
+    if (r.numSol === 0) {{
+      planCell = '<span class="na">-</span>';
+    }} else {{
+      planCell = '<span class="planar">' + r.numPlan + ' plan</span>';
+      if (r.numNon > 0) planCell += ', <span class="non-planar">' + r.numNon + ' non</span>';
+    }}
+
+    var angleCell = r.numSol > 0 ? r.maxAngle + '&deg;' : '<span class="na">-</span>';
+    var isExp = expandedMols[r.name] ? ' expanded' : '';
+
+    html += '<tr class="mol-row' + isExp + '" data-mol="' + r.name + '" onclick="toggleDetails(\\'' + r.name + '\\')">' +
+      '<td class="mol-name"><span class="expand-icon">&#9654;</span> ' + r.name + '</td>' +
+      '<td>' + origCell + '</td>' +
+      '<td>' + solCell + '</td>' +
+      '<td>' + planCell + '</td>' +
+      '<td>' + angleCell + '</td>' +
+      '</tr>\\n';
+
+    m.solutions.forEach(function(s) {{
+      var scls = s.planar ? 'planar' : 'non-planar';
+      var stxt = s.planar ? 'PLAN' : 'NON PLAN';
+      var href = cfg + '/' + r.name + '/solutions/' + s.file;
+      var disp = expandedMols[r.name] ? 'table-row' : 'none';
+      html += '<tr class="detail-row" data-parent="' + r.name + '" style="display:' + disp + ';">' +
+        '<td></td><td></td>' +
+        '<td class="sizes"><a href="' + href + '" target="_blank">' + (s.sizes || s.file) + '</a></td>' +
+        '<td><span class="' + scls + '">' + stxt + '</span></td>' +
+        '<td>' + s.angle_deg + '&deg;</td>' +
+        '</tr>\\n';
+    }});
+  }});
+
+  document.getElementById('tbody').innerHTML = html;
+}}
+
+/* ---- Expand / Collapse ---- */
+function toggleDetails(name) {{
+  expandedMols[name] = !expandedMols[name];
+  document.querySelectorAll('.detail-row[data-parent="' + name + '"]').forEach(function(row) {{
+    row.style.display = expandedMols[name] ? 'table-row' : 'none';
+  }});
+  var molRow = document.querySelector('.mol-row[data-mol="' + name + '"]');
+  if (molRow) molRow.classList.toggle('expanded', expandedMols[name]);
+}}
+
+function expandAll() {{
+  document.querySelectorAll('.mol-row').forEach(function(r) {{
+    r.classList.add('expanded');
+    expandedMols[r.dataset.mol] = true;
+  }});
+  document.querySelectorAll('.detail-row').forEach(function(r) {{ r.style.display = 'table-row'; }});
+}}
+
+function collapseAll() {{
+  document.querySelectorAll('.mol-row').forEach(function(r) {{ r.classList.remove('expanded'); }});
+  document.querySelectorAll('.detail-row').forEach(function(r) {{ r.style.display = 'none'; }});
+  expandedMols = {{}};
+}}
+
+/* ---- Sort ---- */
+function sortTable(col) {{
+  if (sortCol === col) sortAsc = !sortAsc;
+  else {{ sortCol = col; sortAsc = true; }}
+  document.querySelectorAll('th.sortable').forEach(function(th) {{
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.dataset.sort === col) th.classList.add(sortAsc ? 'sort-asc' : 'sort-desc');
+  }});
+  if (!compareMode && currentConfig) render(ALL_CONFIGS[currentConfig]);
+}}
+
+/* ---- Filters ---- */
+function setFilter(group, value) {{
+  if (group === 'orig') filterOrig = value;
+  else if (group === 'sol') filterSol = value;
+  document.querySelectorAll('.filter-btn').forEach(function(b) {{
+    var f = b.dataset.filter;
+    if (f && f.startsWith(group + '-')) b.classList.toggle('active', f === group + '-' + value);
+  }});
+  applyFilters();
+}}
+
+function setCompareFilter(value) {{
+  compareFilter = value;
+  document.querySelectorAll('[data-filter^="diff-"]').forEach(function(b) {{
+    b.classList.toggle('active', b.dataset.filter === 'diff-' + value);
+  }});
+  renderComparison();
+}}
+
+function applyFilters() {{
+  searchQuery = document.getElementById(compareMode ? 'compareSearchInput' : 'searchInput').value;
+  if (compareMode) renderComparison();
+  else if (currentConfig) render(ALL_CONFIGS[currentConfig]);
+}}
+
+/* ---- Comparison mode ---- */
+function toggleCompareMode() {{
+  compareMode = !compareMode;
+  var btn = document.getElementById('compareModeBtn');
+  btn.classList.toggle('active', compareMode);
+  btn.textContent = compareMode ? 'Comparer (ON)' : 'Comparer';
+
+  if (compareMode) {{
+    document.getElementById('normalView').style.display = 'none';
+    document.getElementById('compareView').style.display = 'block';
+    if (currentConfig && selectedConfigs.indexOf(currentConfig) < 0)
+      selectedConfigs = [currentConfig];
+    renderComparison();
+  }} else {{
+    document.getElementById('normalView').style.display = 'block';
+    document.getElementById('compareView').style.display = 'none';
+    if (selectedConfigs.length > 0) {{
+      currentConfig = selectedConfigs[0];
+      selectedConfigs = [currentConfig];
+    }}
+    document.querySelectorAll('.cfg-btn').forEach(function(b) {{
+      b.classList.toggle('active', b.dataset.cfg === currentConfig);
+    }});
+    if (currentConfig) render(ALL_CONFIGS[currentConfig]);
+  }}
+}}
+
+function renderComparison() {{
+  var cfgs = selectedConfigs;
+  if (cfgs.length === 0) {{
+    document.getElementById('compareStats').innerHTML =
+      '<div style="color:var(--text-muted);padding:24px;text-align:center;">Selectionnez au moins une configuration.</div>';
+    document.getElementById('compareThead').innerHTML = '';
+    document.getElementById('compareTbody').innerHTML = '';
+    return;
+  }}
+
+  /* Per-config stats cards */
+  var statsHtml = '';
+  cfgs.forEach(function(cfgName) {{
+    var mols = ALL_CONFIGS[cfgName].molecules;
+    var names = Object.keys(mols);
+    var nSol = 0, nPlan = 0;
+    names.forEach(function(n) {{
+      mols[n].solutions.forEach(function(s) {{ nSol++; if (s.planar) nPlan++; }});
+    }});
+    var pct = nSol > 0 ? Math.round(100 * nPlan / nSol) : 0;
+    statsHtml += '<div class="compare-stat-card">' +
+      '<div class="cfg-name">' + cfgName + '</div>' +
+      '<div class="stat-row"><span>Molecules</span><span class="stat-val">' + names.length + '</span></div>' +
+      '<div class="stat-row"><span>Solutions</span><span class="stat-val">' + nSol + '</span></div>' +
+      '<div class="stat-row"><span>Planes</span><span class="stat-val planar">' + nPlan + '</span></div>' +
+      '<div class="stat-row"><span>Non planes</span><span class="stat-val non-planar">' + (nSol - nPlan) + '</span></div>' +
+      '<div class="stat-row"><span>% plan</span><span class="stat-val">' + pct + '%</span></div>' +
+      '</div>';
+  }});
+  document.getElementById('compareStats').innerHTML = statsHtml;
+
+  /* Collect all molecule names */
+  var allNames = {{}};
+  cfgs.forEach(function(cfgName) {{
+    Object.keys(ALL_CONFIGS[cfgName].molecules).forEach(function(n) {{ allNames[n] = true; }});
+  }});
+  var names = Object.keys(allNames).sort();
+
+  /* Search filter */
+  var sq = (document.getElementById('compareSearchInput') || {{}}).value || '';
+  if (sq) {{
+    var ql = sq.toLowerCase();
+    names = names.filter(function(n) {{ return n.toLowerCase().indexOf(ql) >= 0; }});
+  }}
+
+  /* Build row data + diff detection */
+  var rowData = [];
+  names.forEach(function(name) {{
+    var planarities = [];
+    var solRatios = [];
+    var hasMissing = false, hasPresent = false;
+    var cells = [];
+
+    cfgs.forEach(function(cfgName) {{
+      var mol = ALL_CONFIGS[cfgName].molecules[name];
+      if (!mol) {{
+        cells.push({{ missing: true }});
+        hasMissing = true;
+        return;
+      }}
+      hasPresent = true;
+      var op = mol.original ? mol.original.planar : null;
+      planarities.push(op);
+      var nP = 0, maxA = 0;
+      mol.solutions.forEach(function(s) {{
+        if (s.planar) nP++;
+        if (s.angle_deg > maxA) maxA = s.angle_deg;
+      }});
+      solRatios.push(nP + '/' + mol.solutions.length);
+      cells.push({{
+        missing: false, origPlanar: op,
+        origAngle: mol.original ? mol.original.angle_deg : null,
+        numSol: mol.solutions.length, numPlan: nP, maxAngle: maxA
+      }});
+    }});
+
+    var hasDiff = (hasMissing && hasPresent);
+    if (!hasDiff && planarities.length > 1) {{
+      for (var i = 1; i < planarities.length; i++) {{
+        if (planarities[i] !== planarities[0]) {{ hasDiff = true; break; }}
+      }}
+    }}
+    if (!hasDiff && solRatios.length > 1) {{
+      for (var i = 1; i < solRatios.length; i++) {{
+        if (solRatios[i] !== solRatios[0]) {{ hasDiff = true; break; }}
+      }}
+    }}
+    rowData.push({{ name: name, cells: cells, hasDiff: hasDiff }});
+  }});
+
+  /* Diff filter */
+  if (compareFilter === 'diff') rowData = rowData.filter(function(r) {{ return r.hasDiff; }});
+
+  /* Build thead */
+  var theadHtml = '<tr class="compare-header"><th rowspan="2" style="min-width:120px;">Molecule</th>';
+  cfgs.forEach(function(cfgName) {{
+    theadHtml += '<th colspan="3" class="config-group-header">' + cfgName + '</th>';
+  }});
+  theadHtml += '</tr><tr class="compare-header">';
+  cfgs.forEach(function() {{
+    theadHtml += '<th>Original</th><th>Solutions</th><th>Angle max</th>';
+  }});
+  theadHtml += '</tr>';
+
+  /* Build tbody */
+  var tbodyHtml = '';
+  rowData.forEach(function(row) {{
+    var cls = row.hasDiff ? ' class="diff-highlight"' : '';
+    tbodyHtml += '<tr' + cls + '><td class="mol-name">' + row.name + '</td>';
+    row.cells.forEach(function(c) {{
+      if (c.missing) {{
+        tbodyHtml += '<td class="na">-</td><td class="na">-</td><td class="na">-</td>';
+        return;
+      }}
+      if (c.origPlanar !== null) {{
+        var oc = c.origPlanar ? 'planar' : 'non-planar';
+        var ot = c.origPlanar ? 'PLAN' : 'NON PLAN';
+        tbodyHtml += '<td><span class="' + oc + '">' + ot + '</span><br><small>' + c.origAngle + '&deg;</small></td>';
+      }} else {{
+        tbodyHtml += '<td class="na">-</td>';
+      }}
+      tbodyHtml += '<td>' + c.numSol + ' <small>(' + c.numPlan + ' pl.)</small></td>';
+      tbodyHtml += '<td>' + (c.numSol > 0 ? c.maxAngle + '&deg;' : '-') + '</td>';
+    }});
+    tbodyHtml += '</tr>';
+  }});
+
+  document.getElementById('compareThead').innerHTML = theadHtml;
+  document.getElementById('compareTbody').innerHTML = tbodyHtml;
+}}
+
+/* ---- Keyboard shortcuts ---- */
+document.addEventListener('keydown', function(e) {{
+  if (e.key === 'Escape') collapseAll();
+  if ((e.ctrlKey || e.metaKey) && e.key === 'f') {{
+    e.preventDefault();
+    var el = document.getElementById(compareMode ? 'compareSearchInput' : 'searchInput');
+    if (el) el.focus();
+  }}
+}});
+
+/* ---- Init ---- */
+var firstConfig = Object.keys(ALL_CONFIGS).sort()[0];
+if (firstConfig) selectConfig(firstConfig);
+</script>
 
 </body>
 </html>"""
@@ -322,30 +789,46 @@ function collapseAll() {{
     out = h_dir / "view.html"
     with open(out, "w", encoding="utf-8") as f:
         f.write(html)
-    print(f"  view.html -> {out}")
+    print(f"  view.html (agrege) -> {out}")
 
+
+# =====================================================================
+#  Main
+# =====================================================================
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python view.py <dossier_output>")
-        print("Exemple: python view.py output/h3")
+        print("Usage:")
+        print("  python view.py <dossier_config>              # genere data.json")
+        print("  python view.py <dossier_hX> --aggregate      # genere view.html interactif")
         sys.exit(1)
 
-    h_dir = Path(sys.argv[1])
-    if not h_dir.is_dir():
-        print(f"ERREUR : {h_dir} n'est pas un dossier.")
+    target = Path(sys.argv[1])
+    aggregate = "--aggregate" in sys.argv
+
+    if not target.is_dir():
+        print(f"ERREUR : {target} n'est pas un dossier.")
         sys.exit(1)
 
-    print(f"Scan de {h_dir}...")
-    molecules = scan_directory(h_dir)
+    if aggregate:
+        # Mode agrege : charge les data.json existants
+        print(f"Mode agrege : {target}")
+        configs = load_all_configs(target)
+        if not configs:
+            print("Aucun data.json trouve dans les sous-dossiers.")
+            sys.exit(0)
+        print(f"  {len(configs)} configs trouvees : {', '.join(sorted(configs.keys()))}")
+        write_aggregate_html(target, configs)
+    else:
+        # Mode config : scan et genere data.json
+        print(f"Scan de {target}...")
+        molecules = scan_directory(target)
+        if not molecules:
+            print("Aucun resultat trouve.")
+            sys.exit(0)
+        print(f"  {len(molecules)} molecules trouvees")
+        write_json(target, molecules)
 
-    if not molecules:
-        print("Aucun resultat trouve.")
-        sys.exit(0)
-
-    print(f"  {len(molecules)} molecules trouvees")
-    data = write_json(h_dir, molecules)
-    write_html(h_dir, data)
     print("Termine.")
 
 
