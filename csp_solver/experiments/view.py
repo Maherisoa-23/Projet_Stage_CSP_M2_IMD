@@ -265,27 +265,48 @@ def write_aggregate_html(h_dir, configs):
   .na {{ color: #b2bec3; }}
   .count-badge {{ font-size: 0.75em; color: var(--text-muted); font-weight: 400; margin-left: 4px; }}
 
-  /* Comparison */
-  .compare-stats {{ display: flex; gap: 14px; margin-bottom: 16px; flex-wrap: wrap; }}
-  .compare-stat-card {{ background: var(--surface); border-radius: var(--radius); padding: 12px 16px;
-                        flex: 1; min-width: 200px; box-shadow: var(--shadow-sm);
-                        border-top: 3px solid var(--accent); }}
-  .compare-stat-card .cfg-name {{ font-size: 0.78em; font-weight: 700; color: var(--accent);
-                                  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }}
-  .compare-stat-card .stat-row {{ display: flex; justify-content: space-between;
-                                  font-size: 0.85em; padding: 2px 0; }}
-  .compare-stat-card .stat-val {{ font-weight: 600; }}
-  .compare-header th {{ text-align: center; }}
-  .config-group-header {{ background: #eef2f6 !important; font-size: 0.85em !important;
-                          text-transform: none !important; letter-spacing: 0 !important;
-                          font-weight: 700 !important; color: var(--text) !important;
-                          text-align: center !important; border-left: 2px solid var(--border); }}
-  .config-group-header:first-of-type {{ border-left: none; }}
-  #compareTable td {{ text-align: center; }}
-  #compareTable td:first-child {{ text-align: left; }}
-  #compareTable tr:hover {{ background: var(--surface-alt); }}
+  /* Comparison -- side-by-side panels */
+  .compare-panels {{ display: flex; gap: 14px; overflow-x: auto; padding-bottom: 8px; align-items: flex-start; }}
+  .compare-panel {{ flex: 0 0 auto; width: 560px; background: var(--surface); border-radius: var(--radius);
+                    padding: 12px 14px; box-shadow: var(--shadow-sm);
+                    display: flex; flex-direction: column; gap: 10px; }}
+  .panel-header {{ font-weight: 700; color: var(--accent); font-size: 0.88em;
+                   padding: 6px 10px; background: var(--accent-subtle); border-radius: 6px;
+                   text-align: center; font-family: 'SFMono-Regular', Consolas, monospace;
+                   letter-spacing: 0.3px; }}
+  .panel-cards {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }}
+  .mini-card {{ background: var(--surface-alt); border-radius: 6px; padding: 8px 10px;
+                text-align: center; border-top: 2px solid var(--border); }}
+  .mini-card .v {{ font-size: 1.15em; font-weight: 700; line-height: 1.2; }}
+  .mini-card .l {{ font-size: 0.68em; color: var(--text-muted); margin-top: 1px; }}
+  .mini-card.green {{ border-top-color: var(--green); }}  .mini-card.green .v {{ color: var(--green); }}
+  .mini-card.red {{ border-top-color: var(--red); }}      .mini-card.red .v {{ color: var(--red); }}
+  .mini-card.blue {{ border-top-color: var(--accent); }}  .mini-card.blue .v {{ color: var(--accent); }}
+  .panel-table {{ width: 100%; border-collapse: collapse; font-size: 0.82em; }}
+  .panel-table th {{ background: #f6f8fa; padding: 6px 8px; text-align: left; font-size: 0.7em;
+                     text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-muted);
+                     border-bottom: 1px solid var(--border); white-space: nowrap; }}
+  .panel-table td {{ padding: 5px 8px; border-top: 1px solid #f0f0f0; }}
+  .panel-table .mol-row {{ cursor: pointer; transition: background 0.1s; }}
+  .panel-table .mol-row:hover {{ background: var(--accent-subtle); }}
+  .panel-table .mol-row .expand-icon {{ display: inline-block; width: 12px; font-size: 0.65em;
+                                        color: var(--text-muted); transition: transform 0.2s; }}
+  .panel-table .mol-row.expanded .expand-icon {{ transform: rotate(90deg); }}
+  .panel-table .mol-name {{ font-weight: 600; font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.92em; }}
+  .panel-table .detail-row {{ background: var(--surface-alt); display: none; }}
+  .panel-table .detail-row td {{ padding: 4px 8px 4px 22px; font-size: 0.78em;
+                                 border-left: 2px solid var(--border); }}
+  .panel-table .detail-row td:first-child {{ border-left: none; }}
+  .panel-table .sizes {{ font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.9em; }}
+  .panel-table .sizes a {{ color: var(--accent); text-decoration: none; }}
+  .panel-table .sizes a:hover {{ text-decoration: underline; }}
+  .panel-table .na-row td {{ text-align: center; color: var(--text-muted); font-style: italic; padding: 16px; }}
   .diff-highlight {{ background: var(--yellow-bg) !important; }}
   .diff-highlight:hover {{ background: #fff0b3 !important; }}
+  .diff-badge {{ display: inline-block; background: #bf8700; color: #fff; font-size: 0.7em;
+                 padding: 1px 6px; border-radius: 8px; margin-left: 6px; font-weight: 600; }}
+  .compare-empty {{ padding: 32px; text-align: center; color: var(--text-muted);
+                    background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-sm); }}
 
   /* Responsive */
   @media (max-width: 768px) {{
@@ -356,26 +377,35 @@ def write_aggregate_html(h_dir, configs):
   </div>
 </div>
 
-<!-- ====== Comparison view ====== -->
+<!-- ====== Comparison view (side-by-side panels) ====== -->
 <div id="compareView" style="display:none;">
-  <div class="compare-stats" id="compareStats"></div>
-
   <div class="toolbar">
     <input type="text" class="search-input" id="compareSearchInput"
            placeholder="Rechercher une molecule..." oninput="applyFilters()">
     <div class="filter-group">
-      <span class="flabel">Afficher :</span>
-      <button class="filter-btn active" data-filter="diff-all" onclick="setCompareFilter('all')">Tous</button>
+      <span class="flabel">Originaux :</span>
+      <button class="filter-btn active" data-filter="orig-all" onclick="setFilter('orig','all')">Tous</button>
+      <button class="filter-btn" data-filter="orig-planar" onclick="setFilter('orig','planar')">Plans</button>
+      <button class="filter-btn" data-filter="orig-nonplanar" onclick="setFilter('orig','nonplanar')">Non plans</button>
+    </div>
+    <div class="filter-group">
+      <span class="flabel">Solutions :</span>
+      <button class="filter-btn active" data-filter="sol-all" onclick="setFilter('sol','all')">Toutes</button>
+      <button class="filter-btn" data-filter="sol-planar" onclick="setFilter('sol','planar')">Planes</button>
+      <button class="filter-btn" data-filter="sol-nonplanar" onclick="setFilter('sol','nonplanar')">Non planes</button>
+    </div>
+    <div class="filter-group">
+      <span class="flabel">Diff :</span>
+      <button class="filter-btn active" data-filter="diff-all" onclick="setCompareFilter('all')">Toutes</button>
       <button class="filter-btn" data-filter="diff-only" onclick="setCompareFilter('diff')">Differences</button>
+    </div>
+    <div class="btn-group">
+      <button onclick="expandAll()">Tout ouvrir</button>
+      <button onclick="collapseAll()">Tout fermer</button>
     </div>
   </div>
 
-  <div class="table-wrap">
-    <table id="compareTable">
-    <thead id="compareThead"></thead>
-    <tbody id="compareTbody"></tbody>
-    </table>
-  </div>
+  <div class="compare-panels" id="comparePanels"></div>
 </div>
 
 </div>
@@ -637,83 +667,26 @@ function toggleCompareMode() {{
   }}
 }}
 
-function renderComparison() {{
-  var cfgs = selectedConfigs;
-  if (cfgs.length === 0) {{
-    document.getElementById('compareStats').innerHTML =
-      '<div style="color:var(--text-muted);padding:24px;text-align:center;">Selectionnez au moins une configuration.</div>';
-    document.getElementById('compareThead').innerHTML = '';
-    document.getElementById('compareTbody').innerHTML = '';
-    return;
-  }}
-
-  /* Per-config stats cards */
-  var statsHtml = '';
-  cfgs.forEach(function(cfgName) {{
-    var mols = ALL_CONFIGS[cfgName].molecules;
-    var names = Object.keys(mols);
-    var nSol = 0, nPlan = 0;
-    names.forEach(function(n) {{
-      mols[n].solutions.forEach(function(s) {{ nSol++; if (s.planar) nPlan++; }});
-    }});
-    var pct = nSol > 0 ? Math.round(100 * nPlan / nSol) : 0;
-    statsHtml += '<div class="compare-stat-card">' +
-      '<div class="cfg-name">' + cfgName + '</div>' +
-      '<div class="stat-row"><span>Molecules</span><span class="stat-val">' + names.length + '</span></div>' +
-      '<div class="stat-row"><span>Solutions</span><span class="stat-val">' + nSol + '</span></div>' +
-      '<div class="stat-row"><span>Planes</span><span class="stat-val planar">' + nPlan + '</span></div>' +
-      '<div class="stat-row"><span>Non planes</span><span class="stat-val non-planar">' + (nSol - nPlan) + '</span></div>' +
-      '<div class="stat-row"><span>% plan</span><span class="stat-val">' + pct + '%</span></div>' +
-      '</div>';
-  }});
-  document.getElementById('compareStats').innerHTML = statsHtml;
-
-  /* Collect all molecule names */
+function computeDiffMols(cfgs) {{
+  /* For each molecule across configs, detect if any meaningful difference. */
   var allNames = {{}};
   cfgs.forEach(function(cfgName) {{
     Object.keys(ALL_CONFIGS[cfgName].molecules).forEach(function(n) {{ allNames[n] = true; }});
   }});
-  var names = Object.keys(allNames).sort();
-
-  /* Search filter */
-  var sq = (document.getElementById('compareSearchInput') || {{}}).value || '';
-  if (sq) {{
-    var ql = sq.toLowerCase();
-    names = names.filter(function(n) {{ return n.toLowerCase().indexOf(ql) >= 0; }});
-  }}
-
-  /* Build row data + diff detection */
-  var rowData = [];
-  names.forEach(function(name) {{
-    var planarities = [];
-    var solRatios = [];
+  var diffMols = {{}};
+  Object.keys(allNames).forEach(function(name) {{
+    var planarities = [], solRatios = [];
     var hasMissing = false, hasPresent = false;
-    var cells = [];
-
     cfgs.forEach(function(cfgName) {{
       var mol = ALL_CONFIGS[cfgName].molecules[name];
-      if (!mol) {{
-        cells.push({{ missing: true }});
-        hasMissing = true;
-        return;
-      }}
+      if (!mol) {{ hasMissing = true; return; }}
       hasPresent = true;
-      var op = mol.original ? mol.original.planar : null;
-      planarities.push(op);
-      var nP = 0, maxA = 0;
-      mol.solutions.forEach(function(s) {{
-        if (s.planar) nP++;
-        if (s.angle_deg > maxA) maxA = s.angle_deg;
-      }});
-      solRatios.push(nP + '/' + mol.solutions.length);
-      cells.push({{
-        missing: false, origPlanar: op,
-        origAngle: mol.original ? mol.original.angle_deg : null,
-        numSol: mol.solutions.length, numPlan: nP, maxAngle: maxA
-      }});
+      planarities.push(mol.original ? mol.original.planar : null);
+      var np = 0;
+      mol.solutions.forEach(function(s) {{ if (s.planar) np++; }});
+      solRatios.push(np + '/' + mol.solutions.length);
     }});
-
-    var hasDiff = (hasMissing && hasPresent);
+    var hasDiff = hasMissing && hasPresent;
     if (!hasDiff && planarities.length > 1) {{
       for (var i = 1; i < planarities.length; i++) {{
         if (planarities[i] !== planarities[0]) {{ hasDiff = true; break; }}
@@ -724,48 +697,114 @@ function renderComparison() {{
         if (solRatios[i] !== solRatios[0]) {{ hasDiff = true; break; }}
       }}
     }}
-    rowData.push({{ name: name, cells: cells, hasDiff: hasDiff }});
+    diffMols[name] = hasDiff;
+  }});
+  return diffMols;
+}}
+
+function buildPanel(cfgName, diffMols) {{
+  var data = ALL_CONFIGS[cfgName];
+  var allRows = buildRows(data);
+  var rows = sortRows(filterRows(allRows.slice()));
+
+  if (compareFilter === 'diff') {{
+    rows = rows.filter(function(r) {{ return diffMols[r.name]; }});
+  }}
+
+  /* Stats from ALL rows (unfiltered) */
+  var nMol = allRows.length, nOrigP = 0, nOrigN = 0, nSol = 0, nPlan = 0, nNon = 0;
+  allRows.forEach(function(r) {{
+    if (r.origPlanar === true) nOrigP++;
+    else if (r.origPlanar === false) nOrigN++;
+    nSol += r.numSol; nPlan += r.numPlan; nNon += r.numNon;
   }});
 
-  /* Diff filter */
-  if (compareFilter === 'diff') rowData = rowData.filter(function(r) {{ return r.hasDiff; }});
+  var html = '<div class="compare-panel" data-panel-cfg="' + cfgName + '">';
+  html += '<div class="panel-header">' + cfgName + '</div>';
+  html += '<div class="panel-cards">' +
+    '<div class="mini-card blue"><div class="v">' + nMol + '</div><div class="l">Molecules</div></div>' +
+    '<div class="mini-card green"><div class="v">' + nOrigP + '</div><div class="l">Orig. plans</div></div>' +
+    '<div class="mini-card red"><div class="v">' + nOrigN + '</div><div class="l">Orig. non pl.</div></div>' +
+    '<div class="mini-card blue"><div class="v">' + nSol + '</div><div class="l">Solutions</div></div>' +
+    '<div class="mini-card green"><div class="v">' + nPlan + '</div><div class="l">Sol. planes</div></div>' +
+    '<div class="mini-card red"><div class="v">' + nNon + '</div><div class="l">Sol. non pl.</div></div>' +
+    '</div>';
 
-  /* Build thead */
-  var theadHtml = '<tr class="compare-header"><th rowspan="2" style="min-width:120px;">Molecule</th>';
-  cfgs.forEach(function(cfgName) {{
-    theadHtml += '<th colspan="3" class="config-group-header">' + cfgName + '</th>';
-  }});
-  theadHtml += '</tr><tr class="compare-header">';
-  cfgs.forEach(function() {{
-    theadHtml += '<th>Original</th><th>Solutions</th><th>Angle max</th>';
-  }});
-  theadHtml += '</tr>';
+  /* Table */
+  html += '<table class="panel-table"><thead><tr>' +
+    '<th class="sortable' + (sortCol === 'name' ? (sortAsc ? ' sort-asc' : ' sort-desc') : '') + '" data-sort="name" onclick="sortTable(\\'name\\')">Molecule</th>' +
+    '<th class="sortable' + (sortCol === 'original' ? (sortAsc ? ' sort-asc' : ' sort-desc') : '') + '" data-sort="original" onclick="sortTable(\\'original\\')">Orig.</th>' +
+    '<th class="sortable' + (sortCol === 'solutions' ? (sortAsc ? ' sort-asc' : ' sort-desc') : '') + '" data-sort="solutions" onclick="sortTable(\\'solutions\\')">Sol.</th>' +
+    '<th class="sortable' + (sortCol === 'angle' ? (sortAsc ? ' sort-asc' : ' sort-desc') : '') + '" data-sort="angle" onclick="sortTable(\\'angle\\')">Angle</th>' +
+    '</tr></thead><tbody>';
 
-  /* Build tbody */
-  var tbodyHtml = '';
-  rowData.forEach(function(row) {{
-    var cls = row.hasDiff ? ' class="diff-highlight"' : '';
-    tbodyHtml += '<tr' + cls + '><td class="mol-name">' + row.name + '</td>';
-    row.cells.forEach(function(c) {{
-      if (c.missing) {{
-        tbodyHtml += '<td class="na">-</td><td class="na">-</td><td class="na">-</td>';
-        return;
-      }}
-      if (c.origPlanar !== null) {{
-        var oc = c.origPlanar ? 'planar' : 'non-planar';
-        var ot = c.origPlanar ? 'PLAN' : 'NON PLAN';
-        tbodyHtml += '<td><span class="' + oc + '">' + ot + '</span><br><small>' + c.origAngle + '&deg;</small></td>';
-      }} else {{
-        tbodyHtml += '<td class="na">-</td>';
-      }}
-      tbodyHtml += '<td>' + c.numSol + ' <small>(' + c.numPlan + ' pl.)</small></td>';
-      tbodyHtml += '<td>' + (c.numSol > 0 ? c.maxAngle + '&deg;' : '-') + '</td>';
+  if (rows.length === 0) {{
+    html += '<tr class="na-row"><td colspan="4">Aucune molecule</td></tr>';
+  }}
+
+  rows.forEach(function(r) {{
+    var m = r.mol;
+    var diffCls = diffMols[r.name] ? ' diff-highlight' : '';
+    var expCls = expandedMols[r.name] ? ' expanded' : '';
+    var diffBadge = diffMols[r.name] ? '<span class="diff-badge">diff</span>' : '';
+
+    var origCell;
+    if (m.original) {{
+      var cls = m.original.planar ? 'planar' : 'non-planar';
+      var txt = m.original.planar ? 'PLAN' : 'NON';
+      origCell = '<span class="' + cls + '">' + txt + '</span> <small>(' + m.original.angle_deg + '&deg;)</small>';
+    }} else {{
+      origCell = '<span class="na">-</span>';
+    }}
+
+    var solCell;
+    if (r.numSol === 0) {{
+      solCell = '<span class="na">-</span>';
+    }} else {{
+      solCell = r.numSol + ' <small>(<span class="planar">' + r.numPlan + '</span>';
+      if (r.numNon > 0) solCell += '/<span class="non-planar">' + r.numNon + '</span>';
+      solCell += ')</small>';
+    }}
+    var angleCell = r.numSol > 0 ? r.maxAngle + '&deg;' : '<span class="na">-</span>';
+
+    html += '<tr class="mol-row' + expCls + diffCls + '" data-mol="' + r.name + '" onclick="toggleDetails(\\'' + r.name + '\\')">' +
+      '<td class="mol-name"><span class="expand-icon">&#9654;</span> ' + r.name + diffBadge + '</td>' +
+      '<td>' + origCell + '</td>' +
+      '<td>' + solCell + '</td>' +
+      '<td>' + angleCell + '</td>' +
+      '</tr>';
+
+    var disp = expandedMols[r.name] ? 'table-row' : 'none';
+    m.solutions.forEach(function(s) {{
+      var scls = s.planar ? 'planar' : 'non-planar';
+      var stxt = s.planar ? 'PLAN' : 'NON';
+      var href = cfgName + '/' + r.name + '/solutions/' + s.file;
+      html += '<tr class="detail-row" data-parent="' + r.name + '" style="display:' + disp + ';">' +
+        '<td class="sizes"><a href="' + href + '" target="_blank">' + (s.sizes || s.file) + '</a></td>' +
+        '<td colspan="2"><span class="' + scls + '">' + stxt + '</span></td>' +
+        '<td>' + s.angle_deg + '&deg;</td>' +
+        '</tr>';
     }});
-    tbodyHtml += '</tr>';
+
+    /* If molecule missing -- render a placeholder row so alignment is preserved visually */
+    /* (skip: missing mols simply absent from this panel's rows) */
   }});
 
-  document.getElementById('compareThead').innerHTML = theadHtml;
-  document.getElementById('compareTbody').innerHTML = tbodyHtml;
+  html += '</tbody></table></div>';
+  return html;
+}}
+
+function renderComparison() {{
+  var cfgs = selectedConfigs;
+  var container = document.getElementById('comparePanels');
+  if (cfgs.length === 0) {{
+    container.innerHTML = '<div class="compare-empty">Selectionnez au moins une configuration dans la barre du haut.</div>';
+    return;
+  }}
+  var diffMols = computeDiffMols(cfgs);
+  var html = '';
+  cfgs.forEach(function(cfgName) {{ html += buildPanel(cfgName, diffMols); }});
+  container.innerHTML = html;
 }}
 
 /* ---- Keyboard shortcuts ---- */

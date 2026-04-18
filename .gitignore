@@ -7,3 +7,5 @@ csp_solver/data/
 .claude/
 csp_solver/experiments/plane/
 csp_solver/experiments/output/
+csp_solver/experiments/experiments_bundle.zip
+csp_solver/experiments/model.xml

@@ -35,7 +35,9 @@
       "Bash(python -c \"import py_compile; py_compile.compile\\('view.py', doraise=True\\)\")",
       "Bash(python -c \"import py_compile; py_compile.compile\\('update_report.py', doraise=True\\)\")",
       "Bash(python view.py output/h4 --aggregate)",
-      "Bash(python update_report.py)"
+      "Bash(python update_report.py)",
+      "Bash(python view.py output/h3 --aggregate)",
+      "Bash(python bundle.py)"
     ]
   }
 }
