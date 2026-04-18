@@ -142,9 +142,9 @@
 
 <header class="page-header">
   <h1>Phase experimentale — Structures planes</h1>
-  <p class="meta">Source : BenzAI DB &mdash; h3 a h4
-    &mdash; 9 molecules, 17 solutions
-    &mdash; Mis a jour le 17/04/2026 19:42</p>
+  <p class="meta">Source : BenzAI DB &mdash; h3 a h5
+    &mdash; 25 molecules, 53 solutions
+    &mdash; Mis a jour le 18/04/2026 16:39</p>
 </header>
 
 <nav class="nav-bar" id="nav">
@@ -169,7 +169,7 @@
 </p>
 <p>
   L'objectif est de tester le pipeline sur des structures dont la planarite est connue :
-  les benzenoides plans issus de <strong>BenzAI DB</strong>, de h=3 a h=4.
+  les benzenoides plans issus de <strong>BenzAI DB</strong>, de h=3 a h=5.
   Puisque ces structures sont planes par construction, toutes les solutions tout-hexagonales (6,6,...,6)
   doivent etre validees comme planes. Les solutions avec substitutions 5/7 sont les cas d'interet.
 </p>
@@ -225,10 +225,10 @@
 
 <h3>Vue d'ensemble</h3>
 <div class="cards">
-  <div class="card blue"><div class="value">9</div><div class="label">Molecules testees</div></div>
-  <div class="card blue"><div class="value">17</div><div class="label">Solutions CSP</div></div>
-  <div class="card green"><div class="value">14</div><div class="label">Solutions planes</div></div>
-  <div class="card red"><div class="value">3</div><div class="label">Solutions non planes</div></div>
+  <div class="card blue"><div class="value">25</div><div class="label">Molecules testees</div></div>
+  <div class="card blue"><div class="value">53</div><div class="label">Solutions CSP</div></div>
+  <div class="card green"><div class="value">41</div><div class="label">Solutions planes</div></div>
+  <div class="card red"><div class="value">12</div><div class="label">Solutions non planes</div></div>
 </div>
 
 <h3>Visualisation</h3>
@@ -239,20 +239,24 @@
   <line x1="56" y1="236.0" x2="580" y2="236.0" stroke="#e1e4e8" stroke-dasharray="4,3"/>
   <text x="48" y="240.0" text-anchor="end" font-size="11" fill="#6a737d">0</text>
   <line x1="56" y1="183.0" x2="580" y2="183.0" stroke="#e1e4e8" stroke-dasharray="4,3"/>
-  <text x="48" y="187.0" text-anchor="end" font-size="11" fill="#6a737d">3</text>
+  <text x="48" y="187.0" text-anchor="end" font-size="11" fill="#6a737d">9</text>
   <line x1="56" y1="130.0" x2="580" y2="130.0" stroke="#e1e4e8" stroke-dasharray="4,3"/>
-  <text x="48" y="134.0" text-anchor="end" font-size="11" fill="#6a737d">6</text>
+  <text x="48" y="134.0" text-anchor="end" font-size="11" fill="#6a737d">18</text>
   <line x1="56" y1="77.0" x2="580" y2="77.0" stroke="#e1e4e8" stroke-dasharray="4,3"/>
-  <text x="48" y="81.0" text-anchor="end" font-size="11" fill="#6a737d">9</text>
+  <text x="48" y="81.0" text-anchor="end" font-size="11" fill="#6a737d">27</text>
   <line x1="56" y1="24.0" x2="580" y2="24.0" stroke="#e1e4e8" stroke-dasharray="4,3"/>
-  <text x="48" y="28.0" text-anchor="end" font-size="11" fill="#6a737d">12</text>
-  <rect x="190.7" y="147.7" width="60.0" height="88.3" fill="#1a7f37" rx="2"><title>h3 : 5 planes</title></rect>
-  <text x="220.7" y="141.7" text-anchor="middle" font-size="12" font-weight="700" fill="#24292e">5</text>
-  <text x="220.7" y="258.0" text-anchor="middle" font-size="13" font-weight="600" fill="#24292e">h3</text>
-  <rect x="385.3" y="77.0" width="60.0" height="159.0" fill="#1a7f37" rx="2"><title>h4 : 9 planes</title></rect>
-  <rect x="385.3" y="24.0" width="60.0" height="53.0" fill="#cf222e" rx="2"><title>h4 : 3 non planes</title></rect>
-  <text x="415.3" y="18.0" text-anchor="middle" font-size="12" font-weight="700" fill="#24292e">12</text>
-  <text x="415.3" y="258.0" text-anchor="middle" font-size="13" font-weight="600" fill="#24292e">h4</text>
+  <text x="48" y="28.0" text-anchor="end" font-size="11" fill="#6a737d">36</text>
+  <rect x="142.0" y="206.6" width="60.0" height="29.4" fill="#1a7f37" rx="2"><title>h3 : 5 planes</title></rect>
+  <text x="172.0" y="200.6" text-anchor="middle" font-size="12" font-weight="700" fill="#24292e">5</text>
+  <text x="172.0" y="258.0" text-anchor="middle" font-size="13" font-weight="600" fill="#24292e">h3</text>
+  <rect x="288.0" y="183.0" width="60.0" height="53.0" fill="#1a7f37" rx="2"><title>h4 : 9 planes</title></rect>
+  <rect x="288.0" y="165.3" width="60.0" height="17.7" fill="#cf222e" rx="2"><title>h4 : 3 non planes</title></rect>
+  <text x="318.0" y="159.3" text-anchor="middle" font-size="12" font-weight="700" fill="#24292e">12</text>
+  <text x="318.0" y="258.0" text-anchor="middle" font-size="13" font-weight="600" fill="#24292e">h4</text>
+  <rect x="434.0" y="77.0" width="60.0" height="159.0" fill="#1a7f37" rx="2"><title>h5 : 27 planes</title></rect>
+  <rect x="434.0" y="24.0" width="60.0" height="53.0" fill="#cf222e" rx="2"><title>h5 : 9 non planes</title></rect>
+  <text x="464.0" y="18.0" text-anchor="middle" font-size="12" font-weight="700" fill="#24292e">36</text>
+  <text x="464.0" y="258.0" text-anchor="middle" font-size="13" font-weight="600" fill="#24292e">h5</text>
   <rect x="420" y="6" width="12" height="12" fill="#1a7f37" rx="2"/>
   <text x="436" y="16" font-size="11" fill="#6a737d">Planes</text>
   <rect x="500" y="6" width="12" height="12" fill="#cf222e" rx="2"/>
@@ -263,8 +267,8 @@
     <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"
   style="width:100%;max-width:200px;font-family:Segoe UI,system-ui,sans-serif;">
   <circle cx="100" cy="100" r="70" fill="none" stroke="#cf222e" stroke-width="24"/>
-  <circle cx="100" cy="100" r="70" fill="none" stroke="#1a7f37" stroke-width="24" stroke-dasharray="362.21 439.82" transform="rotate(-90 100 100)"/>
-  <text x="100" y="96" text-anchor="middle" font-size="32" font-weight="700" fill="#24292e">82%</text>
+  <circle cx="100" cy="100" r="70" fill="none" stroke="#1a7f37" stroke-width="24" stroke-dasharray="340.24 439.82" transform="rotate(-90 100 100)"/>
+  <text x="100" y="96" text-anchor="middle" font-size="32" font-weight="700" fill="#24292e">77%</text>
   <text x="100" y="116" text-anchor="middle" font-size="12" fill="#6a737d">planes</text>
 </svg>
   </div>
@@ -300,6 +304,25 @@
       <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">1-5-6-11</td><td>1</td><td class="planar">1</td><td>0</td><td class="planar">PLAN</td><td>0.11&deg;</td></tr>
       <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">1-5-6-12</td><td>2</td><td class="planar">1</td><td class="non-planar">1</td><td class="planar">PLAN</td><td>0.46&deg;</td></tr>
     </tbody></table></div></td></tr>
+    <tr class="h-row"><td class="h-toggle" onclick="toggleDetail('h5')"><strong>h=5</strong> <span class="chevron" id="chev-h5">&#9654;</span></td><td>16</td><td>36</td><td class="planar">27</td><td class="non-planar">9</td><td><div class="pct-bar-wrap"><div class="pct-bar" style="width:75%;background:#8ba552;"></div><span class="pct-label">75%</span></div></td><td class="planar">16/16</td></tr>
+    <tr class="detail-row" id="detail-h5" style="display:none;"><td colspan="7" style="padding:0;"><div class="detail-panel"><table class="mini-table"><thead><tr><th>Molecule</th><th>Solutions</th><th>Planes</th><th>Non pl.</th><th>Original</th><th>Angle</th></tr></thead><tbody>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">0-5-6-11-12</td><td>1</td><td class="planar">1</td><td>0</td><td class="planar">PLAN</td><td>0.06&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">0-6-12-18-24</td><td>2</td><td class="planar">2</td><td>0</td><td class="planar">PLAN</td><td>0.34&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">1-5-6-10-11</td><td>2</td><td class="planar">2</td><td>0</td><td class="planar">PLAN</td><td>0.4&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">1-5-6-11-12</td><td>3</td><td class="planar">3</td><td>0</td><td class="planar">PLAN</td><td>0.24&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">1-5-6-11-16</td><td>4</td><td class="planar">3</td><td class="non-planar">1</td><td class="planar">PLAN</td><td>0.29&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">1-5-6-7-11</td><td>1</td><td class="planar">1</td><td>0</td><td class="planar">PLAN</td><td>0.32&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">1-6-12-17-22</td><td>2</td><td class="planar">1</td><td class="non-planar">1</td><td class="planar">PLAN</td><td>0.08&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">1-7-12-16-17</td><td>2</td><td class="planar">1</td><td class="non-planar">1</td><td class="planar">PLAN</td><td>0.28&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">1-7-12-17-22</td><td>2</td><td class="planar">1</td><td class="non-planar">1</td><td class="planar">PLAN</td><td>0.21&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">2-5-6-7-10</td><td>2</td><td class="planar">1</td><td class="non-planar">1</td><td class="planar">PLAN</td><td>0.08&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">2-5-6-7-11</td><td>1</td><td class="planar">1</td><td>0</td><td class="planar">PLAN</td><td>0.34&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">2-5-6-7-12</td><td>4</td><td class="planar">3</td><td class="non-planar">1</td><td class="planar">PLAN</td><td>0.29&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">2-5-6-7-13</td><td>4</td><td class="planar">2</td><td class="non-planar">2</td><td class="planar">PLAN</td><td>0.47&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">2-5-6-7-8</td><td>2</td><td class="planar">2</td><td>0</td><td class="planar">PLAN</td><td>0.37&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">2-6-7-10-11</td><td>2</td><td class="planar">1</td><td class="non-planar">1</td><td class="planar">PLAN</td><td>0.59&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">2-7-10-11-12</td><td>2</td><td class="planar">2</td><td>0</td><td class="planar">PLAN</td><td>0.6&deg;</td></tr>
+    </tbody></table></div></td></tr>
   </tbody>
 </table>
 </section>
@@ -310,7 +333,7 @@
 
 <div class="observation">
   <strong>Les originaux sont tous plans.</strong>
-  Les 9 structures originales (tout hexagonal, solution 6,6,...,6) sont systematiquement
+  Les 25 structures originales (tout hexagonal, solution 6,6,...,6) sont systematiquement
   validees comme planes (&lt; 1&deg;). Cela confirme que le pipeline de reconstruction + xTB
   fonctionne correctement sur les benzenoides connus.
 </div>
@@ -342,6 +365,7 @@
 <div class="cards">
   <a href="../output/h3/view.html" target="_blank" class="card blue"><div class="value">h3</div><div class="label">3 molecules</div><div class="sub">5 pl. / 0 non pl.</div></a>
   <a href="../output/h4/view.html" target="_blank" class="card blue"><div class="value">h4</div><div class="label">6 molecules</div><div class="sub">9 pl. / 3 non pl.</div></a>
+  <a href="../output/h5/view.html" target="_blank" class="card blue"><div class="value">h5</div><div class="label">16 molecules</div><div class="sub">27 pl. / 9 non pl.</div></a>
 </div>
 </section>
 
@@ -356,6 +380,7 @@
   <table>
     <tr><td>h3</td><td><code>python batch_main.py plane/benzdb/h3 --validate</code></td></tr>
     <tr><td>h4</td><td><code>python batch_main.py plane/benzdb/h4 --validate</code></td></tr>
+    <tr><td>h5</td><td><code>python batch_main.py plane/benzdb/h5 --validate</code></td></tr>
   </table>
 </div>
 <p>
