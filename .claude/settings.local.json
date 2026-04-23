@@ -37,7 +37,8 @@
       "Bash(python view.py output/h4 --aggregate)",
       "Bash(python update_report.py)",
       "Bash(python view.py output/h3 --aggregate)",
-      "Bash(python bundle.py)"
+      "Bash(python bundle.py)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }

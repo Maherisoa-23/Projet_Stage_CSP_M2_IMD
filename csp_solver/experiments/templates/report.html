@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Experimentation — Structures planes BenzAI DB</title>
+<style>
+$common_css
+$report_css
+</style>
+</head>
+<body>
+
+<header class="page-header">
+  <h1>Phase experimentale — Structures planes</h1>
+  <p class="meta">Source : BenzAI DB &mdash; h$h_min a h$h_max
+    &mdash; $total_molecules molecules, $total_solutions solutions
+    &mdash; Mis a jour le $now</p>
+</header>
+
+<nav class="nav-bar" id="nav">
+  <a href="#introduction">Introduction</a>
+  <a href="#methodologie">Methodologie</a>
+  <a href="#resultats">Resultats</a>
+  <a href="#observations">Observations</a>
+  <a href="#details">Details</a>
+  <a href="#commandes">Commandes</a>
+</nav>
+
+<div class="container">
+
+<!-- ============================================================ -->
+<section id="introduction">
+<h2><span class="section-num">1</span> Introduction</h2>
+
+<p>
+  Le modele de generation de non-benzenoides (solveur CSP + reconstruction 3D + optimisation xTB)
+  est operationnel. Les premiers tests ont revele des solutions marquees comme non planes,
+  ce qui a motive le lancement d'une phase experimentale systematique.
+</p>
+<p>
+  L'objectif est de tester le pipeline sur des structures dont la planarite est connue :
+  les benzenoides plans issus de <strong>BenzAI DB</strong>, de h=$h_min a h=$h_max.
+  Puisque ces structures sont planes par construction, toutes les solutions tout-hexagonales (6,6,...,6)
+  doivent etre validees comme planes. Les solutions avec substitutions 5/7 sont les cas d'interet.
+</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="methodologie">
+<h2><span class="section-num">2</span> Methodologie</h2>
+
+<h3>Pipeline</h3>
+<div class="pipeline">
+  <span class="step">.graph (BenzAI DB)</span>
+  <span class="arrow">&rarr;</span>
+  <span class="step">Solveur CSP (ACE)</span>
+  <span class="arrow">&rarr;</span>
+  <span class="step">Reconstruction 3D</span>
+  <span class="arrow">&rarr;</span>
+  <span class="step">xTB (GFN2-xTB)</span>
+  <span class="arrow">&rarr;</span>
+  <span class="step">Test planarite (ACP)</span>
+</div>
+
+<h3>Configuration xTB</h3>
+<div class="config">
+  <table>
+    <tr><td>Methode</td><td>GFN2-xTB (semi-empirique, tight-binding etendu)</td></tr>
+    <tr><td>Niveau d'optimisation</td><td><code>--opt tight</code></td></tr>
+    <tr><td>Perturbation initiale</td><td>&plusmn;0.1 &Aring; aleatoire sur les coordonnees z</td></tr>
+    <tr><td>Timeout</td><td>300 secondes par molecule</td></tr>
+  </table>
+</div>
+
+<h3>Test de planarite</h3>
+<div class="config">
+  <table>
+    <tr><td>Methode</td><td>Analyse en Composantes Principales (ACP) sur les coordonnees atomiques</td></tr>
+    <tr><td>Metrique</td><td>Angle maximal de deviation par rapport au plan moyen</td></tr>
+    <tr><td>Seuil</td><td><strong>10&deg;</strong> &mdash; en dessous = plan, au dessus = non plan</td></tr>
+  </table>
+</div>
+
+<div class="note">
+  <strong>Non-determinisme :</strong> xTB est un optimiseur local (descente de gradient).
+  La perturbation aleatoire en z fait que le point de depart differe a chaque run,
+  ce qui peut mener a des minima locaux legerement differents.
+  Les angles observes peuvent varier de &plusmn;3-5&deg; entre executions successives.
+</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="resultats">
+<h2><span class="section-num">3</span> Resultats</h2>
+
+<h3>Vue d'ensemble</h3>
+<div class="cards">
+  <div class="card blue"><div class="value">$total_molecules</div><div class="label">Molecules testees</div></div>
+  <div class="card blue"><div class="value">$total_solutions</div><div class="label">Solutions CSP</div></div>
+  <div class="card green"><div class="value">$total_planar</div><div class="label">Solutions planes</div></div>
+  <div class="card red"><div class="value">$total_non_planar</div><div class="label">Solutions non planes</div></div>
+</div>
+
+<h3>Visualisation</h3>
+<div class="charts-row">
+  <div class="chart-box wide">
+    $bar_chart_svg
+  </div>
+  <div class="chart-box">
+    $donut_svg
+  </div>
+</div>
+
+<h3>Par taille de benzenoide</h3>
+<p style="font-size:0.85em;color:var(--text-muted);margin-bottom:8px;">Cliquez sur une ligne pour voir le detail par molecule.</p>
+<table class="results">
+  <thead>
+    <tr>
+      <th>h</th>
+      <th>Molecules</th>
+      <th>Solutions</th>
+      <th>Planes</th>
+      <th>Non planes</th>
+      <th>% plan</th>
+      <th>Originaux plans</th>
+    </tr>
+  </thead>
+  <tbody>
+$rows_html
+  </tbody>
+</table>
+</section>
+
+<!-- ============================================================ -->
+<section id="observations">
+<h2><span class="section-num">4</span> Observations</h2>
+
+<div class="observation">
+  <strong>Les originaux sont tous plans.</strong>
+  Les $total_molecules structures originales (tout hexagonal, solution 6,6,...,6) sont systematiquement
+  validees comme planes (&lt; 1&deg;). Cela confirme que le pipeline de reconstruction + xTB
+  fonctionne correctement sur les benzenoides connus.
+</div>
+
+<div class="observation">
+  <strong>Les solutions tout-6 sont toujours planes.</strong>
+  Quand la solution CSP est identique au benzenoide original (tous les cycles a 6),
+  l'angle maximal est systematiquement &lt; 1&deg;. Le pipeline est coherent.
+</div>
+
+<div class="observation">
+  <strong>Le taux de non-planarite augmente avec h.</strong>
+  Plus le benzenoide est grand, plus les substitutions 5/7
+  ont de chances de produire des structures non planes.
+</div>
+
+<div class="observation">
+  <strong>Non-determinisme observe.</strong>
+  Les solutions avec des angles proches du seuil (10-20&deg;) peuvent varier entre les runs.
+  Les solutions clairement planes (&lt; 1&deg;) ou clairement non planes (&gt; 20&deg;)
+  sont stables entre les runs.
+</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="details">
+<h2><span class="section-num">5</span> Resultats detailles</h2>
+<p>Cliquez sur une carte pour ouvrir le viewer interactif de chaque taille.</p>
+<div class="cards">
+$cards_html
+</div>
+</section>
+
+<!-- ============================================================ -->
+<section id="commandes">
+<h2><span class="section-num">6</span> Commandes</h2>
+
+<p>Toutes les commandes se lancent depuis le dossier <code>csp_solver/experiments/</code>.</p>
+
+<h3>Lancer les tests sur un dossier (CSP + validation + original)</h3>
+<div class="config">
+  <table>
+$batch_rows
+  </table>
+</div>
+<p>
+  Cela lance pour chaque <code>.graph</code> : le test de l'original (tout-6) via <code>test.py</code>,
+  puis le solveur CSP + validation xTB via <code>main.py --validate</code>.
+  Le rapport <code>view.html</code> est genere automatiquement a la fin dans <code>output/hX/</code>.
+</p>
+
+<h3>Tester seulement les originaux</h3>
+<div class="config">
+  <table>
+    <tr><td>Exemple</td><td><code>python batch_test.py plane/benzdb/h3</code></td></tr>
+  </table>
+</div>
+
+<h3>Regenerer les rapports sans relancer les calculs</h3>
+<div class="config">
+  <table>
+    <tr><td>Un seul</td><td><code>python view.py output/h4 --aggregate</code></td></tr>
+    <tr><td>Rapport global</td><td><code>python update_report.py</code></td></tr>
+  </table>
+</div>
+
+<h3>Lancer un seul fichier manuellement</h3>
+<p>Depuis le dossier <code>csp_solver/</code> :</p>
+<div class="config">
+  <table>
+    <tr><td>CSP + validation</td><td><code>python main.py data/fichier.graph --validate</code></td></tr>
+    <tr><td>Test original seul</td><td><code>python test.py data/fichier.graph</code></td></tr>
+  </table>
+</div>
+</section>
+
+</div>
+
+<script>
+$report_js
+</script>
+
+</body>
+</html>

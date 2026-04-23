@@ -679,15 +679,50 @@ C1 & Conservation du carbone &
 C2 & Hexagones gel\'es &
   $\bigl[\degv=6 \;\lor\; b(v) \geq 2\bigr] \Rightarrow \xv=6$ \\[4pt]
 C3 & Voisinage admissible &
-  $\Lambda(v) \in \mathcal{T}(\xv)$ pour tout $v \in \VD$ \\
+  $\Lambda(v) \in \mathcal{T}(\xv)$ pour tout $v \in \VD$ \\[6pt]
+C4 & Brisure de sym\'etrie (lex-leader) &
+  $\mathbf{x} \leq_{\mathrm{lex}} \pi(\mathbf{x})$ pour chaque g\'en\'erateur $\pi$ de $\mathrm{Aut}(\GD)$ \\[6pt]
+C5 & Adjacence 5--7 &
+  $\xv = 5 \Rightarrow \exists u \in \mathcal{N}(v),\; x_u = 7$ \\
+   & (optionnelle) &
+  $\xv = 7 \Rightarrow \exists u \in \mathcal{N}(v),\; x_u = 5$ \\
 \bottomrule
 \end{tabular}
 \end{center}
 
+\subsubsection{Drapeaux d'activation / d\'esactivation}
+
+Chaque contrainte peut \^etre activ\'ee ou d\'esactiv\'ee via un drapeau de la ligne de
+commande. Le tableau ci-dessous r\'esume leur \'etat par d\'efaut.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{@{}llp{6.5cm}@{}}
+\toprule
+\textbf{Contrainte} & \textbf{Par d\'efaut} & \textbf{Drapeau} \\
+\midrule
+C1 (conservation) & toujours active & --- \\
+C2, r\`egle $\degv=6$ & toujours active & --- \\
+C2, r\`egle $b(v) \geq 2$ & active & \texttt{--no-freeze} pour d\'esactiver \\
+C3 (table voisinage) & active & \texttt{--no-table} pour d\'esactiver \\
+C4 (lex-leader) & toujours active & --- \\
+C5 (adjacence 5--7) & \textbf{d\'esactiv\'ee} & \texttt{--adj-57} pour activer \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{lstlisting}[style=benzai]
+python main.py data/fichier.graph                      # Defaut : C1+C2+C3+C4
+python main.py data/fichier.graph --no-freeze          # Sans C2 (b>=2)
+python main.py data/fichier.graph --no-table           # Sans C3
+python main.py data/fichier.graph --adj-57             # Avec C5
+python main.py data/fichier.graph --no-freeze --adj-57 # Combinaison
+\end{lstlisting}
+
 \subsubsection{Sortie}
 
-L'ensemble de toutes les assignations $\{\xv\}_{v \in \VD}$ satisfaisant
-C1 \`a C3, encod\'ees dans le format de sortie adapt\'e du format Benzai.
+L'ensemble de toutes les assignations $\{\xv\}_{v \in \VD}$ satisfaisant les contraintes
+actives, encod\'ees dans le format de sortie adapt\'e du format Benzai.
 
 \subsubsection{Remarques strat\'egiques pour la r\'esolution}
 

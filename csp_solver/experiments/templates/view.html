@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Resultats - $h_name</title>
+<style>
+$common_css
+$view_css
+</style>
+</head>
+<body>
+
+<header class="page-header">
+  <h1>Resultats : $h_name</h1>
+  <p class="meta">Mis a jour le $now &mdash; Seuil de planarite : $threshold_deg&deg;</p>
+</header>
+
+<div class="container">
+
+<div class="config-bar">
+  <span class="label">Configuration :</span>
+$config_buttons
+  <button class="compare-toggle" id="compareModeBtn" onclick="toggleCompareMode()">Comparer</button>
+</div>
+
+<!-- ====== Normal view ====== -->
+<div id="normalView">
+  <div class="cards" id="cards"></div>
+
+  <div class="toolbar">
+    <input type="text" class="search-input" id="searchInput"
+           placeholder="Rechercher une molecule..." oninput="applyFilters()">
+    <div class="filter-group">
+      <span class="flabel">Originaux :</span>
+      <button class="filter-btn active" data-filter="orig-all" onclick="setFilter('orig','all')">Tous</button>
+      <button class="filter-btn" data-filter="orig-planar" onclick="setFilter('orig','planar')">Plans</button>
+      <button class="filter-btn" data-filter="orig-nonplanar" onclick="setFilter('orig','nonplanar')">Non plans</button>
+    </div>
+    <div class="filter-group">
+      <span class="flabel">Solutions :</span>
+      <button class="filter-btn active" data-filter="sol-all" onclick="setFilter('sol','all')">Toutes</button>
+      <button class="filter-btn" data-filter="sol-planar" onclick="setFilter('sol','planar')">Planes</button>
+      <button class="filter-btn" data-filter="sol-nonplanar" onclick="setFilter('sol','nonplanar')">Non planes</button>
+    </div>
+    <div class="btn-group">
+      <button onclick="expandAll()">Tout ouvrir</button>
+      <button onclick="collapseAll()">Tout fermer</button>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+    <thead>
+      <tr>
+        <th class="sortable sort-asc" data-sort="name" onclick="sortTable('name')">Molecule</th>
+        <th class="sortable" data-sort="original" onclick="sortTable('original')">Original</th>
+        <th class="sortable" data-sort="solutions" onclick="sortTable('solutions')">Solutions</th>
+        <th class="sortable" data-sort="planar" onclick="sortTable('planar')">Planarite</th>
+        <th class="sortable" data-sort="angle" onclick="sortTable('angle')">Angle max</th>
+      </tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ====== Comparison view (side-by-side panels) ====== -->
+<div id="compareView" style="display:none;">
+  <div class="toolbar">
+    <input type="text" class="search-input" id="compareSearchInput"
+           placeholder="Rechercher une molecule..." oninput="applyFilters()">
+    <div class="filter-group">
+      <span class="flabel">Originaux :</span>
+      <button class="filter-btn active" data-filter="orig-all" onclick="setFilter('orig','all')">Tous</button>
+      <button class="filter-btn" data-filter="orig-planar" onclick="setFilter('orig','planar')">Plans</button>
+      <button class="filter-btn" data-filter="orig-nonplanar" onclick="setFilter('orig','nonplanar')">Non plans</button>
+    </div>
+    <div class="filter-group">
+      <span class="flabel">Solutions :</span>
+      <button class="filter-btn active" data-filter="sol-all" onclick="setFilter('sol','all')">Toutes</button>
+      <button class="filter-btn" data-filter="sol-planar" onclick="setFilter('sol','planar')">Planes</button>
+      <button class="filter-btn" data-filter="sol-nonplanar" onclick="setFilter('sol','nonplanar')">Non planes</button>
+    </div>
+    <div class="filter-group">
+      <span class="flabel">Diff :</span>
+      <button class="filter-btn active" data-filter="diff-all" onclick="setCompareFilter('all')">Toutes</button>
+      <button class="filter-btn" data-filter="diff-only" onclick="setCompareFilter('diff')">Differences</button>
+    </div>
+    <div class="btn-group">
+      <button onclick="expandAll()">Tout ouvrir</button>
+      <button onclick="collapseAll()">Tout fermer</button>
+    </div>
+  </div>
+
+  <div class="compare-panels" id="comparePanels"></div>
+</div>
+
+</div>
+
+<footer class="page-footer">
+  <span>Genere le $now</span>
+  <span>Seuil : $threshold_deg&deg;</span>
+  <span>$n_configs configuration(s)</span>
+</footer>
+
+<!-- Donnees injectees par Python (ordre important : avant view.js). -->
+<script>window.__DATA__ = $configs_json;</script>
+<script>
+$view_js
+</script>
+
+</body>
+</html>
