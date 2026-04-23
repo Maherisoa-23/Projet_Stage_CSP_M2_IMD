@@ -15,6 +15,9 @@ $view_css
   <p class="meta">Mis a jour le $now &mdash; Seuil de planarite : $threshold_deg&deg;</p>
 </header>
 
+<!-- Stats du dernier batch_all.py (vide si batch_meta.json absent) -->
+$batch_meta_html
+
 <div class="container">
 
 <div class="config-bar">
@@ -42,11 +45,37 @@ $config_buttons
       <button class="filter-btn" data-filter="sol-planar" onclick="setFilter('sol','planar')">Planes</button>
       <button class="filter-btn" data-filter="sol-nonplanar" onclick="setFilter('sol','nonplanar')">Non planes</button>
     </div>
+    <div class="filter-group">
+      <span class="flabel">Stabilite :</span>
+      <button class="filter-btn active" data-filter="stab-all" onclick="setFilter('stab','all')">Tous</button>
+      <button class="filter-btn" data-filter="stab-stable_planar" onclick="setFilter('stab','stable_planar')">&#x1F7E2; Stables pl.</button>
+      <button class="filter-btn" data-filter="stab-unstable" onclick="setFilter('stab','unstable')">&#x1F7E0; Instables</button>
+      <button class="filter-btn" data-filter="stab-stable_non_planar" onclick="setFilter('stab','stable_non_planar')">&#x26AB; Stables non pl.</button>
+    </div>
     <div class="btn-group">
       <button onclick="expandAll()">Tout ouvrir</button>
       <button onclick="collapseAll()">Tout fermer</button>
     </div>
   </div>
+
+  <!-- Legende des classes de stabilite multi-runs (pliable, fermee par defaut) -->
+  <details class="stability-legend">
+    <summary>Legende des classes de stabilite (multi-runs)</summary>
+    <div class="legend-grid">
+      <div><span class="legend-emoji">&#x1F7E2;</span> <b>Toujours plan</b> <span class="legend-criteria">(100% plans ET &mu;&lt;5&deg;)</span></div>
+      <div><span class="legend-emoji">&#x1F7E1;</span> <b>Majorit. plan</b> <span class="legend-criteria">(&ge;70% plans ET &sigma;&lt;3&deg;)</span></div>
+      <div><span class="legend-emoji">&#x1F7E0;</span> <b>Instable</b> <span class="legend-criteria">(30-70% plans OU &sigma;&gt;5&deg;)</span></div>
+      <div><span class="legend-emoji">&#x1F534;</span> <b>Majorit. non-plan</b> <span class="legend-criteria">(&lt;30% plans)</span></div>
+      <div><span class="legend-emoji">&#x26AB;</span> <b>Toujours non-plan</b> <span class="legend-criteria">(0% plans)</span></div>
+      <div><span class="legend-emoji">&#x26AA;</span> <b>Ambigu</b> <span class="legend-criteria">(autre cas)</span></div>
+    </div>
+    <p class="legend-help">
+      Chaque solution est lancee N fois avec perturbation aleatoire. La <b>barre coloree</b>
+      indique l'echelle d'angle absolue (vert 0&deg; &rarr; jaune 10&deg; = seuil &rarr; orange &rarr; rouge).
+      Les <b>tirets verticaux</b> sont les runs individuels. Le <b>point bleu</b> marque &mu;
+      (angle moyen). La <b>ligne pointillee</b> est le seuil de planarite 10&deg;.
+    </p>
+  </details>
 
   <div class="table-wrap">
     <table>
@@ -80,6 +109,13 @@ $config_buttons
       <button class="filter-btn active" data-filter="sol-all" onclick="setFilter('sol','all')">Toutes</button>
       <button class="filter-btn" data-filter="sol-planar" onclick="setFilter('sol','planar')">Planes</button>
       <button class="filter-btn" data-filter="sol-nonplanar" onclick="setFilter('sol','nonplanar')">Non planes</button>
+    </div>
+    <div class="filter-group">
+      <span class="flabel">Stabilite :</span>
+      <button class="filter-btn active" data-filter="stab-all" onclick="setFilter('stab','all')">Tous</button>
+      <button class="filter-btn" data-filter="stab-stable_planar" onclick="setFilter('stab','stable_planar')">&#x1F7E2; Stables pl.</button>
+      <button class="filter-btn" data-filter="stab-unstable" onclick="setFilter('stab','unstable')">&#x1F7E0; Instables</button>
+      <button class="filter-btn" data-filter="stab-stable_non_planar" onclick="setFilter('stab','stable_non_planar')">&#x26AB; Stables non pl.</button>
     </div>
     <div class="filter-group">
       <span class="flabel">Diff :</span>

@@ -236,6 +236,14 @@ code {
 }
 a { color: var(--accent); }
 
+/* ---- Stability table (section 4) ---- */
+table.stability-table th {
+  font-size: 0.7em;   /* plus compact : 7 colonnes de classe + h + total */
+  padding: 8px 6px;
+}
+table.stability-table td { padding: 6px 8px; }
+table.stability-table td.na { color: #b2bec3; font-weight: 400; }
+
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
   .page-header { padding: 16px; }

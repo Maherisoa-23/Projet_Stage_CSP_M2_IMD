@@ -52,10 +52,18 @@ def collect_files(experiments_dir):
     for view in sorted(output_dir.glob("*/view.html")):
         files.append(view)
 
-    # Fichiers XYZ optimises (uniquement _opt.xyz, uniquement dans solutions/)
-    # Couvre les 2 layouts : output/hX/config/mol/solutions/ et output/hX/mol/solutions/
+    # Fichiers XYZ optimises (uniquement _opt.xyz, uniquement dans solutions/).
+    # Plusieurs layouts possibles :
+    #   1. hX/config/mol/solutions/sol_X_opt.xyz             (ancien, single-run)
+    #   2. hX/mol/solutions/sol_X_opt.xyz                    (ancien, sans config)
+    #   3. hX/config/mol/solutions/sol_X/run_NN_opt.xyz      (multi-runs)
     seen = set()
-    for pattern in ("*/*/*/solutions/*_opt.xyz", "*/*/solutions/*_opt.xyz"):
+    patterns = (
+        "*/*/*/solutions/*_opt.xyz",         # layout 1
+        "*/*/solutions/*_opt.xyz",           # layout 2
+        "*/*/*/solutions/*/run_*_opt.xyz",   # layout 3 (multi-runs)
+    )
+    for pattern in patterns:
         for xyz in sorted(output_dir.glob(pattern)):
             if xyz not in seen:
                 seen.add(xyz)

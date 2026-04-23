@@ -21,6 +21,7 @@ $report_css
   <a href="#introduction">Introduction</a>
   <a href="#methodologie">Methodologie</a>
   <a href="#resultats">Resultats</a>
+$stability_nav
   <a href="#observations">Observations</a>
   <a href="#details">Details</a>
   <a href="#commandes">Commandes</a>
@@ -132,8 +133,13 @@ $rows_html
 </section>
 
 <!-- ============================================================ -->
+<!-- Section "Stabilite inter-runs" -- injectee si au moins une solution
+     de tous les data.json a un bloc runs. Vide sinon. -->
+$stability_section
+
+<!-- ============================================================ -->
 <section id="observations">
-<h2><span class="section-num">4</span> Observations</h2>
+<h2><span class="section-num">5</span> Observations</h2>
 
 <div class="observation">
   <strong>Les originaux sont tous plans.</strong>
@@ -164,7 +170,7 @@ $rows_html
 
 <!-- ============================================================ -->
 <section id="details">
-<h2><span class="section-num">5</span> Resultats detailles</h2>
+<h2><span class="section-num">6</span> Resultats detailles</h2>
 <p>Cliquez sur une carte pour ouvrir le viewer interactif de chaque taille.</p>
 <div class="cards">
 $cards_html
@@ -173,7 +179,7 @@ $cards_html
 
 <!-- ============================================================ -->
 <section id="commandes">
-<h2><span class="section-num">6</span> Commandes</h2>
+<h2><span class="section-num">7</span> Commandes</h2>
 
 <p>Toutes les commandes se lancent depuis le dossier <code>csp_solver/experiments/</code>.</p>
 

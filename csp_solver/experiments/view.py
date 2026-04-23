@@ -154,6 +154,49 @@ def _render_config_buttons(config_names):
     )
 
 
+def _render_batch_meta(h_dir):
+    """Si output/hX/batch_meta.json existe, genere un bandeau stats du dernier
+    batch_all.py. Retourne chaine vide si absent (cas normal)."""
+    meta_path = h_dir / "batch_meta.json"
+    if not meta_path.exists():
+        return ""
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    except Exception:
+        return ""
+
+    # Format timestamp ISO -> "JJ/MM/AAAA HH:MM"
+    gen = meta.get("generated", "")
+    try:
+        gen_fmt = datetime.fromisoformat(gen).strftime("%d/%m/%Y %H:%M")
+    except Exception:
+        gen_fmt = gen
+
+    n_configs = meta.get("n_configs", 0)
+    n_inst = meta.get("n_instances", 0)
+    n_mol = n_inst // n_configs if n_configs > 0 else n_inst
+    n_sol = meta.get("n_solutions", 0)
+    duration = meta.get("duration_str", "")
+    options = meta.get("options", [])
+    opts_str = " ".join(options) if options else "(aucune)"
+    source = meta.get("source", "")
+
+    parts = [
+        '<span class="batch-meta-label">Dernier batch complet</span>',
+        f'<span>le {gen_fmt}</span>',
+        f'<span>{n_mol} molecules &times; {n_configs} configs = {n_inst} instances</span>',
+        f'<span>{n_sol} solutions</span>',
+        f'<span>en {duration}</span>',
+        f'<span>options : <code>{opts_str}</code></span>',
+    ]
+    if source:
+        parts.insert(1, f'<span title="source">{source}</span>')
+
+    sep = '<span class="batch-meta-sep">&middot;</span>'
+    inner = sep.join(parts)
+    return f'<div class="batch-meta">{inner}</div>'
+
+
 def write_aggregate_html(h_dir, configs):
     """Genere un view.html interactif avec toutes les configs.
     Les donnees sont embarquees en JSON dans <script>window.__DATA__ = ...</script>.
@@ -171,6 +214,7 @@ def write_aggregate_html(h_dir, configs):
         threshold_deg=THRESHOLD_DEG,
         n_configs=len(config_names),
         config_buttons=_render_config_buttons(config_names),
+        batch_meta_html=_render_batch_meta(h_dir),
         configs_json=configs_json,
         common_css=_load_template("common.css"),
         view_css=_load_template("view.css"),

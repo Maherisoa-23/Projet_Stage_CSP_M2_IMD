@@ -302,6 +302,14 @@ code {
 }
 a { color: var(--accent); }
 
+/* ---- Stability table (section 4) ---- */
+table.stability-table th {
+  font-size: 0.7em;   /* plus compact : 7 colonnes de classe + h + total */
+  padding: 8px 6px;
+}
+table.stability-table td { padding: 6px 8px; }
+table.stability-table td.na { color: #b2bec3; font-weight: 400; }
+
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
   .page-header { padding: 16px; }
@@ -323,13 +331,14 @@ a { color: var(--accent); }
   <h1>Phase experimentale — Structures planes</h1>
   <p class="meta">Source : BenzAI DB &mdash; h3 a h5
     &mdash; 25 molecules, 53 solutions
-    &mdash; Mis a jour le 23/04/2026 09:55</p>
+    &mdash; Mis a jour le 23/04/2026 20:45</p>
 </header>
 
 <nav class="nav-bar" id="nav">
   <a href="#introduction">Introduction</a>
   <a href="#methodologie">Methodologie</a>
   <a href="#resultats">Resultats</a>
+  <a href="#stabilite">Stabilite</a>
   <a href="#observations">Observations</a>
   <a href="#details">Details</a>
   <a href="#commandes">Commandes</a>
@@ -406,8 +415,8 @@ a { color: var(--accent); }
 <div class="cards">
   <div class="card blue"><div class="value">25</div><div class="label">Molecules testees</div></div>
   <div class="card blue"><div class="value">53</div><div class="label">Solutions CSP</div></div>
-  <div class="card green"><div class="value">41</div><div class="label">Solutions planes</div></div>
-  <div class="card red"><div class="value">12</div><div class="label">Solutions non planes</div></div>
+  <div class="card green"><div class="value">42</div><div class="label">Solutions planes</div></div>
+  <div class="card red"><div class="value">11</div><div class="label">Solutions non planes</div></div>
 </div>
 
 <h3>Visualisation</h3>
@@ -428,8 +437,8 @@ a { color: var(--accent); }
   <rect x="142.0" y="206.6" width="60.0" height="29.4" fill="#1a7f37" rx="2"><title>h3 : 5 planes</title></rect>
   <text x="172.0" y="200.6" text-anchor="middle" font-size="12" font-weight="700" fill="#24292e">5</text>
   <text x="172.0" y="258.0" text-anchor="middle" font-size="13" font-weight="600" fill="#24292e">h3</text>
-  <rect x="288.0" y="183.0" width="60.0" height="53.0" fill="#1a7f37" rx="2"><title>h4 : 9 planes</title></rect>
-  <rect x="288.0" y="165.3" width="60.0" height="17.7" fill="#cf222e" rx="2"><title>h4 : 3 non planes</title></rect>
+  <rect x="288.0" y="177.1" width="60.0" height="58.9" fill="#1a7f37" rx="2"><title>h4 : 10 planes</title></rect>
+  <rect x="288.0" y="165.3" width="60.0" height="11.8" fill="#cf222e" rx="2"><title>h4 : 2 non planes</title></rect>
   <text x="318.0" y="159.3" text-anchor="middle" font-size="12" font-weight="700" fill="#24292e">12</text>
   <text x="318.0" y="258.0" text-anchor="middle" font-size="13" font-weight="600" fill="#24292e">h4</text>
   <rect x="434.0" y="77.0" width="60.0" height="159.0" fill="#1a7f37" rx="2"><title>h5 : 27 planes</title></rect>
@@ -446,8 +455,8 @@ a { color: var(--accent); }
     <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"
   style="width:100%;max-width:200px;font-family:Segoe UI,system-ui,sans-serif;">
   <circle cx="100" cy="100" r="70" fill="none" stroke="#cf222e" stroke-width="24"/>
-  <circle cx="100" cy="100" r="70" fill="none" stroke="#1a7f37" stroke-width="24" stroke-dasharray="340.24 439.82" transform="rotate(-90 100 100)"/>
-  <text x="100" y="96" text-anchor="middle" font-size="32" font-weight="700" fill="#24292e">77%</text>
+  <circle cx="100" cy="100" r="70" fill="none" stroke="#1a7f37" stroke-width="24" stroke-dasharray="348.54 439.82" transform="rotate(-90 100 100)"/>
+  <text x="100" y="96" text-anchor="middle" font-size="32" font-weight="700" fill="#24292e">79%</text>
   <text x="100" y="116" text-anchor="middle" font-size="12" fill="#6a737d">planes</text>
 </svg>
   </div>
@@ -470,18 +479,18 @@ a { color: var(--accent); }
   <tbody>
     <tr class="h-row"><td class="h-toggle" onclick="toggleDetail('h3')"><strong>h=3</strong> <span class="chevron" id="chev-h3">&#9654;</span></td><td>3</td><td>5</td><td class="planar">5</td><td>0</td><td><div class="pct-bar-wrap"><div class="pct-bar" style="width:100%;background:#1a7f37;"></div><span class="pct-label">100%</span></div></td><td class="planar">3/3</td></tr>
     <tr class="detail-row" id="detail-h3" style="display:none;"><td colspan="7" style="padding:0;"><div class="detail-panel"><table class="mini-table"><thead><tr><th>Molecule</th><th>Solutions</th><th>Planes</th><th>Non pl.</th><th>Original</th><th>Angle</th></tr></thead><tbody>
-      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">0-3-4</td><td>1</td><td class="planar">1</td><td>0</td><td class="planar">PLAN</td><td>0.03&deg;</td></tr>
-      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">0-4-8</td><td>2</td><td class="planar">2</td><td>0</td><td class="planar">PLAN</td><td>0.05&deg;</td></tr>
-      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">1-3-4</td><td>2</td><td class="planar">2</td><td>0</td><td class="planar">PLAN</td><td>0.19&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">0-3-4</td><td>1</td><td class="planar">1</td><td>0</td><td class="planar">PLAN</td><td>0.06&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">0-4-8</td><td>2</td><td class="planar">2</td><td>0</td><td class="planar">PLAN</td><td>0.11&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">1-3-4</td><td>2</td><td class="planar">2</td><td>0</td><td class="planar">PLAN</td><td>0.07&deg;</td></tr>
     </tbody></table></div></td></tr>
-    <tr class="h-row"><td class="h-toggle" onclick="toggleDetail('h4')"><strong>h=4</strong> <span class="chevron" id="chev-h4">&#9654;</span></td><td>6</td><td>12</td><td class="planar">9</td><td class="non-planar">3</td><td><div class="pct-bar-wrap"><div class="pct-bar" style="width:75%;background:#8ba552;"></div><span class="pct-label">75%</span></div></td><td class="planar">6/6</td></tr>
+    <tr class="h-row"><td class="h-toggle" onclick="toggleDetail('h4')"><strong>h=4</strong> <span class="chevron" id="chev-h4">&#9654;</span></td><td>6</td><td>12</td><td class="planar">10</td><td class="non-planar">2</td><td><div class="pct-bar-wrap"><div class="pct-bar" style="width:83%;background:#679849;"></div><span class="pct-label">83%</span></div></td><td class="planar">6/6</td></tr>
     <tr class="detail-row" id="detail-h4" style="display:none;"><td colspan="7" style="padding:0;"><div class="detail-panel"><table class="mini-table"><thead><tr><th>Molecule</th><th>Solutions</th><th>Planes</th><th>Non pl.</th><th>Original</th><th>Angle</th></tr></thead><tbody>
-      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">0-5-6-11</td><td>3</td><td class="planar">3</td><td>0</td><td class="planar">PLAN</td><td>0.05&deg;</td></tr>
-      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">0-6-11-17</td><td>2</td><td class="planar">1</td><td class="non-planar">1</td><td class="planar">PLAN</td><td>0.26&deg;</td></tr>
-      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">0-6-12-17</td><td>2</td><td class="planar">1</td><td class="non-planar">1</td><td class="planar">PLAN</td><td>0.42&deg;</td></tr>
-      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">0-6-12-18</td><td>2</td><td class="planar">2</td><td>0</td><td class="planar">PLAN</td><td>0.2&deg;</td></tr>
-      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">1-5-6-11</td><td>1</td><td class="planar">1</td><td>0</td><td class="planar">PLAN</td><td>0.11&deg;</td></tr>
-      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">1-5-6-12</td><td>2</td><td class="planar">1</td><td class="non-planar">1</td><td class="planar">PLAN</td><td>0.46&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">0-5-6-11</td><td>3</td><td class="planar">3</td><td>0</td><td class="planar">PLAN</td><td>0.09&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">0-6-11-17</td><td>2</td><td class="planar">1</td><td class="non-planar">1</td><td class="planar">PLAN</td><td>0.14&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">0-6-12-17</td><td>2</td><td class="planar">1</td><td class="non-planar">1</td><td class="planar">PLAN</td><td>0.13&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">0-6-12-18</td><td>2</td><td class="planar">2</td><td>0</td><td class="planar">PLAN</td><td>0.06&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">1-5-6-11</td><td>1</td><td class="planar">1</td><td>0</td><td class="planar">PLAN</td><td>0.22&deg;</td></tr>
+      <tr><td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">1-5-6-12</td><td>2</td><td class="planar">2</td><td>0</td><td class="planar">PLAN</td><td>0.24&deg;</td></tr>
     </tbody></table></div></td></tr>
     <tr class="h-row"><td class="h-toggle" onclick="toggleDetail('h5')"><strong>h=5</strong> <span class="chevron" id="chev-h5">&#9654;</span></td><td>16</td><td>36</td><td class="planar">27</td><td class="non-planar">9</td><td><div class="pct-bar-wrap"><div class="pct-bar" style="width:75%;background:#8ba552;"></div><span class="pct-label">75%</span></div></td><td class="planar">16/16</td></tr>
     <tr class="detail-row" id="detail-h5" style="display:none;"><td colspan="7" style="padding:0;"><div class="detail-panel"><table class="mini-table"><thead><tr><th>Molecule</th><th>Solutions</th><th>Planes</th><th>Non pl.</th><th>Original</th><th>Angle</th></tr></thead><tbody>
@@ -507,8 +516,439 @@ a { color: var(--accent); }
 </section>
 
 <!-- ============================================================ -->
+<!-- Section "Stabilite inter-runs" -- injectee si au moins une solution
+     de tous les data.json a un bloc runs. Vide sinon. -->
+
+<section id="stabilite">
+<h2><span class="section-num">4</span> Stabilite inter-runs</h2>
+
+<p>
+  xTB est un optimiseur local avec perturbation aleatoire initiale : un meme calcul
+  peut donner des angles differents entre runs. Pour caracteriser la <b>stabilite</b>
+  d'une solution, on la lance N fois et on classe selon la distribution des angles.
+</p>
+
+<div class="cards">
+  <div class="card" style="border-top-color:#1a7f37"><div class="value" style="color:#1a7f37">144</div><div class="label">🟢 Toujours plan</div></div>
+  <div class="card" style="border-top-color:#6fb347"><div class="value" style="color:#6fb347">0</div><div class="label">🟡 Majorit. plan</div></div>
+  <div class="card" style="border-top-color:#e66f00"><div class="value" style="color:#e66f00">12</div><div class="label">🟠 Instable</div></div>
+  <div class="card" style="border-top-color:#c72d0f"><div class="value" style="color:#c72d0f">2</div><div class="label">🔴 Majorit. non-plan</div></div>
+  <div class="card" style="border-top-color:#cf222e"><div class="value" style="color:#cf222e">6</div><div class="label">⚫ Toujours non-plan</div></div>
+  <div class="card" style="border-top-color:#6a737d"><div class="value" style="color:#6a737d">1</div><div class="label">⚪ Ambigu</div></div>
+</div>
+
+<div class="charts-row">
+  <div class="chart-box">
+    <h3 style="margin-top:0">Distribution des classes</h3>
+    <svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg"
+  style="width:100%;max-width:240px;font-family:Segoe UI,system-ui,sans-serif;">
+  <path d="M 120.0 120.0 L 120.00 25.00 A 95 95 0 1 1 51.87 53.79 Z" fill="#1a7f37" stroke="#fff" stroke-width="2">
+    <title>Toujours plan : 144 (87%)</title></path>
+  <path d="M 120.0 120.0 L 51.87 53.79 A 95 95 0 0 1 88.08 30.52 Z" fill="#e66f00" stroke="#fff" stroke-width="2">
+    <title>Instable : 12 (7%)</title></path>
+  <path d="M 120.0 120.0 L 88.08 30.52 A 95 95 0 0 1 94.98 28.36 Z" fill="#c72d0f" stroke="#fff" stroke-width="2">
+    <title>Majorit. non-plan : 2 (1%)</title></path>
+  <path d="M 120.0 120.0 L 94.98 28.36 A 95 95 0 0 1 116.38 25.07 Z" fill="#cf222e" stroke="#fff" stroke-width="2">
+    <title>Toujours non-plan : 6 (4%)</title></path>
+  <path d="M 120.0 120.0 L 116.38 25.07 A 95 95 0 0 1 120.00 25.00 Z" fill="#6a737d" stroke="#fff" stroke-width="2">
+    <title>Ambigu : 1 (1%)</title></path>
+  <text x="120.0" y="116.0" text-anchor="middle" font-size="22" font-weight="700" fill="#fff" style="paint-order:stroke;stroke:#24292e;stroke-width:4px">165</text>
+  <text x="120.0" y="134.0" text-anchor="middle" font-size="11" fill="#fff" style="paint-order:stroke;stroke:#24292e;stroke-width:3px">solutions</text>
+</svg>
+  </div>
+  <div class="chart-box wide">
+    <h3 style="margin-top:0">Angle moyen &times; ecart-type par solution</h3>
+    <svg viewBox="0 0 680 420" xmlns="http://www.w3.org/2000/svg"
+  style="width:100%;max-width:680px;font-family:Segoe UI,system-ui,sans-serif;">
+  <line x1="54.0" y1="24" x2="54.0" y2="368" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <text x="54.0" y="384" text-anchor="middle" font-size="11" fill="#6a737d">0</text>
+  <line x1="174.4" y1="24" x2="174.4" y2="368" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <text x="174.4" y="384" text-anchor="middle" font-size="11" fill="#6a737d">5</text>
+  <line x1="294.8" y1="24" x2="294.8" y2="368" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <text x="294.8" y="384" text-anchor="middle" font-size="11" fill="#6a737d">10</text>
+  <line x1="415.2" y1="24" x2="415.2" y2="368" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <text x="415.2" y="384" text-anchor="middle" font-size="11" fill="#6a737d">16</text>
+  <line x1="535.6" y1="24" x2="535.6" y2="368" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <text x="535.6" y="384" text-anchor="middle" font-size="11" fill="#6a737d">21</text>
+  <line x1="656.0" y1="24" x2="656.0" y2="368" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <text x="656.0" y="384" text-anchor="middle" font-size="11" fill="#6a737d">26</text>
+  <line x1="54" y1="368.0" x2="656" y2="368.0" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <text x="48" y="372.0" text-anchor="end" font-size="11" fill="#6a737d">0.0</text>
+  <line x1="54" y1="282.0" x2="656" y2="282.0" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <text x="48" y="286.0" text-anchor="end" font-size="11" fill="#6a737d">2.3</text>
+  <line x1="54" y1="196.0" x2="656" y2="196.0" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <text x="48" y="200.0" text-anchor="end" font-size="11" fill="#6a737d">4.5</text>
+  <line x1="54" y1="110.0" x2="656" y2="110.0" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <text x="48" y="114.0" text-anchor="end" font-size="11" fill="#6a737d">6.8</text>
+  <line x1="54" y1="24.0" x2="656" y2="24.0" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <text x="48" y="28.0" text-anchor="end" font-size="11" fill="#6a737d">9.1</text>
+  <line x1="283.4" y1="24" x2="283.4" y2="368" stroke="#bf8700" stroke-width="1.2" stroke-dasharray="4,3"/>
+  <text x="283.4" y="18" text-anchor="middle" font-size="10" fill="#bf8700" font-weight="600">seuil 10&#176;</text>
+  <text x="355.0" y="412" text-anchor="middle" font-size="12" font-weight="600" fill="#24292e">Angle moyen &#956; (&#176;)</text>
+  <text x="14" y="196.0" text-anchor="middle" font-size="12" font-weight="600" fill="#24292e" transform="rotate(-90 14 196.0)">Ecart-type &#963; (&#176;)</text>
+  <circle cx="54.7" cy="367.6" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/adj-57 - 0-3-4 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.03° σ=0.01°</title></circle>
+  <circle cx="56.5" cy="366.1" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/adj-57 - 0-4-8 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.11° σ=0.05°</title></circle>
+  <circle cx="57.9" cy="365.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/adj-57 - 1-3-4 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.17° σ=0.07°</title></circle>
+  <circle cx="54.9" cy="367.6" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/adj-57_no-freeze - 0-3-4 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.04° σ=0.01°</title></circle>
+  <circle cx="56.3" cy="366.1" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/adj-57_no-freeze - 0-4-8 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.1° σ=0.05°</title></circle>
+  <circle cx="59.3" cy="365.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/adj-57_no-freeze - 1-3-4 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.23° σ=0.06°</title></circle>
+  <circle cx="56.3" cy="366.5" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/adj-57_no-freeze_no-table - 0-3-4 [v0=5 v1=6 v2=7] | Toujours plan | μ=0.1° σ=0.04°</title></circle>
+  <circle cx="54.9" cy="367.6" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/adj-57_no-freeze_no-table - 0-3-4 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.04° σ=0.01°</title></circle>
+  <circle cx="60.2" cy="362.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/adj-57_no-freeze_no-table - 0-4-8 [v0=5 v1=7 v2=6] | Toujours plan | μ=0.27° σ=0.14°</title></circle>
+  <circle cx="57.0" cy="365.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/adj-57_no-freeze_no-table - 0-4-8 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.13° σ=0.07°</title></circle>
+  <circle cx="62.7" cy="359.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/adj-57_no-freeze_no-table - 1-3-4 [v0=5 v1=6 v2=7] | Toujours plan | μ=0.38° σ=0.22°</title></circle>
+  <circle cx="58.4" cy="365.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/adj-57_no-freeze_no-table - 1-3-4 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.19° σ=0.07°</title></circle>
+  <circle cx="56.5" cy="366.5" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/adj-57_no-table - 0-3-4 [v0=5 v1=6 v2=7] | Toujours plan | μ=0.11° σ=0.04°</title></circle>
+  <circle cx="54.7" cy="367.6" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/adj-57_no-table - 0-3-4 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.03° σ=0.01°</title></circle>
+  <circle cx="57.0" cy="366.1" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/adj-57_no-table - 0-4-8 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.13° σ=0.05°</title></circle>
+  <circle cx="57.7" cy="365.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/adj-57_no-table - 1-3-4 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.16° σ=0.08°</title></circle>
+  <circle cx="54.9" cy="367.2" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/default - 0-3-4 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.04° σ=0.02°</title></circle>
+  <circle cx="56.8" cy="365.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/default - 0-4-8 [v0=5 v1=6 v2=7] | Toujours plan | μ=0.12° σ=0.06°</title></circle>
+  <circle cx="56.5" cy="366.1" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/default - 0-4-8 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.11° σ=0.05°</title></circle>
+  <circle cx="59.0" cy="363.5" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/default - 1-3-4 [v0=5 v1=7 v2=6] | Toujours plan | μ=0.22° σ=0.12°</title></circle>
+  <circle cx="57.7" cy="365.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/default - 1-3-4 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.16° σ=0.07°</title></circle>
+  <circle cx="54.9" cy="367.6" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/no-freeze - 0-3-4 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.04° σ=0.01°</title></circle>
+  <circle cx="57.0" cy="365.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/no-freeze - 0-4-8 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.13° σ=0.06°</title></circle>
+  <circle cx="57.9" cy="365.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/no-freeze - 1-3-4 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.17° σ=0.07°</title></circle>
+  <circle cx="56.1" cy="366.1" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/no-freeze_no-table - 0-3-4 [v0=5 v1=6 v2=7] | Toujours plan | μ=0.09° σ=0.05°</title></circle>
+  <circle cx="54.7" cy="367.6" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/no-freeze_no-table - 0-3-4 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.03° σ=0.01°</title></circle>
+  <circle cx="57.7" cy="365.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/no-freeze_no-table - 0-4-8 [v0=5 v1=6 v2=7] | Toujours plan | μ=0.16° σ=0.06°</title></circle>
+  <circle cx="57.9" cy="363.8" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/no-freeze_no-table - 0-4-8 [v0=5 v1=7 v2=6] | Toujours plan | μ=0.17° σ=0.11°</title></circle>
+  <circle cx="56.3" cy="366.1" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/no-freeze_no-table - 0-4-8 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.1° σ=0.05°</title></circle>
+  <circle cx="62.7" cy="359.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/no-freeze_no-table - 1-3-4 [v0=5 v1=6 v2=7] | Toujours plan | μ=0.38° σ=0.22°</title></circle>
+  <circle cx="59.7" cy="361.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/no-freeze_no-table - 1-3-4 [v0=5 v1=7 v2=6] | Toujours plan | μ=0.25° σ=0.16°</title></circle>
+  <circle cx="58.8" cy="365.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/no-freeze_no-table - 1-3-4 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.21° σ=0.06°</title></circle>
+  <circle cx="55.8" cy="366.1" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/no-table - 0-3-4 [v0=5 v1=6 v2=7] | Toujours plan | μ=0.08° σ=0.05°</title></circle>
+  <circle cx="54.9" cy="367.6" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/no-table - 0-3-4 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.04° σ=0.01°</title></circle>
+  <circle cx="57.9" cy="365.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/no-table - 0-4-8 [v0=5 v1=6 v2=7] | Toujours plan | μ=0.17° σ=0.08°</title></circle>
+  <circle cx="56.8" cy="365.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/no-table - 0-4-8 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.12° σ=0.06°</title></circle>
+  <circle cx="59.5" cy="361.6" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/no-table - 1-3-4 [v0=5 v1=7 v2=6] | Toujours plan | μ=0.24° σ=0.17°</title></circle>
+  <circle cx="58.1" cy="366.1" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h3/no-table - 1-3-4 [v0=6 v1=6 v2=6] | Toujours plan | μ=0.18° σ=0.05°</title></circle>
+  <circle cx="56.1" cy="366.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57 - 0-5-6-11 [v0=5 v1=7 v2=7 v3=5] | Toujours plan | μ=0.09° σ=0.03°</title></circle>
+  <circle cx="55.6" cy="366.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57 - 0-5-6-11 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.07° σ=0.03°</title></circle>
+  <circle cx="55.8" cy="367.2" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57 - 0-5-6-11 [v0=7 v1=5 v2=5 v3=7] | Toujours plan | μ=0.08° σ=0.02°</title></circle>
+  <circle cx="60.4" cy="364.2" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57 - 0-6-11-17 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.28° σ=0.1°</title></circle>
+  <circle cx="61.8" cy="362.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57 - 0-6-12-17 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.34° σ=0.14°</title></circle>
+  <circle cx="58.4" cy="365.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57 - 0-6-12-18 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.19° σ=0.06°</title></circle>
+  <circle cx="58.4" cy="366.1" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57 - 1-5-6-11 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.19° σ=0.05°</title></circle>
+  <circle cx="63.9" cy="361.6" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57 - 1-5-6-12 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.43° σ=0.17°</title></circle>
+  <circle cx="55.8" cy="366.5" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze - 0-5-6-11 [v0=5 v1=7 v2=7 v3=5] | Toujours plan | μ=0.08° σ=0.04°</title></circle>
+  <circle cx="55.4" cy="367.2" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze - 0-5-6-11 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.06° σ=0.02°</title></circle>
+  <circle cx="55.6" cy="366.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze - 0-5-6-11 [v0=7 v1=5 v2=5 v3=7] | Toujours plan | μ=0.07° σ=0.03°</title></circle>
+  <circle cx="60.7" cy="363.8" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze - 0-6-11-17 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.29° σ=0.11°</title></circle>
+  <circle cx="60.4" cy="365.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze - 0-6-12-17 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.28° σ=0.08°</title></circle>
+  <circle cx="57.4" cy="364.6" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze - 0-6-12-18 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.15° σ=0.09°</title></circle>
+  <circle cx="59.3" cy="363.8" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze - 1-5-6-11 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.23° σ=0.11°</title></circle>
+  <circle cx="66.8" cy="361.6" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze - 1-5-6-12 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.56° σ=0.17°</title></circle>
+  <circle cx="56.5" cy="366.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 0-5-6-11 [v0=5 v1=5 v2=7 v3=7] | Toujours plan | μ=0.11° σ=0.03°</title></circle>
+  <circle cx="55.8" cy="366.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 0-5-6-11 [v0=5 v1=6 v2=7 v3=6] | Toujours plan | μ=0.08° σ=0.03°</title></circle>
+  <circle cx="56.5" cy="366.5" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 0-5-6-11 [v0=5 v1=7 v2=7 v3=5] | Toujours plan | μ=0.11° σ=0.04°</title></circle>
+  <circle cx="54.9" cy="367.2" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 0-5-6-11 [v0=6 v1=5 v2=7 v3=6] | Toujours plan | μ=0.04° σ=0.02°</title></circle>
+  <circle cx="55.6" cy="366.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 0-5-6-11 [v0=6 v1=5 v2=6 v3=7] | Toujours plan | μ=0.07° σ=0.03°</title></circle>
+  <circle cx="55.6" cy="367.2" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 0-5-6-11 [v0=7 v1=5 v2=5 v3=7] | Toujours plan | μ=0.07° σ=0.02°</title></circle>
+  <circle cx="55.4" cy="366.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 0-5-6-11 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.06° σ=0.03°</title></circle>
+  <circle cx="59.3" cy="364.6" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 0-6-11-17 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.23° σ=0.09°</title></circle>
+  <circle cx="115.7" cy="244.2" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 0-6-12-17 [v0=5 v1=7 v2=6 v3=6] | Toujours plan | μ=2.69° σ=3.27°</title></circle>
+  <circle cx="62.3" cy="365.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 0-6-12-17 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.36° σ=0.07°</title></circle>
+  <circle cx="60.2" cy="361.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 0-6-12-18 [v0=5 v1=7 v2=6 v3=6] | Toujours plan | μ=0.27° σ=0.16°</title></circle>
+  <circle cx="62.5" cy="361.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 0-6-12-18 [v0=5 v1=7 v2=7 v3=5] | Toujours plan | μ=0.37° σ=0.16°</title></circle>
+  <circle cx="58.6" cy="365.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 0-6-12-18 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.2° σ=0.07°</title></circle>
+  <circle cx="61.1" cy="362.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 1-5-6-11 [v0=5 v1=5 v2=7 v3=7] | Toujours plan | μ=0.31° σ=0.14°</title></circle>
+  <circle cx="62.7" cy="360.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 1-5-6-11 [v0=5 v1=6 v2=7 v3=6] | Toujours plan | μ=0.38° σ=0.21°</title></circle>
+  <circle cx="57.2" cy="365.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 1-5-6-11 [v0=5 v1=6 v2=6 v3=7] | Toujours plan | μ=0.14° σ=0.06°</title></circle>
+  <circle cx="58.8" cy="365.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 1-5-6-11 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.21° σ=0.08°</title></circle>
+  <circle cx="97.6" cy="255.2" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 1-5-6-11 [v0=6 v1=5 v2=7 v3=6] | Toujours plan | μ=1.9° σ=2.98°</title></circle>
+  <circle cx="66.6" cy="360.8" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 1-5-6-12 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.55° σ=0.19°</title></circle>
+  <circle cx="57.0" cy="366.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-table - 0-5-6-11 [v0=5 v1=5 v2=7 v3=7] | Toujours plan | μ=0.13° σ=0.03°</title></circle>
+  <circle cx="56.3" cy="366.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-table - 0-5-6-11 [v0=5 v1=6 v2=7 v3=6] | Toujours plan | μ=0.1° σ=0.03°</title></circle>
+  <circle cx="56.1" cy="366.1" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-table - 0-5-6-11 [v0=5 v1=7 v2=7 v3=5] | Toujours plan | μ=0.09° σ=0.05°</title></circle>
+  <circle cx="54.7" cy="367.6" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-table - 0-5-6-11 [v0=6 v1=5 v2=7 v3=6] | Toujours plan | μ=0.03° σ=0.01°</title></circle>
+  <circle cx="55.6" cy="366.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-table - 0-5-6-11 [v0=6 v1=5 v2=6 v3=7] | Toujours plan | μ=0.07° σ=0.03°</title></circle>
+  <circle cx="56.1" cy="366.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-table - 0-5-6-11 [v0=7 v1=5 v2=5 v3=7] | Toujours plan | μ=0.09° σ=0.03°</title></circle>
+  <circle cx="55.4" cy="367.2" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-table - 0-5-6-11 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.06° σ=0.02°</title></circle>
+  <circle cx="61.6" cy="362.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-table - 0-6-11-17 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.33° σ=0.15°</title></circle>
+  <circle cx="62.0" cy="361.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-table - 0-6-12-17 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.35° σ=0.16°</title></circle>
+  <circle cx="58.1" cy="364.6" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-table - 0-6-12-18 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.18° σ=0.09°</title></circle>
+  <circle cx="57.9" cy="365.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-table - 1-5-6-11 [v0=5 v1=6 v2=6 v3=7] | Toujours plan | μ=0.17° σ=0.08°</title></circle>
+  <circle cx="57.2" cy="365.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-table - 1-5-6-11 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.14° σ=0.07°</title></circle>
+  <circle cx="66.8" cy="359.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-table - 1-5-6-12 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.56° σ=0.22°</title></circle>
+  <circle cx="56.8" cy="365.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/default - 0-5-6-11 [v0=5 v1=7 v2=7 v3=5] | Toujours plan | μ=0.12° σ=0.06°</title></circle>
+  <circle cx="55.4" cy="367.2" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/default - 0-5-6-11 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.06° σ=0.02°</title></circle>
+  <circle cx="55.8" cy="366.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/default - 0-5-6-11 [v0=7 v1=5 v2=5 v3=7] | Toujours plan | μ=0.08° σ=0.03°</title></circle>
+  <circle cx="60.7" cy="363.5" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/default - 0-6-11-17 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.29° σ=0.12°</title></circle>
+  <circle cx="61.8" cy="363.5" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/default - 0-6-12-17 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.34° σ=0.12°</title></circle>
+  <circle cx="60.4" cy="360.8" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/default - 0-6-12-18 [v0=5 v1=6 v2=6 v3=7] | Toujours plan | μ=0.28° σ=0.19°</title></circle>
+  <circle cx="58.6" cy="365.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/default - 0-6-12-18 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.2° σ=0.08°</title></circle>
+  <circle cx="57.7" cy="365.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/default - 1-5-6-11 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.16° σ=0.06°</title></circle>
+  <circle cx="65.0" cy="360.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/default - 1-5-6-12 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.48° σ=0.21°</title></circle>
+  <circle cx="56.3" cy="366.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze - 0-5-6-11 [v0=5 v1=7 v2=7 v3=5] | Toujours plan | μ=0.1° σ=0.03°</title></circle>
+  <circle cx="55.6" cy="367.2" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze - 0-5-6-11 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.07° σ=0.02°</title></circle>
+  <circle cx="56.3" cy="366.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze - 0-5-6-11 [v0=7 v1=5 v2=5 v3=7] | Toujours plan | μ=0.1° σ=0.03°</title></circle>
+  <circle cx="60.4" cy="364.2" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze - 0-6-11-17 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.28° σ=0.1°</title></circle>
+  <circle cx="63.4" cy="363.8" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze - 0-6-12-17 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.41° σ=0.11°</title></circle>
+  <circle cx="59.5" cy="365.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze - 0-6-12-18 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.24° σ=0.08°</title></circle>
+  <circle cx="58.1" cy="364.6" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze - 1-5-6-11 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.18° σ=0.09°</title></circle>
+  <circle cx="65.2" cy="363.5" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze - 1-5-6-12 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.49° σ=0.12°</title></circle>
+  <circle cx="56.5" cy="366.5" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-5-6-11 [v0=5 v1=5 v2=7 v3=7] | Toujours plan | μ=0.11° σ=0.04°</title></circle>
+  <circle cx="56.5" cy="366.5" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-5-6-11 [v0=5 v1=6 v2=7 v3=6] | Toujours plan | μ=0.11° σ=0.04°</title></circle>
+  <circle cx="57.2" cy="365.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-5-6-11 [v0=5 v1=6 v2=6 v3=7] | Toujours plan | μ=0.14° σ=0.06°</title></circle>
+  <circle cx="55.8" cy="366.5" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-5-6-11 [v0=5 v1=7 v2=7 v3=5] | Toujours plan | μ=0.08° σ=0.04°</title></circle>
+  <circle cx="54.9" cy="367.2" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-5-6-11 [v0=6 v1=5 v2=7 v3=6] | Toujours plan | μ=0.04° σ=0.02°</title></circle>
+  <circle cx="55.8" cy="366.5" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-5-6-11 [v0=7 v1=5 v2=5 v3=7] | Toujours plan | μ=0.08° σ=0.04°</title></circle>
+  <circle cx="55.6" cy="366.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-5-6-11 [v0=6 v1=5 v2=6 v3=7] | Toujours plan | μ=0.07° σ=0.03°</title></circle>
+  <circle cx="54.9" cy="367.2" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-5-6-11 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.04° σ=0.02°</title></circle>
+  <circle cx="63.9" cy="355.5" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-6-11-17 [v0=5 v1=6 v2=7 v3=6] | Toujours plan | μ=0.43° σ=0.33°</title></circle>
+  <circle cx="60.4" cy="362.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-6-11-17 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.28° σ=0.14°</title></circle>
+  <circle cx="61.8" cy="363.8" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-6-12-17 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.34° σ=0.11°</title></circle>
+  <circle cx="62.5" cy="360.4" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-6-12-18 [v0=5 v1=6 v2=6 v3=7] | Toujours plan | μ=0.37° σ=0.2°</title></circle>
+  <circle cx="60.4" cy="363.1" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-6-12-18 [v0=5 v1=6 v2=7 v3=6] | Toujours plan | μ=0.28° σ=0.13°</title></circle>
+  <circle cx="63.6" cy="362.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-6-12-18 [v0=5 v1=7 v2=7 v3=5] | Toujours plan | μ=0.42° σ=0.14°</title></circle>
+  <circle cx="59.7" cy="363.5" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-6-12-18 [v0=5 v1=7 v2=6 v3=6] | Toujours plan | μ=0.25° σ=0.12°</title></circle>
+  <circle cx="57.4" cy="365.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-6-12-18 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.15° σ=0.07°</title></circle>
+  <circle cx="61.1" cy="365.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 1-5-6-11 [v0=5 v1=5 v2=7 v3=7] | Toujours plan | μ=0.31° σ=0.08°</title></circle>
+  <circle cx="61.1" cy="363.5" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 1-5-6-11 [v0=5 v1=6 v2=7 v3=6] | Toujours plan | μ=0.31° σ=0.12°</title></circle>
+  <circle cx="57.9" cy="366.1" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 1-5-6-11 [v0=5 v1=6 v2=6 v3=7] | Toujours plan | μ=0.17° σ=0.05°</title></circle>
+  <circle cx="60.4" cy="365.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 1-5-6-11 [v0=5 v1=7 v2=6 v3=6] | Toujours plan | μ=0.28° σ=0.08°</title></circle>
+  <circle cx="95.7" cy="252.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 1-5-6-11 [v0=6 v1=5 v2=7 v3=6] | Toujours plan | μ=1.82° σ=3.04°</title></circle>
+  <circle cx="62.9" cy="360.4" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 1-5-6-11 [v0=6 v1=5 v2=6 v3=7] | Toujours plan | μ=0.39° σ=0.2°</title></circle>
+  <circle cx="60.0" cy="365.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 1-5-6-11 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.26° σ=0.07°</title></circle>
+  <circle cx="65.7" cy="357.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 1-5-6-12 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.51° σ=0.29°</title></circle>
+  <circle cx="56.8" cy="366.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-table - 0-5-6-11 [v0=5 v1=5 v2=7 v3=7] | Toujours plan | μ=0.12° σ=0.03°</title></circle>
+  <circle cx="56.1" cy="366.5" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-table - 0-5-6-11 [v0=5 v1=6 v2=7 v3=6] | Toujours plan | μ=0.09° σ=0.04°</title></circle>
+  <circle cx="57.0" cy="366.1" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-table - 0-5-6-11 [v0=5 v1=6 v2=6 v3=7] | Toujours plan | μ=0.13° σ=0.05°</title></circle>
+  <circle cx="56.5" cy="366.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-table - 0-5-6-11 [v0=5 v1=7 v2=7 v3=5] | Toujours plan | μ=0.11° σ=0.03°</title></circle>
+  <circle cx="55.1" cy="367.2" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-table - 0-5-6-11 [v0=6 v1=5 v2=7 v3=6] | Toujours plan | μ=0.05° σ=0.02°</title></circle>
+  <circle cx="55.8" cy="367.2" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-table - 0-5-6-11 [v0=7 v1=5 v2=5 v3=7] | Toujours plan | μ=0.08° σ=0.02°</title></circle>
+  <circle cx="55.6" cy="366.9" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-table - 0-5-6-11 [v0=6 v1=5 v2=6 v3=7] | Toujours plan | μ=0.07° σ=0.03°</title></circle>
+  <circle cx="55.4" cy="367.2" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-table - 0-5-6-11 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.06° σ=0.02°</title></circle>
+  <circle cx="60.4" cy="362.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-table - 0-6-11-17 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.28° σ=0.14°</title></circle>
+  <circle cx="61.6" cy="362.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-table - 0-6-12-17 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.33° σ=0.14°</title></circle>
+  <circle cx="61.1" cy="364.2" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-table - 0-6-12-18 [v0=5 v1=6 v2=6 v3=7] | Toujours plan | μ=0.31° σ=0.1°</title></circle>
+  <circle cx="59.3" cy="364.2" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-table - 0-6-12-18 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.23° σ=0.1°</title></circle>
+  <circle cx="57.0" cy="366.1" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-table - 1-5-6-11 [v0=5 v1=6 v2=6 v3=7] | Toujours plan | μ=0.13° σ=0.05°</title></circle>
+  <circle cx="60.7" cy="364.6" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-table - 1-5-6-11 [v0=5 v1=7 v2=6 v3=6] | Toujours plan | μ=0.29° σ=0.09°</title></circle>
+  <circle cx="61.3" cy="360.4" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-table - 1-5-6-11 [v0=6 v1=5 v2=6 v3=7] | Toujours plan | μ=0.32° σ=0.2°</title></circle>
+  <circle cx="57.9" cy="365.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-table - 1-5-6-11 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.17° σ=0.08°</title></circle>
+  <circle cx="66.2" cy="357.4" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-table - 1-5-6-12 [v0=6 v1=6 v2=6 v3=6] | Toujours plan | μ=0.53° σ=0.28°</title></circle>
+  <circle cx="505.4" cy="363.8" r="4" fill="#cf222e" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 1-5-6-12 [v0=5 v1=6 v2=7 v3=6] | Toujours non-plan | μ=19.68° σ=0.11°</title></circle>
+  <circle cx="351.7" cy="361.6" r="4" fill="#cf222e" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-6-11-17 [v0=5 v1=6 v2=6 v3=7] | Toujours non-plan | μ=12.98° σ=0.17°</title></circle>
+  <circle cx="537.3" cy="362.3" r="4" fill="#cf222e" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-6-12-17 [v0=5 v1=6 v2=7 v3=6] | Toujours non-plan | μ=21.07° σ=0.15°</title></circle>
+  <circle cx="463.2" cy="357.0" r="4" fill="#cf222e" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-6-12-17 [v0=5 v1=7 v2=7 v3=5] | Toujours non-plan | μ=17.84° σ=0.29°</title></circle>
+  <circle cx="601.3" cy="224.1" r="4" fill="#cf222e" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 1-5-6-12 [v0=5 v1=5 v2=7 v3=7] | Toujours non-plan | μ=23.86° σ=3.8°</title></circle>
+  <circle cx="505.9" cy="363.1" r="4" fill="#cf222e" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 1-5-6-12 [v0=5 v1=6 v2=7 v3=6] | Toujours non-plan | μ=19.7° σ=0.13°</title></circle>
+  <circle cx="260.7" cy="201.0" r="4" fill="#c72d0f" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 0-6-11-17 [v0=5 v1=7 v2=6 v3=6] | Majorit. non-plan | μ=9.01° σ=4.41°</title></circle>
+  <circle cx="393.9" cy="184.7" r="4" fill="#c72d0f" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-table - 0-6-12-17 [v0=5 v1=6 v2=6 v3=7] | Majorit. non-plan | μ=14.82° σ=4.84°</title></circle>
+  <circle cx="168.7" cy="201.4" r="4" fill="#6a737d" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-6-12-17 [v0=5 v1=7 v2=6 v3=6] | Ambigu | μ=5.0° σ=4.4°</title></circle>
+  <circle cx="448.3" cy="155.2" r="4" fill="#e66f00" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 0-6-11-17 [v0=5 v1=7 v2=7 v3=5] | Instable | μ=17.19° σ=5.62°</title></circle>
+  <circle cx="425.3" cy="174.9" r="4" fill="#e66f00" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/adj-57_no-freeze_no-table - 0-6-12-17 [v0=5 v1=7 v2=7 v3=5] | Instable | μ=16.19° σ=5.1°</title></circle>
+  <circle cx="207.0" cy="128.3" r="4" fill="#e66f00" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/default - 0-6-11-17 [v0=5 v1=6 v2=6 v3=7] | Instable | μ=6.67° σ=6.33°</title></circle>
+  <circle cx="286.8" cy="68.9" r="4" fill="#e66f00" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/default - 0-6-12-17 [v0=5 v1=6 v2=6 v3=7] | Instable | μ=10.15° σ=7.9°</title></circle>
+  <circle cx="263.9" cy="92.0" r="4" fill="#e66f00" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/default - 1-5-6-12 [v0=5 v1=6 v2=6 v3=7] | Instable | μ=9.15° σ=7.29°</title></circle>
+  <circle cx="446.0" cy="155.2" r="4" fill="#e66f00" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-6-11-17 [v0=5 v1=7 v2=7 v3=5] | Instable | μ=17.09° σ=5.62°</title></circle>
+  <circle cx="165.9" cy="172.6" r="4" fill="#e66f00" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-6-11-17 [v0=5 v1=7 v2=6 v3=6] | Instable | μ=4.88° σ=5.16°</title></circle>
+  <circle cx="321.4" cy="90.1" r="4" fill="#e66f00" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 0-6-12-17 [v0=5 v1=6 v2=6 v3=7] | Instable | μ=11.66° σ=7.34°</title></circle>
+  <circle cx="173.3" cy="150.3" r="4" fill="#e66f00" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 1-5-6-11 [v0=5 v1=7 v2=7 v3=5] | Instable | μ=5.2° σ=5.75°</title></circle>
+  <circle cx="297.6" cy="113.2" r="4" fill="#e66f00" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-freeze_no-table - 1-5-6-12 [v0=5 v1=6 v2=6 v3=7] | Instable | μ=10.62° σ=6.73°</title></circle>
+  <circle cx="295.1" cy="176.8" r="4" fill="#e66f00" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-table - 0-6-11-17 [v0=5 v1=6 v2=6 v3=7] | Instable | μ=10.51° σ=5.05°</title></circle>
+  <circle cx="330.6" cy="143.8" r="4" fill="#e66f00" stroke="#fff" stroke-width="1" opacity="0.85">
+    <title>h4/no-table - 1-5-6-12 [v0=5 v1=6 v2=6 v3=7] | Instable | μ=12.06° σ=5.92°</title></circle>
+</svg>
+    <p style="font-size:0.82em;color:var(--text-muted);margin:8px 0 0;">
+      Chaque point = 1 solution. Couleur = classification. La ligne verticale jaune
+      marque le seuil de planarite 10&deg;. Survolez un point pour voir les details.
+    </p>
+  </div>
+</div>
+
+<h3>Par taille de benzenoide</h3>
+<table class="results stability-table">
+  <thead>
+    <tr>
+      <th>h</th><th>Total</th>
+      <th>&#x1F7E2; Toujours pl.</th>
+      <th>&#x1F7E1; Majorit. pl.</th>
+      <th>&#x1F7E0; Instable</th>
+      <th>&#x1F534; Majorit. non-pl.</th>
+      <th>&#x26AB; Toujours non-pl.</th>
+      <th>&#x26AA; Ambigu</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>h3</strong></td><td>38</td><td style="color:#1a7f37;font-weight:600" title="Toujours plan">🟢 38</td><td class="na">0</td><td class="na">0</td><td class="na">0</td><td class="na">0</td><td class="na">0</td></tr>
+    <tr><td><strong>h4</strong></td><td>127</td><td style="color:#1a7f37;font-weight:600" title="Toujours plan">🟢 106</td><td class="na">0</td><td style="color:#e66f00;font-weight:600" title="Instable">🟠 12</td><td style="color:#c72d0f;font-weight:600" title="Majorit. non-plan">🔴 2</td><td style="color:#cf222e;font-weight:600" title="Toujours non-plan">⚫ 6</td><td style="color:#6a737d;font-weight:600" title="Ambigu">⚪ 1</td></tr>
+    <tr><td><strong>h5</strong></td><td colspan="6" class="na">(pas de runs)</td></tr>
+  </tbody>
+</table>
+</section>
+
+
+<!-- ============================================================ -->
 <section id="observations">
-<h2><span class="section-num">4</span> Observations</h2>
+<h2><span class="section-num">5</span> Observations</h2>
 
 <div class="observation">
   <strong>Les originaux sont tous plans.</strong>
@@ -539,18 +979,18 @@ a { color: var(--accent); }
 
 <!-- ============================================================ -->
 <section id="details">
-<h2><span class="section-num">5</span> Resultats detailles</h2>
+<h2><span class="section-num">6</span> Resultats detailles</h2>
 <p>Cliquez sur une carte pour ouvrir le viewer interactif de chaque taille.</p>
 <div class="cards">
   <a href="../output/h3/view.html" target="_blank" class="card blue"><div class="value">h3</div><div class="label">3 molecules</div><div class="sub">5 pl. / 0 non pl.</div></a>
-  <a href="../output/h4/view.html" target="_blank" class="card blue"><div class="value">h4</div><div class="label">6 molecules</div><div class="sub">9 pl. / 3 non pl.</div></a>
+  <a href="../output/h4/view.html" target="_blank" class="card blue"><div class="value">h4</div><div class="label">6 molecules</div><div class="sub">10 pl. / 2 non pl.</div></a>
   <a href="../output/h5/view.html" target="_blank" class="card blue"><div class="value">h5</div><div class="label">16 molecules</div><div class="sub">27 pl. / 9 non pl.</div></a>
 </div>
 </section>
 
 <!-- ============================================================ -->
 <section id="commandes">
-<h2><span class="section-num">6</span> Commandes</h2>
+<h2><span class="section-num">7</span> Commandes</h2>
 
 <p>Toutes les commandes se lancent depuis le dossier <code>csp_solver/experiments/</code>.</p>
 

@@ -36,7 +36,17 @@ def main():
     test_py = Path(__file__).parent.parent / "test.py"
     output_base = Path(__file__).parent / "output"
     view_py = Path(__file__).parent / "view.py"
+    aggregate_py = Path(__file__).parent / "aggregate_runs.py"
     do_validate = "--validate" in extra_args
+
+    # Detecter n_runs
+    n_runs = 1
+    if "--n-runs" in extra_args:
+        idx = extra_args.index("--n-runs")
+        try:
+            n_runs = max(1, int(extra_args[idx + 1]))
+        except (ValueError, IndexError):
+            n_runs = 1
 
     if not dossier.is_dir():
         print(f"ERREUR : {dossier} n'est pas un dossier.")
@@ -53,6 +63,7 @@ def main():
 
     print(f"=== Batch main.py sur {dossier} ({len(graphs)} fichiers) ===")
     print(f"Config: {cfg}")
+    print(f"n_runs: {n_runs}")
     print(f"Options: {extra_args if extra_args else '(aucune)'}")
     print()
 
@@ -85,10 +96,15 @@ def main():
 
     # Generer les rapports si --validate
     if do_validate:
-        print(f"\n=== Generation du rapport ({cfg}) ===")
+        print(f"\n=== Generation du rapport ({cfg}, n_runs={n_runs}) ===")
         # 1. data.json pour cette config
-        subprocess.run([sys.executable, str(view_py), str(config_dir)])
-        # 2. view.html agrege au niveau hX
+        #    - n_runs=1 : view.py (structure plate, format simple)
+        #    - n_runs>1 : aggregate_runs.py (scan sous-dossiers, stats, classification)
+        if n_runs > 1:
+            subprocess.run([sys.executable, str(aggregate_py), str(config_dir)])
+        else:
+            subprocess.run([sys.executable, str(view_py), str(config_dir)])
+        # 2. view.html agrege au niveau hX (inchange)
         subprocess.run([sys.executable, str(view_py), str(h_dir), "--aggregate"])
 
 

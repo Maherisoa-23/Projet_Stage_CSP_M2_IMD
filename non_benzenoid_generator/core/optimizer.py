@@ -19,7 +19,8 @@ from typing import Tuple, List
 
 def optimize_xtb(input_xyz: str, output_xyz: str,
                  opt_level: str = "tight",
-                 perturb_z: float = 0.1) -> Tuple[bool, str]:
+                 perturb_z: float = 0.1,
+                 seed: int = None) -> Tuple[bool, str]:
     """
     Optimise une structure XYZ avec xTB (GFN2-xTB).
 
@@ -39,7 +40,8 @@ def optimize_xtb(input_xyz: str, output_xyz: str,
 
     # Creer une copie perturbee (ne pas modifier l'original)
     perturbed_path = work_dir / f"_perturbed_{input_path.name}"
-    _write_perturbed_xyz(str(input_path), str(perturbed_path), perturb_z)
+    rng = random.Random(seed) if seed is not None else None
+    _write_perturbed_xyz(str(input_path), str(perturbed_path), perturb_z, rng)
 
     cmd = [
         "xtb",
@@ -84,14 +86,19 @@ def optimize_xtb(input_xyz: str, output_xyz: str,
     return True, status
 
 
-def _write_perturbed_xyz(input_path: str, output_path: str, amplitude: float):
-    """Ecrit une copie du XYZ avec perturbations aleatoires en z."""
+def _write_perturbed_xyz(input_path: str, output_path: str, amplitude: float, rng=None):
+    """Ecrit une copie du XYZ avec perturbations aleatoires en z.
+
+    Si rng (random.Random) est fourni, il est utilise pour la reproductibilite.
+    Sinon, utilise le generateur global random (comportement historique).
+    """
     atoms = _read_atoms_from_xyz(input_path)
+    source = rng if rng is not None else random
     with open(output_path, 'w') as f:
         f.write(f"{len(atoms)}\n")
         f.write("perturbed for xTB optimization\n")
         for elem, x, y, z in atoms:
-            z_perturbed = z + random.uniform(-amplitude, amplitude)
+            z_perturbed = z + source.uniform(-amplitude, amplitude)
             f.write(f"{elem:<2s} {x:14.6f} {y:14.6f} {z_perturbed:14.6f}\n")
 
 

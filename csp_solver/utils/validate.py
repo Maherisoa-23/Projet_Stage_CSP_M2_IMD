@@ -26,7 +26,7 @@ compute_planarity = _plan_mod.compute_planarity
 is_planar = _plan_mod.is_planar
 
 
-def validate_xyz(xyz_path, opt_path=None, threshold=10.0, opt_level="tight"):
+def validate_xyz(xyz_path, opt_path=None, threshold=10.0, opt_level="tight", seed=None):
     """Optimise un XYZ avec xTB et teste la planarite.
 
     Args:
@@ -52,7 +52,7 @@ def validate_xyz(xyz_path, opt_path=None, threshold=10.0, opt_level="tight"):
 
     # Optimisation xTB
     success, msg = optimize_xtb(str(xyz_path), str(opt_path),
-                                opt_level=opt_level)
+                                opt_level=opt_level, seed=seed)
     if not success:
         result['message'] = f'Echec xTB: {msg}'
         return result

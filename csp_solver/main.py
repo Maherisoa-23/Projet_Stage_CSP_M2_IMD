@@ -29,6 +29,14 @@ if "--output-dir" in _own_argv:
     idx = _own_argv.index("--output-dir")
     if idx + 1 < len(_own_argv):
         output_dir = _own_argv[idx + 1]
+n_runs = 1
+if "--n-runs" in _own_argv:
+    idx = _own_argv.index("--n-runs")
+    if idx + 1 < len(_own_argv):
+        try:
+            n_runs = max(1, int(_own_argv[idx + 1]))
+        except ValueError:
+            n_runs = 1
 
 # Nettoyer sys.argv pour que pycsp3 ne les intercepte pas
 sys.argv = [_own_argv[0]]
@@ -122,7 +130,7 @@ def main():
         print()
         print("=== Validation xTB + planarite ===")
         from reconstruction import reconstruct_and_validate
-        reconstruct_and_validate(graph, solutions, output_dir=output_dir)
+        reconstruct_and_validate(graph, solutions, output_dir=output_dir, n_runs=n_runs)
 
 
 if __name__ == "__main__":

@@ -28,6 +28,38 @@ body { line-height: 1.5; }
 
 .container { max-width: 1200px; margin: 0 auto; padding: 0 24px 40px; }
 
+/* ---- Batch meta banner (affiche si batch_meta.json existe) ----
+   Info compacte sur le dernier batch_all : compte instances, solutions, duree. */
+.batch-meta {
+  max-width: 1200px;
+  margin: -10px auto 20px;
+  padding: 8px 16px;
+  background: var(--accent-subtle);
+  border: 1px solid #b6e3ff;
+  border-radius: var(--radius);
+  font-size: 0.8em;
+  color: var(--text);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+}
+.batch-meta .batch-meta-label {
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 0.88em;
+}
+.batch-meta .batch-meta-sep { color: var(--text-muted); }
+.batch-meta code {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+}
+
 /* ---- Config bar (boutons de selection de config) ---- */
 .config-bar {
   background: var(--surface);
@@ -312,6 +344,106 @@ td { padding: 8px 14px; border-top: 1px solid #f0f0f0; font-size: 0.88em; }
   background: var(--surface);
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
+}
+
+/* ==== Multi-runs : badges, dispersion bar, legende ==== */
+
+/* Badge classification (dans les detail rows) */
+.stab-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.75em;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+/* Bloc solution multi-runs (dans td colspan) :
+   flex row avec tous les elements alignes verticalement */
+.solution-multirun {
+  padding: 6px 14px 6px 48px !important;
+}
+.panel-table .solution-multirun {
+  padding: 4px 8px 4px 22px !important;
+}
+.solution-multirun {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+}
+.solution-multirun .sol-link {
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.88em;
+  min-width: 110px;
+}
+.solution-multirun .sol-link:hover { text-decoration: underline; }
+.solution-multirun .stab-pct {
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.82em;
+  color: var(--text-muted);
+  min-width: 36px;
+  text-align: center;
+}
+.solution-multirun .stab-stats {
+  font-size: 0.82em;
+  color: var(--text);
+  min-width: 130px;
+}
+.solution-multirun .stab-stats small { color: var(--text-muted); }
+.solution-multirun .stab-range {
+  font-size: 0.75em;
+  color: var(--text-muted);
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  min-width: 90px;
+}
+.dispersion-bar {
+  width: 180px;
+  height: 22px;
+  flex-shrink: 0;
+  background: #f0f0f0;
+  border-radius: 3px;
+  overflow: visible;
+}
+
+/* Legende pliable */
+.stability-legend {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+  font-size: 0.85em;
+}
+.stability-legend summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent);
+  user-select: none;
+  padding: 2px 0;
+}
+.stability-legend summary:hover { color: #054da7; }
+.stability-legend[open] summary { margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.stability-legend .legend-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 4px 16px;
+  padding-top: 4px;
+}
+.stability-legend .legend-grid > div { font-size: 0.88em; color: var(--text); }
+.stability-legend .legend-emoji { display: inline-block; width: 20px; text-align: center; }
+.stability-legend .legend-criteria { color: var(--text-muted); font-size: 0.88em; }
+.stability-legend .legend-help {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  font-size: 0.8em;
+  color: var(--text-muted);
+  line-height: 1.5;
 }
 
 /* ---- Responsive ---- */

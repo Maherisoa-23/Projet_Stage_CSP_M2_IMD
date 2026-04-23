@@ -184,6 +184,209 @@ def generate_donut_svg(planar, non_planar):
 
 
 # =====================================================================
+#  Multi-runs : stabilite (agregats + SVG pie + scatter)
+# =====================================================================
+
+# Invariant partage avec templates/view.js (CLASSIFICATIONS).
+# Ordre = ordre d'affichage dans le camembert et la legende.
+CLASSIFICATIONS = [
+    ("always_planar",     "Toujours plan",     "\U0001F7E2", "#1a7f37"),
+    ("mostly_planar",     "Majorit. plan",     "\U0001F7E1", "#6fb347"),
+    ("unstable",          "Instable",          "\U0001F7E0", "#e66f00"),
+    ("mostly_non_planar", "Majorit. non-plan", "\U0001F534", "#c72d0f"),
+    ("always_non_planar", "Toujours non-plan", "\u26AB",     "#cf222e"),
+    ("ambiguous",         "Ambigu",            "\u26AA",     "#6a737d"),
+]
+CLASS_INFO = {key: (label, emoji, color) for key, label, emoji, color in CLASSIFICATIONS}
+
+
+def _walk_solutions_with_runs(all_data):
+    """Generator : yield (h_name, cfg_name, mol_name, sol) pour chaque
+    solution ayant un bloc 'runs'. On relit explicitement tous les data.json
+    de chaque config (pas seulement celui retenu par load_all_data) pour
+    avoir la vue complete multi-configs."""
+    experiments_dir = Path(__file__).parent
+    output_dir = experiments_dir / "output"
+    for data_file in sorted(output_dir.glob("*/*/data.json")):
+        cfg_name = data_file.parent.name
+        h_name = data_file.parent.parent.name
+        try:
+            with open(data_file, "r", encoding="utf-8") as f:
+                d = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            continue
+        for mol_name, mol in d.get("molecules", {}).items():
+            for sol in mol.get("solutions", []):
+                if sol.get("runs"):
+                    yield h_name, cfg_name, mol_name, sol
+
+
+def _compute_stability(all_data):
+    """Agrege les donnees multi-runs : counts globaux/h, points pour scatter.
+    Retourne None si aucune solution n'a de bloc runs."""
+    counts_global = {key: 0 for key, *_ in CLASSIFICATIONS}
+    counts_per_h = {}   # {h_name: {class_key: count}}
+    points = []         # [(angle_mean, angle_std, classification, h, cfg, mol)]
+    has_any = False
+
+    for h_name, cfg_name, mol_name, sol in _walk_solutions_with_runs(all_data):
+        has_any = True
+        runs = sol["runs"]
+        c = runs.get("classification", "ambiguous")
+        if c not in counts_global:
+            c = "ambiguous"
+        counts_global[c] += 1
+        counts_per_h.setdefault(h_name, {key: 0 for key, *_ in CLASSIFICATIONS})
+        counts_per_h[h_name][c] += 1
+        points.append({
+            "mean": runs.get("angle_mean", 0.0),
+            "std":  runs.get("angle_std", 0.0),
+            "class": c,
+            "h": h_name, "cfg": cfg_name, "mol": mol_name,
+            "sizes": sol.get("sizes", ""),
+        })
+
+    if not has_any:
+        return None
+    return {
+        "counts_global": counts_global,
+        "counts_per_h": counts_per_h,
+        "points": points,
+        "total": sum(counts_global.values()),
+    }
+
+
+def generate_pie_svg(counts_by_class):
+    """SVG camembert : proportions des classes de stabilite.
+    Les parts sont tracees comme des arcs <path> pour controler l'ordre et
+    les couleurs (contrairement a stroke-dasharray du donut a 2 couleurs)."""
+    total = sum(counts_by_class.values())
+    if total == 0:
+        return ""
+
+    w, h_ = 240, 240
+    cx, cy, r = w / 2, h_ / 2, 95
+    lines = [
+        f'<svg viewBox="0 0 {w} {h_}" xmlns="http://www.w3.org/2000/svg"',
+        f'  style="width:100%;max-width:{w}px;font-family:Segoe UI,system-ui,sans-serif;">',
+    ]
+
+    # Cas special : une seule classe avec 100% -> full circle (sinon arc se boucle mal)
+    non_zero = [(key, counts_by_class[key]) for key, *_ in CLASSIFICATIONS if counts_by_class.get(key, 0) > 0]
+    if len(non_zero) == 1:
+        only_key, only_count = non_zero[0]
+        color = CLASS_INFO[only_key][2]
+        lines.append(f'  <circle cx="{cx}" cy="{cy}" r="{r}" fill="{color}">')
+        lines.append(f'    <title>{CLASS_INFO[only_key][0]} : {only_count} ({100}%)</title></circle>')
+    else:
+        angle = -math.pi / 2  # demarre en haut
+        for key, count in non_zero:
+            frac = count / total
+            sweep = frac * 2 * math.pi
+            end = angle + sweep
+            x1 = cx + r * math.cos(angle)
+            y1 = cy + r * math.sin(angle)
+            x2 = cx + r * math.cos(end)
+            y2 = cy + r * math.sin(end)
+            large = 1 if sweep > math.pi else 0
+            color = CLASS_INFO[key][2]
+            label = CLASS_INFO[key][0]
+            pct = round(100 * frac)
+            path = (f'M {cx} {cy} L {x1:.2f} {y1:.2f} '
+                    f'A {r} {r} 0 {large} 1 {x2:.2f} {y2:.2f} Z')
+            lines.append(f'  <path d="{path}" fill="{color}" stroke="#fff" stroke-width="2">')
+            lines.append(f'    <title>{label} : {count} ({pct}%)</title></path>')
+            angle = end
+
+    lines.append(f'  <text x="{cx}" y="{cy - 4}" text-anchor="middle" '
+                 f'font-size="22" font-weight="700" fill="#fff" '
+                 f'style="paint-order:stroke;stroke:#24292e;stroke-width:4px">{total}</text>')
+    lines.append(f'  <text x="{cx}" y="{cy + 14}" text-anchor="middle" '
+                 f'font-size="11" fill="#fff" '
+                 f'style="paint-order:stroke;stroke:#24292e;stroke-width:3px">solutions</text>')
+    lines.append('</svg>')
+    return "\n".join(lines)
+
+
+def generate_scatter_svg(points):
+    """SVG scatter plot : X = angle_mean, Y = angle_std, couleur = classe.
+    Ligne verticale pointillee au seuil x=10 deg. Tooltip <title> par point."""
+    if not points:
+        return ""
+
+    w, h_ = 680, 420
+    mt, mr, mb, ml = 24, 24, 52, 54
+    cw = w - ml - mr
+    ch = h_ - mt - mb
+
+    # Limites : X cappe a 40 deg, Y cappe a 10 deg (pertinent pour xTB planarite).
+    max_mean = max(p["mean"] for p in points)
+    max_std = max(p["std"] for p in points)
+    xmax = max(12, min(40, max_mean * 1.1))
+    ymax = max(2, min(10, max_std * 1.15))
+    if ymax < 0.5:
+        ymax = 0.5
+
+    def to_x(v): return ml + min(1.0, v / xmax) * cw
+    def to_y(v): return mt + ch - min(1.0, v / ymax) * ch
+
+    lines = [
+        f'<svg viewBox="0 0 {w} {h_}" xmlns="http://www.w3.org/2000/svg"',
+        f'  style="width:100%;max-width:{w}px;font-family:Segoe UI,system-ui,sans-serif;">',
+    ]
+
+    # Grille + labels
+    n_grid_x = 5
+    for i in range(n_grid_x + 1):
+        xv = xmax * i / n_grid_x
+        x = ml + (i / n_grid_x) * cw
+        lines.append(f'  <line x1="{x:.1f}" y1="{mt}" x2="{x:.1f}" y2="{mt+ch}" '
+                     f'stroke="#e1e4e8" stroke-dasharray="3,3"/>')
+        lines.append(f'  <text x="{x:.1f}" y="{mt+ch+16}" text-anchor="middle" '
+                     f'font-size="11" fill="#6a737d">{xv:.0f}</text>')
+    n_grid_y = 4
+    for i in range(n_grid_y + 1):
+        yv = ymax * i / n_grid_y
+        y = mt + ch - (i / n_grid_y) * ch
+        lines.append(f'  <line x1="{ml}" y1="{y:.1f}" x2="{ml+cw}" y2="{y:.1f}" '
+                     f'stroke="#e1e4e8" stroke-dasharray="3,3"/>')
+        lines.append(f'  <text x="{ml-6}" y="{y+4:.1f}" text-anchor="end" '
+                     f'font-size="11" fill="#6a737d">{yv:.1f}</text>')
+
+    # Ligne du seuil 10 deg (x)
+    if 10 <= xmax:
+        tx = to_x(10)
+        lines.append(f'  <line x1="{tx:.1f}" y1="{mt}" x2="{tx:.1f}" y2="{mt+ch}" '
+                     f'stroke="#bf8700" stroke-width="1.2" stroke-dasharray="4,3"/>')
+        lines.append(f'  <text x="{tx:.1f}" y="{mt-6}" text-anchor="middle" '
+                     f'font-size="10" fill="#bf8700" font-weight="600">seuil 10&#176;</text>')
+
+    # Axis labels
+    lines.append(f'  <text x="{ml+cw/2:.1f}" y="{h_-8}" text-anchor="middle" '
+                 f'font-size="12" font-weight="600" fill="#24292e">Angle moyen &#956; (&#176;)</text>')
+    lines.append(f'  <text x="14" y="{mt+ch/2:.1f}" text-anchor="middle" '
+                 f'font-size="12" font-weight="600" fill="#24292e" '
+                 f'transform="rotate(-90 14 {mt+ch/2:.1f})">Ecart-type &#963; (&#176;)</text>')
+
+    # Points (ordre : classes stables d'abord, puis instables par-dessus pour visibilite)
+    order = ["always_planar", "mostly_planar", "always_non_planar", "mostly_non_planar", "ambiguous", "unstable"]
+    sorted_pts = sorted(points, key=lambda p: order.index(p["class"]) if p["class"] in order else 99)
+    for p in sorted_pts:
+        color = CLASS_INFO.get(p["class"], CLASS_INFO["ambiguous"])[2]
+        x = to_x(p["mean"])
+        y = to_y(p["std"])
+        # Tooltip via <title>. sizes peut contenir '<' ? Non (format v0=5 v1=7...), safe.
+        label_class = CLASS_INFO.get(p["class"], CLASS_INFO["ambiguous"])[0]
+        tooltip = f'{p["h"]}/{p["cfg"]} - {p["mol"]} [{p["sizes"]}] | {label_class} | μ={p["mean"]}° σ={p["std"]}°'
+        lines.append(f'  <circle cx="{x:.1f}" cy="{y:.1f}" r="4" fill="{color}" '
+                     f'stroke="#fff" stroke-width="1" opacity="0.85">')
+        lines.append(f'    <title>{tooltip}</title></circle>')
+
+    lines.append('</svg>')
+    return "\n".join(lines)
+
+
+# =====================================================================
 #  Rendu HTML (helpers dedies + assemblage final)
 # =====================================================================
 
@@ -312,12 +515,115 @@ def _render_batch_rows(h_list):
     )
 
 
+def _render_stability_cards(stab):
+    """Cards de stabilite (une par classe)."""
+    cards = []
+    for key, label, emoji, color in CLASSIFICATIONS:
+        n = stab["counts_global"].get(key, 0)
+        cards.append(
+            f'  <div class="card" style="border-top-color:{color}">'
+            f'<div class="value" style="color:{color}">{n}</div>'
+            f'<div class="label">{emoji} {label}</div></div>'
+        )
+    return "\n".join(cards)
+
+
+def _render_stability_per_h_rows(stab, h_list):
+    """Lignes du tableau par h dans la section stabilite."""
+    rows = []
+    for h_name in h_list:
+        counts = stab["counts_per_h"].get(h_name, {})
+        total = sum(counts.values())
+        if total == 0:
+            rows.append(
+                f'    <tr><td><strong>{h_name}</strong></td>'
+                f'<td colspan="6" class="na">(pas de runs)</td></tr>'
+            )
+            continue
+        cells = []
+        for key, label, emoji, color in CLASSIFICATIONS:
+            n = counts.get(key, 0)
+            if n == 0:
+                cells.append(f'<td class="na">0</td>')
+            else:
+                cells.append(f'<td style="color:{color};font-weight:600" '
+                             f'title="{label}">{emoji} {n}</td>')
+        rows.append(
+            f'    <tr><td><strong>{h_name}</strong></td>'
+            f'<td>{total}</td>'
+            + "".join(cells)
+            + '</tr>'
+        )
+    return "\n".join(rows)
+
+
+def _render_stability_section(stab, h_list):
+    """Assemble le HTML de la section stabilite complete (cards + pie +
+    scatter + tableau per-h). Retourne chaine vide si stab est None."""
+    if stab is None:
+        return ""
+    return f"""
+<section id="stabilite">
+<h2><span class="section-num">4</span> Stabilite inter-runs</h2>
+
+<p>
+  xTB est un optimiseur local avec perturbation aleatoire initiale : un meme calcul
+  peut donner des angles differents entre runs. Pour caracteriser la <b>stabilite</b>
+  d'une solution, on la lance N fois et on classe selon la distribution des angles.
+</p>
+
+<div class="cards">
+{_render_stability_cards(stab)}
+</div>
+
+<div class="charts-row">
+  <div class="chart-box">
+    <h3 style="margin-top:0">Distribution des classes</h3>
+    {generate_pie_svg(stab['counts_global'])}
+  </div>
+  <div class="chart-box wide">
+    <h3 style="margin-top:0">Angle moyen &times; ecart-type par solution</h3>
+    {generate_scatter_svg(stab['points'])}
+    <p style="font-size:0.82em;color:var(--text-muted);margin:8px 0 0;">
+      Chaque point = 1 solution. Couleur = classification. La ligne verticale jaune
+      marque le seuil de planarite 10&deg;. Survolez un point pour voir les details.
+    </p>
+  </div>
+</div>
+
+<h3>Par taille de benzenoide</h3>
+<table class="results stability-table">
+  <thead>
+    <tr>
+      <th>h</th><th>Total</th>
+      <th>&#x1F7E2; Toujours pl.</th>
+      <th>&#x1F7E1; Majorit. pl.</th>
+      <th>&#x1F7E0; Instable</th>
+      <th>&#x1F534; Majorit. non-pl.</th>
+      <th>&#x26AB; Toujours non-pl.</th>
+      <th>&#x26AA; Ambigu</th>
+    </tr>
+  </thead>
+  <tbody>
+{_render_stability_per_h_rows(stab, h_list)}
+  </tbody>
+</table>
+</section>
+"""
+
+
 def generate_html(all_data):
     """Assemble le rapport : charge le template, substitue les placeholders."""
     data = _compute_per_h(all_data)
     per_h = data["per_h"]
     totals = data["totals"]
     h_list = data["h_list"]
+
+    # Stabilite multi-runs (None si aucun data.json n'a de bloc runs)
+    stab = _compute_stability(all_data)
+    stability_section = _render_stability_section(stab, h_list)
+    # Lien nav : ajoute seulement si section presente
+    stability_nav = '  <a href="#stabilite">Stabilite</a>' if stab else ""
 
     template = Template(_load_template("report.html"))
     return template.safe_substitute(
@@ -333,6 +639,8 @@ def generate_html(all_data):
         rows_html=_render_rows_html(per_h, all_data),
         cards_html=_render_h_cards(per_h),
         batch_rows=_render_batch_rows(h_list),
+        stability_section=stability_section,
+        stability_nav=stability_nav,
         common_css=_load_template("common.css"),
         report_css=_load_template("report.css"),
         report_js=_load_template("report.js"),
