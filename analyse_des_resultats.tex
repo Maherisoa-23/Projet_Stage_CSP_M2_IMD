@@ -74,9 +74,9 @@ xTB est un optimiseur \emph{local}~: il descend dans le puits d'énergie le plus
 
 \paragraph{Classifications appliquées (seuils fixes).}
 \begin{itemize}[leftmargin=2em,itemsep=0.2em]
-  \item \texttt{always\_planar}~: 100\% des runs plans \emph{et} $\mu_{\text{angle}} < 5\degree$.
-  \item \texttt{mostly\_planar}~: $\geq 70\%$ plans \emph{et} $\sigma < 3\degree$.
-  \item \texttt{unstable}~: 30--70\% plans \emph{ou} $\sigma > 5\degree$.
+  \item \texttt{always\_planar}~: 100\% des runs plans \emph{et} $\mu_{\text{angle}} < 5^\circ$.
+  \item \texttt{mostly\_planar}~: $\geq 70\%$ plans \emph{et} $\sigma < 3^\circ$.
+  \item \texttt{unstable}~: 30--70\% plans \emph{ou} $\sigma > 5^\circ$.
   \item \texttt{mostly\_non\_planar}~: $< 30\%$ plans (mais $> 0\%$).
   \item \texttt{always\_non\_planar}~: 0\% plans.
   \item \texttt{ambiguous}~: autres cas.
@@ -89,7 +89,7 @@ xTB est un optimiseur \emph{local}~: il descend dans le puits d'énergie le plus
 \begin{encadre}{Résultat global}
 \textbf{Le pipeline est strictement cohérent. Aucune incohérence détectée.}
 \begin{itemize}[leftmargin=2em,itemsep=0.2em]
-  \item \textbf{200 originaux tout-hexagonal} (= benzénoïdes BenzAI sans substitution)~: 100\% planar, angle maximum 0,87\degree.
+  \item \textbf{200 originaux tout-hexagonal} (= benzénoïdes BenzAI sans substitution)~: 100\% planar, angle maximum 0,87$^\circ$.
   \item \textbf{200 solutions CSP tout-6} (= le solveur reproduit la signature originale)~: 100\% \texttt{always\_planar}.
 \end{itemize}
 \end{encadre}
@@ -103,29 +103,29 @@ Si une solution tout-6 produite par CSP n'était pas \texttt{always\_planar}, ce
 
 \subsection{Ce qu'on observe}
 
-Sur les 91 solutions classées \texttt{unstable} (h4 + h5), \textbf{toutes les 91 ($100\%$)} présentent une distribution des 10~angles ACP en \emph{deux groupes nettement séparés}, avec un écart vide entre les deux d'au moins 5\degree. Aucune n'est uniformément distribuée autour du seuil de 10\degree.
+Sur les 91 solutions classées \texttt{unstable} (h4 + h5), \textbf{toutes les 91 ($100\%$)} présentent une distribution des 10~angles ACP en \emph{deux groupes nettement séparés}, avec un écart vide entre les deux d'au moins 5$^\circ$. Aucune n'est uniformément distribuée autour du seuil de 10$^\circ$.
 
 \textbf{Exemples concrets} (les 10 angles d'une solution unstable)~:
 \begin{itemize}[leftmargin=2em,itemsep=0.2em]
   \item \texttt{h5 / 2-5-6-7-13 [v0=6 v1=7 v2=7 v3=5 v4=5]}~:
-    angles plans = $\{0{,}1\degree;\ 0{,}3\degree\}$,
-    angles courbés = $\{30{,}8\degree;\ 30{,}8\degree;\ 30{,}8\degree;\ 30{,}9\degree;\ 30{,}9\degree;\ 30{,}9\degree;\ 31{,}2\degree;\ 31{,}5\degree\}$.
-    Écart vide = 30,5\degree.
+    angles plans = $\{0{,}1^\circ;\ 0{,}3^\circ\}$,
+    angles courbés = $\{30{,}8^\circ;\ 30{,}8^\circ;\ 30{,}8^\circ;\ 30{,}9^\circ;\ 30{,}9^\circ;\ 30{,}9^\circ;\ 31{,}2^\circ;\ 31{,}5^\circ\}$.
+    Écart vide = 30,5$^\circ$.
   \item \texttt{h5 / 2-5-6-7-8 [v0=7 v1=7 v2=6 v3=5 v4=5]}~:
-    8 runs aux alentours de 0,3\degree, 2 runs aux alentours de 29\degree.
-    Écart vide = 28\degree.
+    8 runs aux alentours de 0,3$^\circ$, 2 runs aux alentours de 29$^\circ$.
+    Écart vide = 28$^\circ$.
 \end{itemize}
 
 \subsection{Comment l'interpréter (ce qui change)}
 
 \paragraph{Ce qu'on aurait pu croire.}
-Le mot \og unstable\fg{} évoque naturellement un cas \og incertain numériquement \fg{}~: on imaginerait une molécule dont l'angle \emph{vrai} est aux alentours de 10\degree, et le bruit numérique fait qu'un run la classe à 9\degree (plan) et un autre à 11\degree (non-plan). Augmenter $N$ corrigerait alors l'imprécision.
+Le mot \og unstable\fg{} évoque naturellement un cas \og incertain numériquement \fg{}~: on imaginerait une molécule dont l'angle \emph{vrai} est aux alentours de 10$^\circ$, et le bruit numérique fait qu'un run la classe à 9$^\circ$ (plan) et un autre à 11$^\circ$ (non-plan). Augmenter $N$ corrigerait alors l'imprécision.
 
 \paragraph{Ce qui se passe en réalité.}
 La bimodalité massive révèle un phénomène \emph{physique}, pas numérique~: la molécule possède \textbf{deux conformères stables distincts}~:
 \begin{itemize}[leftmargin=2em,itemsep=0.2em]
-  \item un conformère \emph{plat} (angle ACP $\approx 0\degree$), à plus basse énergie ou comparable, qu'on attend pour les molécules aromatiques planes,
-  \item un conformère \emph{plié / courbé} (angle ACP $\approx 25\text{--}35\degree$), où la molécule s'organise en une surface non plane (en forme de bol ou de selle), correspondant à un autre minimum local.
+  \item un conformère \emph{plat} (angle ACP $\approx 0^\circ$), à plus basse énergie ou comparable, qu'on attend pour les molécules aromatiques planes,
+  \item un conformère \emph{plié / courbé} (angle ACP $\approx 25\text{--}35^\circ$), où la molécule s'organise en une surface non plane (en forme de bol ou de selle), correspondant à un autre minimum local.
 \end{itemize}
 Selon la perturbation $z$ initiale, l'optimiseur xTB descend dans l'un ou l'autre puits.
 
@@ -136,7 +136,7 @@ xTB minimise l'énergie de la molécule. La fonction d'énergie a en général p
 \subsection{Conséquences pratiques}
 
 \begin{enumerate}[leftmargin=2em,itemsep=0.3em]
-  \item L'\texttt{angle\_mean} ($\approx 10\text{--}15\degree$) d'une solution \texttt{unstable} \textbf{n'a aucun sens physique}. Ce n'est ni l'angle d'un conformère, ni une moyenne sur un mouvement~: c'est la moyenne arithmétique de deux populations qui vivent dans des bassins différents. Ne pas l'interpréter comme \og la molécule est à 12\degree en moyenne \fg{}.
+  \item L'\texttt{angle\_mean} ($\approx 10\text{--}15^\circ$) d'une solution \texttt{unstable} \textbf{n'a aucun sens physique}. Ce n'est ni l'angle d'un conformère, ni une moyenne sur un mouvement~: c'est la moyenne arithmétique de deux populations qui vivent dans des bassins différents. Ne pas l'interpréter comme \og la molécule est à 12$^\circ$ en moyenne \fg{}.
   \item Augmenter $N$ de 10 à 30 \textbf{ne stabilisera pas la classification}. Plus de runs donnera juste une meilleure estimation de \emph{la probabilité d'atterrir dans le bassin plan} (par exemple, on saurait que c'est 20\% plutôt que 30\%), mais le caractère bimodal lui-même ne disparaîtra pas. La classification \texttt{unstable} restera \texttt{unstable}.
   \item La classe \texttt{unstable} mériterait d'être renommée \textbf{\og bistable \fg{}} et reportée comme deux nombres distincts~: l'angle moyen du bassin plan, et l'angle moyen du bassin courbé. Ces deux conformères sont des objets chimiques réels et distincts qui devraient être étudiés séparément.
 \end{enumerate}
@@ -193,11 +193,11 @@ Cela veut dire que le $94\%$ est un \textbf{plancher}~: la vraie corrélation sy
 
 Les angles intérieurs des polygones réguliers sont~:
 \[
-\alpha(n) = \frac{(n-2) \cdot 180\degree}{n}
+\alpha(n) = \frac{(n-2) \cdot 180$^\circ$}{n}
 \quad \Rightarrow \quad
-\alpha(5) = 108\degree, \quad \alpha(6) = 120\degree, \quad \alpha(7) \approx 128{,}57\degree.
+\alpha(5) = 108$^\circ$, \quad \alpha(6) = 120$^\circ$, \quad \alpha(7) \approx 128{,}57$^\circ$.
 \]
-Par rapport à un hexagone régulier (référence d'un pavage plan parfait), un pentagone introduit un \emph{défaut angulaire} de $-12\degree$ par sommet (la chaîne se concave, comme dans un fullerène), et un heptagone introduit un défaut de $+8{,}57\degree$ par sommet (la chaîne s'évase, comme dans un graphène hyperbolique).
+Par rapport à un hexagone régulier (référence d'un pavage plan parfait), un pentagone introduit un \emph{défaut angulaire} de $-12^\circ$ par sommet (la chaîne se concave, comme dans un fullerène), et un heptagone introduit un défaut de $+8{,}57^\circ$ par sommet (la chaîne s'évase, comme dans un graphène hyperbolique).
 
 Quand un pentagone et un heptagone sont \textbf{adjacents} (ils partagent une arête), leurs défauts agissent localement et de signe opposé~: la déformation de l'un se compense partiellement par celle de l'autre sur l'arête commune. Le motif chimique de référence est l'\textbf{azulène} (pentagone fusionné à un heptagone)~: 10 atomes de carbone, structure plate stable, parfaitement aromatique.
 
@@ -233,7 +233,7 @@ Que des 5--5 ou 7--7 adjacents (sans 5--7)         &   7 & \textbf{0\%}  & 43\% 
 Passer d'une configuration où chaque pentagone a un heptagone voisin (et vice-versa) à une configuration où au moins un défaut est isolé fait chuter la planarité de \textbf{73\% à 41\%} en h5, et de \textbf{84\% à 48\%} en h4. C'est un effet \emph{énorme} (facteur ${\sim}1{,}8$), reproduit sur deux tailles indépendamment.
 
 \begin{hypothese}
-La planarité d'une molécule polycyclique substituée se construit \emph{localement}~: chaque paire 5--7 adjacente forme une sous-unité azulène-like dont les défauts angulaires se compensent à l'échelle d'une arête. Quand un pentagone est isolé (pas de 7 voisin pour le compenser), son défaut $-12\degree$ par sommet \emph{diffuse} sur les hexagones voisins et finit par plier la molécule hors-plan.
+La planarité d'une molécule polycyclique substituée se construit \emph{localement}~: chaque paire 5--7 adjacente forme une sous-unité azulène-like dont les défauts angulaires se compensent à l'échelle d'une arête. Quand un pentagone est isolé (pas de 7 voisin pour le compenser), son défaut $-12^\circ$ par sommet \emph{diffuse} sur les hexagones voisins et finit par plier la molécule hors-plan.
 \end{hypothese}
 
 \paragraph{Connexion avec le solveur CSP.}
@@ -434,8 +434,8 @@ La classification est \textbf{largement intrinsèque} au couple (molécule, sign
 
 Il faut distinguer deux types de \og cas limites \fg{}~:
 \begin{itemize}[leftmargin=2em,itemsep=0.3em]
-  \item \textbf{Bimodal} (= 91 solutions \texttt{unstable})~: deux groupes nets ($\sim 0\degree$ et $\sim 25\text{--}35\degree$). Ce ne sont \emph{pas} des borderline. $N=30$ ne change pas la classe, juste la probabilité estimée.
-  \item \textbf{Borderline} (= ${\sim}21$ solutions identifiées)~: les angles individuels sont \emph{tous} entre $7\degree$ et $13\degree$, autour du seuil de 10\degree. Pas de bimodalité, juste de la dispersion près du seuil. \textbf{C'est ici que $N=30$ aurait du sens}.
+  \item \textbf{Bimodal} (= 91 solutions \texttt{unstable})~: deux groupes nets ($\sim 0^\circ$ et $\sim 25\text{--}35^\circ$). Ce ne sont \emph{pas} des borderline. $N=30$ ne change pas la classe, juste la probabilité estimée.
+  \item \textbf{Borderline} (= ${\sim}21$ solutions identifiées)~: les angles individuels sont \emph{tous} entre $7^\circ$ et $13^\circ$, autour du seuil de 10$^\circ$. Pas de bimodalité, juste de la dispersion près du seuil. \textbf{C'est ici que $N=30$ aurait du sens}.
 \end{itemize}
 
 \subsection{Exemple borderline typique}
@@ -445,13 +445,13 @@ Il faut distinguer deux types de \og cas limites \fg{}~:
   \item Config \texttt{adj-57\_no-freeze\_no-table}~: angles $= [1{,}6;\ 1{,}4;\ 1{,}5;\ 9{,}4;\ 0{,}3;\ 1{,}3;\ 1{,}1;\ 0{,}3;\ 8{,}9;\ 1{,}0]$ $\Rightarrow$ classé \texttt{always\_planar}.
   \item Config \texttt{no-freeze\_no-table}~: angles $= [9{,}5;\ 9{,}9;\ 0{,}2;\ 8{,}8;\ 0{,}9;\ 0{,}9;\ 0{,}5;\ 9{,}2;\ 0{,}7;\ 9{,}6]$ $\Rightarrow$ classé \texttt{ambiguous}.
 \end{itemize}
-Ici on voit clairement que les angles \og non-plans \fg{} sont $\approx 9\degree$, juste sous le seuil~: pas de second bassin physique, juste une dispersion dont la queue chatouille le seuil. $N=30$ donnerait un classement stable.
+Ici on voit clairement que les angles \og non-plans \fg{} sont $\approx 9^\circ$, juste sous le seuil~: pas de second bassin physique, juste une dispersion dont la queue chatouille le seuil. $N=30$ donnerait un classement stable.
 
 \subsection{Liste prioritaire pour re-runs ciblés}
 
 \begin{enumerate}[leftmargin=2em,itemsep=0.3em]
-  \item \textbf{21 borderlines} ($\mu \in [7\degree, 13\degree]$ et \emph{non} \texttt{unstable})~: re-run $N=30$. Coût $= 630$ runs. Permet de trancher si vraiment près du seuil. \textbf{Priorité 1}.
-  \item \textbf{4 \texttt{always\_non\_planar} avec $\mu < 15\degree$}~: vérifier qu'ils ne sont pas en réalité bistables avec un bassin plan rare. \textbf{Priorité 2}.
+  \item \textbf{21 borderlines} ($\mu \in [7^\circ, 13^\circ]$ et \emph{non} \texttt{unstable})~: re-run $N=30$. Coût $= 630$ runs. Permet de trancher si vraiment près du seuil. \textbf{Priorité 1}.
+  \item \textbf{4 \texttt{always\_non\_planar} avec $\mu < 15^\circ$}~: vérifier qu'ils ne sont pas en réalité bistables avec un bassin plan rare. \textbf{Priorité 2}.
   \item \textbf{Multi-runs sur $\sim 20$ molécules h6} ciblées (10 compactes, 10 zigzags)~: tester l'hypothèse topologique sur un $h$ supérieur. \textbf{Priorité 3}.
 \end{enumerate}
 
@@ -477,7 +477,7 @@ Ici on voit clairement que les angles \og non-plans \fg{} sont $\approx 9\degree
   \item \textbf{Statistique faible sur h4} (6 molécules) pour les patterns topologiques.
   \item \textbf{Confusion possible} entre \og adjacence 5-7 \fg{} et \og topologie compacte \fg{}~: les molécules compactes ont plus de chance d'avoir des 5-7 adjacents par construction. Régression jointe nécessaire.
   \item \textbf{Le \og palindrome de signature \fg{}} est un proxy imparfait de la vraie symétrie géométrique (l'ordre des $v_i$ n'est pas canonisé).
-  \item \textbf{Le seuil $10\degree$} est cohérent avec la bimodalité globale (creux entre $1\degree$ et $28\degree$), mais arbitraire pour les ${\sim}20$ cas borderline. Un seuil empirique à $5\degree$ serait plus défendable mathématiquement.
+  \item \textbf{Le seuil $10^\circ$} est cohérent avec la bimodalité globale (creux entre $1^\circ$ et $28^\circ$), mais arbitraire pour les ${\sim}20$ cas borderline. Un seuil empirique à $5^\circ$ serait plus défendable mathématiquement.
   \item \textbf{Toutes les analyses sont sur h3, h4, h5} de BenzAI, donc des benzénoïdes plans simples. Extrapolation à des structures plus exotiques (radicaux, hétéroatomes) non testée.
 \end{enumerate}
 
