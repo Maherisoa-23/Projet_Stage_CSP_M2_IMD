@@ -84,13 +84,15 @@
   /* Compteur monotone pour ids de gradients SVG (eviter collisions). */
   var _svgCounter = 0;
 
-  /* ---- SVG barre de dispersion (adaptative) ----
-     xmax = max(12, angle_max * 1.1) garde toujours le seuil 10° visible.
-     Degrade fixe sur l'echelle absolue d'angle, pas sur la plage locale. */
+  /* ---- SVG barre de dispersion (echelle fixe commune 0-30 deg) ----
+     Echelle fixe : seuil 10° toujours au meme endroit visuellement (33.3%),
+     comparable d'une solution a l'autre. Les rares angles > 30° sont
+     signales par une fleche rouge au bord droit (debordement). */
   function renderDispersionBarSVG(runs) {
-    var W = 180, H = 22, padL = 2, padR = 2;
+    var W = 260, H = 22, padL = 2, padR = 2;
     var innerW = W - padL - padR;
-    var xmax = Math.max(12, runs.angle_max * 1.1);
+    var X_MAX_FIXED = 30;
+    var xmax = X_MAX_FIXED;
     var toX = function (a) { return padL + Math.max(0, Math.min(1, a / xmax)) * innerW; };
     var gid = 'dbg' + (++_svgCounter);
 
@@ -118,6 +120,11 @@
     /* Marqueur mu : cercle bleu avec contour blanc. */
     var mx = toX(runs.angle_mean);
     parts.push('<circle cx="' + mx.toFixed(1) + '" cy="11" r="3.2" fill="#0969da" stroke="#fff" stroke-width="1.1"/>');
+
+    /* Indicateur de debordement : fleche rouge au bord droit si une valeur > xmax. */
+    if (runs.angle_max > X_MAX_FIXED) {
+      parts.push('<text x="' + (W - padR - 8) + '" y="16" fill="#cf222e" font-size="14" font-weight="700">&#9654;</text>');
+    }
 
     parts.push('</svg>');
     return parts.join('');
