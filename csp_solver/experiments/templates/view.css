@@ -410,6 +410,168 @@ td { padding: 8px 14px; border-top: 1px solid #f0f0f0; font-size: 0.88em; }
   overflow: visible;
 }
 
+/* ==== CSP partition section ====
+   Repliable, contenant 2 SVG cote a cote (UpSet + per-config) et une legende. */
+.csp-partition {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+  font-size: 0.85em;
+}
+.csp-partition summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent);
+  user-select: none;
+  padding: 2px 0;
+}
+.csp-partition summary:hover { color: #054da7; }
+.csp-partition[open] summary {
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.csp-summary { font-size: 0.92em; margin-bottom: 12px; color: var(--text); }
+.csp-summary b { color: var(--accent); }
+.csp-charts-row {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.csp-chart-box {
+  background: var(--surface-alt);
+  border-radius: var(--radius);
+  padding: 12px;
+  flex: 1;
+  min-width: 320px;
+}
+.csp-chart-box.wide { flex: 2; min-width: 480px; }
+.csp-chart-box h4 {
+  font-size: 0.8em;
+  margin: 0 0 8px;
+  color: var(--text-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.csp-caption,
+.csp-caption-extra {
+  font-size: 0.78em;
+  color: var(--text-muted);
+  margin: 8px 0 0;
+  line-height: 1.4;
+}
+.csp-caption-extra { font-style: italic; }
+.csp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  font-size: 0.78em;
+  color: var(--text-muted);
+  align-items: center;
+}
+.csp-legend-item { display: inline-flex; align-items: center; gap: 4px; }
+.csp-legend-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.csp-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Liste d'intersections : 1 <details> par groupe + ses solutions */
+.csp-intr-scroll {
+  max-height: 480px;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-top: 4px;
+}
+.csp-intr-block {
+  margin-bottom: 6px;
+  background: var(--surface);
+  border-radius: 4px;
+  border-left: 4px solid var(--border);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+}
+.csp-intr-block summary {
+  cursor: pointer;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.86em;
+  user-select: none;
+  flex-wrap: wrap;
+}
+.csp-intr-block summary:hover { background: rgba(9, 105, 218, 0.05); }
+.csp-intr-block[open] summary { border-bottom: 1px solid var(--border); }
+.csp-intr-count {
+  font-size: 1.3em;
+  font-weight: 700;
+  min-width: 32px;
+  text-align: right;
+  flex-shrink: 0;
+}
+.csp-intr-label {
+  font-weight: 600;
+  color: var(--text);
+}
+.csp-intr-label code {
+  background: rgba(0, 0, 0, 0.05);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.92em;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+}
+.csp-intr-cfgs {
+  font-size: 0.82em;
+  color: var(--text-muted);
+  flex: 1;
+  word-break: break-word;
+}
+.csp-intr-cfgs code {
+  background: rgba(0, 0, 0, 0.04);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.95em;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+}
+.csp-intr-items {
+  list-style: none;
+  margin: 0;
+  padding: 6px 12px 10px 50px;
+}
+.csp-intr-items li {
+  font-size: 0.85em;
+  padding: 3px 0;
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+}
+.csp-item-mol {
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-weight: 600;
+  min-width: 110px;
+  color: var(--text);
+}
+.csp-item-sizes {
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.92em;
+  color: var(--text-muted);
+}
+
 /* Legende pliable */
 .stability-legend {
   background: var(--surface);

@@ -30,6 +30,13 @@ $config_buttons
 <div id="normalView">
   <div class="cards" id="cards"></div>
 
+  <!-- Couverture CSP : partition des solutions planaires entre configs.
+       Rempli par renderCSPPartitionSection() au chargement. Ferme par defaut. -->
+  <details class="csp-partition">
+    <summary>Couverture CSP : partition des solutions planaires entre les configurations</summary>
+    <div id="cspPartitionContent"></div>
+  </details>
+
   <div class="toolbar">
     <input type="text" class="search-input" id="searchInput"
            placeholder="Rechercher une molecule..." oninput="applyFilters()">

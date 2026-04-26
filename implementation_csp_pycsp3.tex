@@ -841,18 +841,362 @@ pas garanti pour les grandes structures.
 \end{remarque}
 
 % ============================================================
+\section{Validation multi-runs et classification de stabilité}
+% ============================================================
+
+\subsection{Motivation : non-déterminisme de xTB}
+
+L'optimisation xTB repose sur une descente de gradient. Combinée à la perturbation aléatoire
+$\pm 0.1$~\AA{} sur les coordonnées $z$ introduite plus haut, chaque exécution part d'un point
+initial légèrement différent et peut converger vers un minimum local distinct. Pour les solutions dont l'angle de non-planarité est proche du seuil 10°, le
+résultat d'un \textbf{run unique} n'est pas fiable : la même solution peut être marquée plane
+dans 60\% des runs et non plane dans les 40\% restants.
+
+Pour distinguer les vraies solutions plates des cas marginaux, le pipeline a été étendu pour
+exécuter chaque solution \textbf{N fois} et caractériser sa \textbf{stabilité} via la
+distribution des angles observés.
+
+\subsection{Drapeau \texttt{--n-runs N}}
+
+Le drapeau \texttt{--n-runs N} (par défaut 1) contrôle le nombre d'exécutions xTB par
+solution. Chaque run utilise une nouvelle perturbation aléatoire et est sauvegardé dans un
+sous-dossier dédié.
+
+Structure de sortie pour une solution donnée :
+
+\begin{lstlisting}[style=benzai]
+output/h4/default/0-5-6-11/solutions/sol_1_5_7_7_5/
+  source.xyz              # Coordonnees initiales (avant xTB)
+  run_01_opt.xyz          # Resultat optimise du run 1
+  run_02_opt.xyz
+  ...
+  run_10_opt.xyz
+\end{lstlisting}
+
+\subsection{Statistiques agrégées par solution}
+
+Le script \texttt{aggregate\_runs.py} (appelé automatiquement par \texttt{batch\_main.py}
+quand \texttt{N>1}) lit les N résultats et calcule pour chaque solution :
+
+\begin{itemize}
+  \item \texttt{n} : nombre de runs réussis (un run en échec ou en timeout n'est pas compté)
+  \item \texttt{planar\_count} / \texttt{non\_planar\_count} : compteurs binaires (seuil 10°)
+  \item \texttt{planar\_pct} : pourcentage de runs déclarés plans
+  \item \texttt{angle\_mean}, \texttt{angle\_std} : moyenne et écart-type des angles ACP
+  \item \texttt{angle\_min}, \texttt{angle\_max} : amplitudes observées
+  \item \texttt{angles[]} : tableau brut des N valeurs (utile pour rejouer une analyse sans
+    relancer xTB)
+  \item \texttt{classification} : étiquette qualitative (cf. ci-dessous)
+\end{itemize}
+
+\subsection{Classification de stabilité}
+
+Six classes qualitatives caractérisent la stabilité d'une solution face au non-déterminisme.
+Les seuils ont été choisis pour distinguer les cas \emph{vraiment} plats des cas
+\emph{borderline} :
+
+\begin{center}
+\begin{tabular}{lll}
+  \toprule
+  Classe & Critère & Interprétation \\
+  \midrule
+  \texttt{always\_planar}      & 100\% plans ET $\mu < 5°$           & vraiment plate \\
+  \texttt{mostly\_planar}      & $\geq 70$\% plans ET $\sigma < 3°$  & probablement plate \\
+  \texttt{unstable}            & 30--70\% plans OU $\sigma > 5°$     & cas limite (bistable) \\
+  \texttt{mostly\_non\_planar} & $< 30$\% plans                      & probablement non plate \\
+  \texttt{always\_non\_planar} & 0\% plans                           & vraiment non plate \\
+  \texttt{ambiguous}           & autres cas                          & non concluant \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\begin{remarque}
+  La classe \texttt{unstable} est la plus intéressante scientifiquement : ces solutions sont
+  géométriquement au seuil de la planarité. Soit la structure est réellement bistable (deux
+  minima locaux distincts, l'un plat et l'autre courbé), soit la dispersion est trop grande
+  et le seuil 10° n'est pas pertinent pour ce cas. Une analyse approfondie demanderait
+  $N \geq 30$ runs pour confirmer la classification.
+\end{remarque}
+
+\subsection{Justification statistique du choix de N}
+
+Pour détecter avec 95\% de confiance qu'une solution bascule au moins une fois sur 10\% des
+runs, il faut $N \geq \lceil \log(0.05) / \log(0.90) \rceil = 28$. Pour des bascules à 5\%,
+$N \geq 59$. En pratique :
+
+\begin{center}
+\begin{tabular}{lll}
+  \toprule
+  Phase & N recommandé & Objectif \\
+  \midrule
+  Screening rapide  & 10      & Identifier les candidats instables \\
+  Analyse standard  & 20--30  & Classification fiable \\
+  Analyse fine      & 50--100 & Caractérisation des cas limites \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+La stratégie adoptée est à \textbf{deux vitesses} : N=10 sur l'ensemble du dataset pour
+identifier les cas instables, puis N=30+ ciblé sur ceux-ci si nécessaire.
+
+% ============================================================
+\section{Infrastructure d'expérimentation systématique}
+% ============================================================
+
+L'exploration des contraintes CSP nécessite de tester systématiquement les combinaisons de
+flags sur un même dataset (par exemple tous les benzénoïdes \texttt{h3}, \texttt{h4},
+\texttt{h5} de BenzAI~DB). Trois scripts de batch ont été ajoutés dans
+\texttt{csp\_solver/experiments/}.
+
+\subsection{\texttt{batch\_main.py} — un dossier, une config}
+
+Lance \texttt{main.py --validate} sur tous les fichiers \texttt{.graph} d'un dossier avec un
+ensemble de drapeaux donnés. Génère le \texttt{data.json} de la config et régénère
+\texttt{view.html} agrégé en fin d'exécution.
+
+\begin{lstlisting}[style=benzai]
+python batch_main.py plane/benzdb/h4 --validate --n-runs 10
+python batch_main.py plane/benzdb/h4 --validate --no-freeze --n-runs 10
+\end{lstlisting}
+
+\subsection{\texttt{batch\_all.py} — les 8 configurations CSP}
+
+Lance \texttt{batch\_main.py} pour chacune des $2^3 = 8$ combinaisons des trois flags
+\texttt{--no-freeze}, \texttt{--no-table}, \texttt{--adj-57}.
+
+\begin{center}
+\begin{tabular}{ll}
+  \toprule
+  Configuration & Flags \\
+  \midrule
+  \texttt{default}                       & (aucun) \\
+  \texttt{no-freeze}                     & \texttt{--no-freeze} \\
+  \texttt{no-table}                      & \texttt{--no-table} \\
+  \texttt{adj-57}                        & \texttt{--adj-57} \\
+  \texttt{no-freeze\_no-table}           & \texttt{--no-freeze --no-table} \\
+  \texttt{adj-57\_no-freeze}             & \texttt{--adj-57 --no-freeze} \\
+  \texttt{adj-57\_no-table}              & \texttt{--adj-57 --no-table} \\
+  \texttt{adj-57\_no-freeze\_no-table}   & \texttt{--adj-57 --no-freeze --no-table} \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+À la fin de l'exécution, \texttt{batch\_all.py} écrit un fichier \texttt{batch\_meta.json}
+au niveau \texttt{output/hX/} qui contient les statistiques globales du dernier run (durée
+totale, nombre d'instances, nombre de solutions trouvées, options propagées). Le viewer
+agrégé affiche ce méta-fichier sous forme de bandeau si présent.
+
+\begin{lstlisting}[style=benzai]
+python batch_all.py plane/benzdb/h4 --n-runs 10
+\end{lstlisting}
+
+\subsection{Structure de sortie complète}
+
+\begin{lstlisting}[style=benzai]
+csp_solver/experiments/output/
+  hX/
+    batch_meta.json                 # Stats du dernier batch_all
+    view.html                       # Viewer agrege (genere par view.py)
+    config_name/
+      data.json                     # Resultats agreges de cette config
+      mol_name/
+        mol_name_original.xyz       # Original (avant xTB)
+        mol_name_original_opt.xyz   # Original (apres xTB)
+        solutions/
+          sol_K_X_Y_Z_.../          # 1 dossier par solution CSP
+            source.xyz
+            run_01_opt.xyz
+            ...
+            run_N_opt.xyz
+\end{lstlisting}
+
+\subsection{Format \texttt{data.json}}
+
+Chaque \texttt{data.json} suit un schéma stable consommé par tous les scripts de
+visualisation. Une solution typique :
+
+\begin{lstlisting}[style=benzai]
+{
+  "source": "h4", "config": "default",
+  "generated": "2026-04-23T15:30:00",
+  "threshold_deg": 10.0, "n_runs": 10,
+  "molecules": {
+    "0-5-6-11": {
+      "name": "0-5-6-11",
+      "original": { "planar": true, "angle_deg": 0.07, "rmsd": ..., "height": ... },
+      "solutions": [
+        {
+          "sizes": "v0=5 v1=7 v2=7 v3=5",
+          "file": "sol_1_5_7_7_5/run_10_opt.xyz",
+          "planar": true, "angle_deg": 0.15,    /* dernier run, retrocompat */
+          "runs": {                              /* multi-runs (optionnel) */
+            "n": 10, "planar_count": 9, "non_planar_count": 1,
+            "planar_pct": 90, "angle_mean": 4.2, "angle_std": 1.8,
+            "angle_min": 0.8, "angle_max": 18.1,
+            "angles": [0.8, 1.1, ...],
+            "classification": "mostly_planar"
+          }
+        }
+      ]
+    }
+  }
+}
+\end{lstlisting}
+
+\begin{remarque}
+  Le bloc \texttt{runs} est \textbf{additif} : si absent (cas single-run), l'affichage
+  retombe sur les champs classiques \texttt{planar} / \texttt{angle\_deg}. Cela garantit la
+  rétrocompatibilité avec les anciens \texttt{data.json} et permet de mélanger dans le même
+  rapport des tailles testées en single-run et en multi-runs.
+\end{remarque}
+
+% ============================================================
+\section{Visualisation et reporting interactif}
+% ============================================================
+
+L'analyse manuelle des \texttt{data.json} étant fastidieuse, trois scripts produisent des
+pages HTML statiques (autonomes, ouvrables en \texttt{file://} dans Chrome) qui permettent
+d'explorer les résultats interactivement sans serveur web ni dépendance externe.
+
+\subsection{\texttt{view.py} — viewer par taille}
+
+Deux modes :
+\begin{itemize}
+  \item \textbf{Mode config} : \texttt{python view.py output/hX/config\_name} scanne le
+    dossier et produit le \texttt{data.json} de cette config.
+  \item \textbf{Mode agrégé} : \texttt{python view.py output/hX -{}-aggregate} consomme tous
+    les \texttt{data.json} des sous-dossiers et produit \texttt{output/hX/view.html}
+    embarquant les 8 configs (aucun \texttt{fetch}, aucune dépendance CDN).
+\end{itemize}
+
+Le viewer agrégé propose :
+\begin{itemize}
+  \item \textbf{Sélection de config} en haut (8 boutons), avec mode \textbf{comparaison}
+    multi-sélection (panneaux côte-à-côte avec diff-highlight des molécules dont la
+    classification diffère entre configs).
+  \item \textbf{Cards de stats} : Molécules / Originaux plans / Solutions CSP / Solutions
+    stables planes / Instables / Stables non planes (basculées selon présence du bloc
+    \texttt{runs}).
+  \item \textbf{Toolbar} : recherche par nom, filtres (Originaux, Solutions, Stabilité),
+    expand all / collapse all.
+  \item \textbf{Légende stabilité} repliable, expliquant les 6 classes et leurs critères.
+  \item \textbf{Tableau des molécules} cliquables-dépliables. Pour chaque solution
+    multi-runs : badge classification (couleur), \texttt{planar\_count/n}, $\mu \pm \sigma$,
+    \textbf{barre de dispersion SVG} (échelle fixe 0--30°, ligne pointillée au seuil 10°,
+    ticks pour chaque run individuel, marqueur $\mu$), valeurs \texttt{min--max}.
+  \item \textbf{Section ``Couverture CSP''} repliable : analyse de la partition des solutions
+    planaires entre les 8 configs (cf. ci-dessous).
+  \item \textbf{Bandeau \texttt{batch\_meta}} : si \texttt{output/hX/batch\_meta.json}
+    existe, affiche en haut les stats du dernier run \texttt{batch\_all} (durée, nombre
+    d'instances, options).
+\end{itemize}
+
+\subsection{Section ``Couverture CSP''}
+
+Permet de répondre à la question : \emph{quelles solutions chaque config trouve, lesquelles
+sont communes, lesquelles sont uniques à un sous-ensemble} ? Deux visualisations côte-à-côte :
+
+\begin{itemize}
+  \item \textbf{Répartition par config (toutes solutions)} : un bar chart horizontal, une
+    ligne par config, segmenté par classe de stabilité (mêmes couleurs que les badges).
+    Permet de voir d'un coup d'\oe{}il quelle config trouve combien de solutions et leur
+    profil qualité.
+  \item \textbf{Liste d'intersections} (filtrée aux solutions \texttt{always\_planar} +
+    \texttt{mostly\_planar}) : 1 section dépliable par sous-ensemble de configs, triée du
+    plus universel (toutes les 8 configs) au plus unique (1 seule config). Cliquer dévoile
+    la liste des couples \texttt{(molécule, sizes)} de cette intersection.
+\end{itemize}
+
+Identité d'une solution : couple \texttt{(mol\_name, sizes)}, indépendant de la config qui
+l'a trouvée. Une solution est dite \emph{universelle} si elle apparaît dans les 8 configs,
+\emph{unique} si elle n'apparaît que dans une seule.
+
+\subsection{\texttt{update\_report.py} — rapport global}
+
+Génère \texttt{csp\_solver/experiments/report/index.html}, un rapport unique couvrant toutes
+les tailles \texttt{hX} testées. Contenu :
+
+\begin{itemize}
+  \item Navigation sticky avec \texttt{IntersectionObserver} pour le suivi de section active.
+  \item Sections numérotées : Introduction, Méthodologie (pipeline + xTB + ACP), Résultats,
+    Stabilité inter-runs, Observations, Détails, Commandes.
+  \item \textbf{Charts SVG} générés en Python pur (pas de dépendance D3/Plotly) :
+    \begin{itemize}
+      \item Bar chart empilé : solutions planes vs non-planes par taille
+      \item Donut chart : pourcentage global de solutions planes
+      \item Pie chart : répartition des classes de stabilité
+      \item Scatter plot $\mu \times \sigma$ : 1 point par solution, couleur par classe,
+        tooltips avec $h$/config/molécule, ligne verticale au seuil 10°
+    \end{itemize}
+  \item \textbf{Tableau résultats par h} : nombre de molécules, solutions, planes, non
+    planes, \% plan (avec barre de progression colorée), originaux plans.
+  \item \textbf{Tableau stabilité par h} : 6 colonnes (1 par classe), affiché seulement si
+    au moins une donnée multi-runs est disponible.
+  \item Lignes dépliables : cliquer une ligne du tableau résultats déplie une mini-table par
+    molécule.
+\end{itemize}
+
+\subsection{\texttt{bundle.py} — archive portable}
+
+Crée \texttt{experiments\_bundle.zip}, archive autonome contenant :
+\begin{itemize}
+  \item \texttt{report/index.html} (rapport global)
+  \item \texttt{output/hX/view.html} (viewer par taille)
+  \item Les fichiers \texttt{*\_opt.xyz} référencés par les liens HTML (anciens single-run et
+    nouveaux multi-runs, captés par 3 patrons de glob distincts)
+  \item \texttt{README.txt} avec instructions d'ouverture
+\end{itemize}
+
+L'archive est destinée à être envoyée à un collaborateur. Le destinataire l'extrait et ouvre
+\texttt{report/index.html} dans Chrome — toutes les visualisations fonctionnent en
+\texttt{file://}, sans serveur ni installation.
+
+\subsection{Architecture des templates}
+
+Les templates HTML/CSS/JS sont externalisés dans \texttt{templates/} pour bénéficier de la
+coloration syntaxique de l'IDE et permettre l'édition propre. La substitution est faite côté
+Python avec \texttt{string.Template} (syntaxe \texttt{\$variable}).
+
+\begin{lstlisting}[style=benzai]
+csp_solver/experiments/templates/
+  common.css        # Palette + classes partagees (cards, planar/non-planar)
+  view.html         # Template du viewer (substitution $h_name, $configs_json, ...)
+  view.css          # Styles specifiques au viewer
+  view.js           # Logique JS du viewer (IIFE avec etat prive,
+                    # fonctions onclick exposees sur window pour le HTML inline)
+  report.html       # Template du rapport global
+  report.css        # Styles specifiques au rapport
+  report.js         # Smooth scroll + IntersectionObserver
+\end{lstlisting}
+
+\textbf{Décisions architecturales} :
+\begin{itemize}
+  \item Le HTML est statique : toutes les données sont injectées au moment de la
+    génération via \texttt{<script>window.\_\_DATA\_\_ = \{\ldots\};</script>}. Aucun fetch,
+    aucune dépendance CDN, aucun build step.
+  \item Le calcul interactif (filtres, tri, partition CSP, classification) est intégralement
+    fait \textbf{côté JS} (à l'exception des charts du rapport global, générés en Python).
+    Cela évite d'élargir le payload \texttt{data.json}.
+  \item Les helpers SVG côté Python (\texttt{generate\_bar\_chart\_svg},
+    \texttt{generate\_donut\_svg}, \texttt{generate\_pie\_svg},
+    \texttt{generate\_scatter\_svg}) sont des fonctions pures retournant une chaîne
+    \texttt{<svg>...</svg>}, faciles à tester et à réutiliser.
+\end{itemize}
+
+% ============================================================
 \section{Architecture du code}
 % ============================================================
 
 \begin{lstlisting}[style=benzai]
 csp_solver/
-  main.py                    # Point d'entree, orchestration
+  main.py                    # Point d'entree CSP, orchestration
+  test.py                    # Test sur l'original (toutes tailles a 6)
   utils/
     parser.py                # Lecture Benzai (.graph) -> graphe dual
     table.py                 # Chargement table voisinage (JSON, 1209 entrees)
     preprocessing.py         # Domaines, filtrage tables, automorphismes
     model.py                 # Modele PyCSP3 + appel ACE
-    validate.py              # xTB + planarite
+    validate.py              # xTB + planarite (single-run et multi-runs)
   reconstruction/
     topology.py              # Phase A : modifications topologiques
     placement.py             # Phase B : placement geometrique BFS
@@ -862,6 +1206,18 @@ csp_solver/
     table_voisinage.json     # Table T(5)=92, T(6)=412, T(7)=699
     first.graph              # Test : 3 hexagones lineaires
     second.graph             # Test : 16 hexagones
+  experiments/
+    batch_main.py            # Lance main.py sur un dossier .graph (1 config)
+    batch_all.py             # Lance batch_main.py pour les 8 combinaisons
+    batch_test.py            # Test rapide sur les originaux
+    aggregate_runs.py        # Agrege les runs multi-N en stats + classification
+    view.py                  # Generation des output/hX/view.html
+    update_report.py         # Generation du rapport global
+    bundle.py                # Creation de l'archive portable .zip
+    templates/               # HTML/CSS/JS externalises (cf. section 9)
+    plane/benzdb/            # Datasets BenzAI DB d'entree (h3, h4, h5, ...)
+    output/                  # Resultats des batchs (cf. section 8)
+    report/index.html        # Rapport global genere
 \end{lstlisting}
 
 \textbf{Flux de données :}
@@ -883,25 +1239,38 @@ csp_solver/
   Drapeau & Effet \\
   \midrule
   \texttt{--no-freeze} & Désactive C2 ($b(v) \geq 2$). Les hexagones avec arêtes libres
-    séparées deviennent libres (domaine $\{6, 7\}$). \\
+    séparées deviennent libres (domaine $\{5, 6, 7\}$). \\
   \texttt{--no-table} & Désactive C3 (table de voisinage). Seules C1 et C4 restreignent
     les solutions. \\
   \texttt{--adj-57} & Active C5 (adjacence 5--7). Chaque 5 doit avoir un voisin 7 et
     inversement. \\
   \texttt{--validate} & Reconstruit chaque solution en 3D, optimise avec xTB, et teste
     la planarité. \\
+  \texttt{--n-runs N} & Lance \texttt{N} optimisations xTB par solution (N=1 par défaut,
+    N=10 recommandé pour la classification de stabilité). Active automatiquement
+    l'agrégation via \texttt{aggregate\_runs.py}. \\
   \texttt{--count} & Affiche seulement le nombre de solutions. \\
   \bottomrule
 \end{tabular}
 \end{center}
 
 \begin{lstlisting}[style=benzai]
+# Solveur seul
 python main.py data/fichier.graph                          # Defaut (C1+C2+C3+C4)
 python main.py data/fichier.graph --no-freeze              # Sans C2 (b>=2)
 python main.py data/fichier.graph --no-table               # Sans C3 (table)
 python main.py data/fichier.graph --adj-57                 # Avec C5 (adj 5-7)
-python main.py data/fichier.graph --no-freeze --adj-57     # Combinaison
 python main.py data/fichier.graph --validate               # + reconstruction + xTB
+python main.py data/fichier.graph --validate --n-runs 10   # multi-runs (stabilite)
+
+# Batch sur un dossier (depuis csp_solver/experiments/)
+python batch_main.py plane/benzdb/h4 --validate --n-runs 10
+python batch_all.py  plane/benzdb/h4 --n-runs 10           # les 8 configs
+
+# Generation des rapports HTML
+python view.py output/h4 --aggregate                       # viewer h4
+python update_report.py                                    # rapport global
+python bundle.py                                           # archive .zip portable
 \end{lstlisting}
 
 % ============================================================

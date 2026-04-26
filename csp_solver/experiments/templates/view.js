@@ -158,6 +158,266 @@
     return null;
   }
 
+  /* ==== Partition CSP : couverture des solutions entre configs ==== */
+
+  /* Critere d'inclusion : on ne compte que les solutions vraiment plates.
+     - Multi-runs : classe always_planar ou mostly_planar.
+     - Single-run (h5 par ex.) : booleen sol.planar. */
+  function isPlanarSolution(sol) {
+    if (sol.runs && sol.runs.classification) {
+      var c = sol.runs.classification;
+      return c === 'always_planar' || c === 'mostly_planar';
+    }
+    return !!sol.planar;
+  }
+
+  /* Calcule la partition des solutions planes entre les configs CSP.
+     Identite d'une solution : (mol_name, sizes). Pure, pas d'effet de bord. */
+  function computeCSPPartition(allConfigs) {
+    var configNames = Object.keys(allConfigs).sort();
+    var nConfigs = configNames.length;
+
+    /* solConfigs : { "molName|sizes" -> { configName: true, ... } } */
+    var solConfigs = {};
+    configNames.forEach(function (cfgName) {
+      var mols = allConfigs[cfgName].molecules;
+      Object.keys(mols).forEach(function (molName) {
+        mols[molName].solutions.forEach(function (sol) {
+          if (!isPlanarSolution(sol)) return;
+          var key = molName + '|' + (sol.sizes || sol.file);
+          if (!solConfigs[key]) solConfigs[key] = {};
+          solConfigs[key][cfgName] = true;
+        });
+      });
+    });
+
+    /* Regrouper par signature (set de configs ordonnees, separees par ',').
+       solutions = liste complete des cles "mol|sizes" pour cette intersection. */
+    var groups = {};
+    Object.keys(solConfigs).forEach(function (key) {
+      var configs = Object.keys(solConfigs[key]).sort();
+      var sig = configs.join(',');
+      if (!groups[sig]) groups[sig] = { configs: configs, count: 0, solutions: [] };
+      groups[sig].count++;
+      groups[sig].solutions.push(key);
+    });
+
+    /* Tri par count desc -- l'UpSet montre les plus grosses intersections d'abord. */
+    var intersections = Object.keys(groups).map(function (sig) { return groups[sig]; });
+    intersections.sort(function (a, b) { return b.count - a.count; });
+
+    /* Per-config : total + breakdown par sharing degree (combien de solutions
+       trouvees a la fois par cette config et N-1 autres). */
+    var perConfig = {};
+    configNames.forEach(function (cfgName) {
+      perConfig[cfgName] = { total: 0, byDegree: {} };
+      for (var d = 1; d <= nConfigs; d++) perConfig[cfgName].byDegree[d] = 0;
+    });
+    intersections.forEach(function (intr) {
+      var d = intr.configs.length;
+      intr.configs.forEach(function (cfgName) {
+        perConfig[cfgName].total += intr.count;
+        perConfig[cfgName].byDegree[d] += intr.count;
+      });
+    });
+
+    return {
+      configNames: configNames,
+      nConfigs: nConfigs,
+      totalUnique: Object.keys(solConfigs).length,
+      intersections: intersections,
+      perConfig: perConfig,
+    };
+  }
+
+  /* Donne la cle de classification d'une solution. Multi-runs : champ
+     direct. Single-run (h5 sans bloc 'runs') : map planar/non-planar vers
+     always_planar/always_non_planar (simplification visuelle). */
+  function _classificationKeyForSolution(sol) {
+    if (sol.runs && sol.runs.classification && CLASSIFICATIONS[sol.runs.classification]) {
+      return sol.runs.classification;
+    }
+    return sol.planar ? 'always_planar' : 'always_non_planar';
+  }
+
+  /* Pour chaque config, repartition de TOUTES ses solutions (planaires et
+     non-planaires) par classe de stabilite. Utilise par le bar chart
+     "Total par config" pour montrer le profil qualite de chaque solveur. */
+  function computePerConfigBreakdown(allConfigs) {
+    var configNames = Object.keys(allConfigs).sort();
+    var classKeys = ['always_planar', 'mostly_planar', 'unstable',
+                     'mostly_non_planar', 'always_non_planar', 'ambiguous'];
+    var perConfig = {};
+    configNames.forEach(function (cfgName) {
+      var counts = {};
+      classKeys.forEach(function (k) { counts[k] = 0; });
+      var total = 0;
+      var mols = allConfigs[cfgName].molecules;
+      Object.keys(mols).forEach(function (molName) {
+        mols[molName].solutions.forEach(function (sol) {
+          var key = _classificationKeyForSolution(sol);
+          if (counts.hasOwnProperty(key)) {
+            counts[key]++;
+            total++;
+          }
+        });
+      });
+      perConfig[cfgName] = { total: total, counts: counts };
+    });
+    return { configNames: configNames, classOrder: classKeys, perConfig: perConfig };
+  }
+
+  /* Liste de sections depliables : 1 <details> par intersection.
+     Triees par degre de partage descendant (universelles d'abord, uniques en
+     dernier), puis par count desc au sein du meme degre. Chaque section
+     dévoile la liste des solutions (mol + sizes) qui la composent. */
+  function renderIntersectionsList(partition) {
+    var n = partition.nConfigs;
+    var sorted = partition.intersections.slice().sort(function (a, b) {
+      var d = b.configs.length - a.configs.length;
+      if (d !== 0) return d;
+      return b.count - a.count;
+    });
+    if (sorted.length === 0) return '<div class="csp-empty">Aucune intersection.</div>';
+
+    var html = '';
+    sorted.forEach(function (intr) {
+      var deg = intr.configs.length;
+
+      /* Titre : adapte selon le degre. Aucune couleur sur les blocs --
+         les "couleurs" du viewer sont reservees aux classes de stabilite
+         (vert/orange/rouge des badges) pour eviter toute confusion entre
+         les 2 dimensions (stabilite xTB vs partage CSP). */
+      var label, cfgsDetail = '';
+      if (deg === n) {
+        label = 'Universelles &mdash; trouvees par les ' + n + ' configurations';
+      } else if (deg === 1) {
+        label = 'Unique &agrave; <code>' + intr.configs[0] + '</code>';
+      } else {
+        label = deg + ' configs';
+        cfgsDetail = '<span class="csp-intr-cfgs">' + intr.configs.map(function (c) {
+          return '<code>' + c + '</code>';
+        }).join(' &middot; ') + '</span>';
+      }
+
+      /* Liste des solutions de cette intersection (mol + sizes). */
+      var items = intr.solutions.slice().sort().map(function (key) {
+        var idx = key.indexOf('|');
+        var mol = idx >= 0 ? key.slice(0, idx) : key;
+        var sizes = idx >= 0 ? key.slice(idx + 1) : '';
+        return '<li>'
+             + '<span class="csp-item-mol">' + mol + '</span>'
+             + '<span class="csp-item-sizes">' + sizes + '</span>'
+             + '</li>';
+      }).join('');
+
+      html += '<details class="csp-intr-block">'
+            + '<summary>'
+            + '<span class="csp-intr-count">' + intr.count + '</span>'
+            + '<span class="csp-intr-label">' + label + '</span>'
+            + cfgsDetail
+            + '</summary>'
+            + '<ul class="csp-intr-items">' + items + '</ul>'
+            + '</details>';
+    });
+    return html;
+  }
+
+  /* SVG per-config bar : 1 ligne par config, segments colores par classe
+     de stabilite (CLASSIFICATIONS). Montre le profil qualite des solutions
+     trouvees par chaque solveur (combien sont stables planes, instables,
+     non-planes, etc). Utilise les MEMES couleurs que les badges et les
+     cards de stabilite -> coherence visuelle dans tout le viewer. */
+  function renderPerConfigBarSVG(breakdown) {
+    var configNames = breakdown.configNames;
+    var classOrder = breakdown.classOrder;
+    var perConfig = breakdown.perConfig;
+    var n = configNames.length;
+
+    var maxTotal = 0;
+    configNames.forEach(function (cfg) {
+      if (perConfig[cfg].total > maxTotal) maxTotal = perConfig[cfg].total;
+    });
+    if (maxTotal === 0) maxTotal = 1;
+
+    var labelW = 150, barW = 200, totalW = 50, padR = 12;
+    var W = labelW + barW + totalW + padR;
+    var rowH = 28;
+    var H = n * rowH + 6;
+
+    var parts = [];
+    parts.push('<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" '
+             + 'style="width:100%;max-width:' + W + 'px;font-family:Segoe UI,system-ui,sans-serif;">');
+
+    configNames.forEach(function (cfg, i) {
+      var y = i * rowH + 4;
+      var midY = y + rowH / 2 + 4;
+      var total = perConfig[cfg].total;
+      var counts = perConfig[cfg].counts;
+
+      parts.push('<text x="' + (labelW - 8) + '" y="' + midY.toFixed(1) + '" '
+               + 'text-anchor="end" font-size="11" '
+               + 'font-family="SFMono-Regular,Consolas,monospace" fill="#24292e">'
+               + cfg + '</text>');
+      parts.push('<rect x="' + labelW + '" y="' + (y + 4) + '" width="' + barW + '" '
+               + 'height="' + (rowH - 8) + '" fill="#f0f0f0" rx="3"/>');
+
+      if (total > 0) {
+        var x = labelW;
+        var fullW = (total / maxTotal) * barW;
+        classOrder.forEach(function (classKey) {
+          var c = counts[classKey];
+          if (c === 0) return;
+          var info = CLASSIFICATIONS[classKey];
+          var segW = (c / total) * fullW;
+          parts.push('<rect x="' + x.toFixed(1) + '" y="' + (y + 4) + '" '
+                   + 'width="' + segW.toFixed(1) + '" height="' + (rowH - 8) + '" '
+                   + 'fill="' + info.color + '">'
+                   + '<title>' + cfg + ' : ' + c + ' ' + info.label + '</title></rect>');
+          x += segW;
+        });
+      }
+
+      parts.push('<text x="' + (labelW + barW + 8) + '" y="' + midY.toFixed(1) + '" '
+               + 'font-size="11" font-weight="600" fill="#24292e">' + total + '</text>');
+    });
+
+    parts.push('</svg>');
+    return parts.join('');
+  }
+
+  /* Orchestrateur : appele 1 fois a l'init. Si pas de container, no-op.
+     - "Total par config" : breakdown par classe de stabilite (toutes les
+       solutions, peu importe planaire/non).
+     - "Intersections" : partition des solutions PLANAIRES seulement
+       entre configs (filtre always_planar + mostly_planar). */
+  function renderCSPPartitionSection() {
+    var container = document.getElementById('cspPartitionContent');
+    if (!container) return;
+    var partition = computeCSPPartition(state.ALL_CONFIGS);
+    var breakdown = computePerConfigBreakdown(state.ALL_CONFIGS);
+    var n = partition.nConfigs;
+
+    container.innerHTML =
+      '<div class="csp-summary">' +
+        '<b>' + partition.totalUnique + '</b> solution(s) planaire(s) unique(s) au total, '
+      + 'partagee(s) entre <b>' + n + '</b> configurations CSP. '
+      + '<i>(filtre intersection : always_planar + mostly_planar)</i>' +
+      '</div>' +
+      '<div class="csp-charts-row">' +
+        '<div class="csp-chart-box">' +
+          '<h4>Repartition par config (toutes solutions)</h4>' +
+          renderPerConfigBarSVG(breakdown) +
+          '<p class="csp-caption">Total de solutions trouvees par chaque config, segmente par classe de stabilite (memes couleurs que les badges -- voir legende stabilite plus bas).</p>' +
+        '</div>' +
+        '<div class="csp-chart-box wide">' +
+          '<h4>Intersections (cliquer pour voir les solutions)</h4>' +
+          '<div class="csp-intr-scroll">' + renderIntersectionsList(partition) + '</div>' +
+          '<p class="csp-caption">Triees du plus universel (en haut) au plus unique (en bas). Cliquer un en-tete deplie la liste des solutions de cette intersection.</p>' +
+        '</div>' +
+      '</div>';
+  }
+
   /* ---- Config selection ---- */
   function selectConfig(name) {
     if (state.compareMode) {
@@ -653,7 +913,10 @@
   window.expandAll         = expandAll;
   window.collapseAll       = collapseAll;
 
-  /* ---- Init : charger la premiere config ---- */
+  /* ---- Init ---- */
+  /* Partition CSP : 1 calcul + 1 rendu, ne depend pas de la config courante. */
+  renderCSPPartitionSection();
+  /* Charge la premiere config par defaut (declenche render() pour cards + table). */
   var firstConfig = Object.keys(state.ALL_CONFIGS).sort()[0];
   if (firstConfig) selectConfig(firstConfig);
 })();
