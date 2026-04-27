@@ -13,6 +13,7 @@ import os
 import math
 import random
 import shutil
+import tempfile
 from pathlib import Path
 from typing import Tuple, List
 
@@ -32,58 +33,65 @@ def optimize_xtb(input_xyz: str, output_xyz: str,
     Si la molecule est reellement plane, xTB la ramene a plat malgre
     la perturbation. Si elle ne l'est pas, xTB trouve le vrai minimum.
 
+    xTB est execute dans un repertoire temporaire isole (scratch dir),
+    ce qui evite toute collision entre runs concurrents partageant le
+    meme dossier de sortie (essentiel pour la parallelisation et les
+    clusters HPC).
+
     Retourne (succes: bool, message: str).
     """
     input_path = Path(input_xyz).resolve()
     output_path = Path(output_xyz).resolve()
-    work_dir = input_path.parent
 
-    # Creer une copie perturbee (ne pas modifier l'original)
-    perturbed_path = work_dir / f"_perturbed_{input_path.name}"
-    rng = random.Random(seed) if seed is not None else None
-    _write_perturbed_xyz(str(input_path), str(perturbed_path), perturb_z, rng)
-
-    cmd = [
-        "xtb",
-        str(perturbed_path),
-        "--opt", opt_level,
-    ]
+    # Repertoire de travail temporaire isole : evite les collisions xTB
+    # quand plusieurs runs s'executent en parallele sur la meme molecule.
+    # xTB ecrit toujours xtbopt.xyz, xtbrestart, xtbtopo.mol, wbo, charges,
+    # xtbopt.log, .xtboptok dans son cwd → un scratch dir par run.
+    work_dir = Path(tempfile.mkdtemp(prefix="xtb_run_"))
 
     try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=300,
-            cwd=str(work_dir), encoding='utf-8', errors='replace'
-        )
-    except FileNotFoundError:
-        _cleanup(perturbed_path)
-        return False, "xtb non trouve dans le PATH"
-    except subprocess.TimeoutExpired:
-        _cleanup(perturbed_path)
-        return False, "Timeout apres 300s"
+        # Copier le XYZ d'entree dans le scratch et le perturber
+        perturbed_path = work_dir / "input.xyz"
+        rng = random.Random(seed) if seed is not None else None
+        _write_perturbed_xyz(str(input_path), str(perturbed_path), perturb_z, rng)
 
-    # Supprimer la copie perturbee
-    _cleanup(perturbed_path)
+        cmd = [
+            "xtb",
+            str(perturbed_path),
+            "--opt", opt_level,
+        ]
 
-    # xTB ecrit xtbopt.xyz dans le repertoire de travail
-    xtbopt = work_dir / "xtbopt.xyz"
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=300,
+                cwd=str(work_dir), encoding='utf-8', errors='replace'
+            )
+        except FileNotFoundError:
+            return False, "xtb non trouve dans le PATH"
+        except subprocess.TimeoutExpired:
+            return False, "Timeout apres 300s"
 
-    if not xtbopt.exists() or xtbopt.stat().st_size == 0:
-        err = result.stderr.strip() if result.stderr else result.stdout.strip()
-        err_lines = err.split('\n')[-5:] if err else ["Fichier xtbopt.xyz non genere"]
-        return False, " | ".join(l.strip() for l in err_lines if l.strip())
+        # xTB ecrit xtbopt.xyz dans le scratch
+        xtbopt = work_dir / "xtbopt.xyz"
 
-    # Renommer xtbopt.xyz vers le chemin de sortie souhaite
-    if xtbopt.resolve() != output_path:
-        xtbopt.replace(output_path)
+        if not xtbopt.exists() or xtbopt.stat().st_size == 0:
+            err = result.stderr.strip() if result.stderr else result.stdout.strip()
+            err_lines = err.split('\n')[-5:] if err else ["Fichier xtbopt.xyz non genere"]
+            return False, " | ".join(l.strip() for l in err_lines if l.strip())
 
-    # Verifier la convergence dans la sortie
-    converged = "GEOMETRY OPTIMIZATION CONVERGED" in (result.stdout or "")
-    status = "OK (converge)" if converged else "OK (non converge, max iterations)"
+        # Copier la geometrie optimisee vers le chemin de sortie souhaite
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(str(xtbopt), str(output_path))
 
-    # Nettoyer les fichiers temporaires xTB
-    _cleanup_xtb(work_dir)
+        # Verifier la convergence dans la sortie
+        converged = "GEOMETRY OPTIMIZATION CONVERGED" in (result.stdout or "")
+        status = "OK (converge)" if converged else "OK (non converge, max iterations)"
 
-    return True, status
+        return True, status
+
+    finally:
+        # Nettoyer le scratch dir (toujours, meme en cas d'erreur)
+        shutil.rmtree(str(work_dir), ignore_errors=True)
 
 
 def _write_perturbed_xyz(input_path: str, output_path: str, amplitude: float, rng=None):
@@ -171,22 +179,3 @@ def _read_coords_from_xyz(xyz_path: str) -> List[List[float]]:
     return coords
 
 
-def _cleanup(path: Path):
-    """Supprime un fichier sans erreur si absent."""
-    try:
-        Path(path).unlink(missing_ok=True)
-    except Exception:
-        pass
-
-
-def _cleanup_xtb(work_dir: Path):
-    """Supprime les fichiers temporaires generes par xTB."""
-    xtb_files = [
-        "xtbrestart", "xtbtopo.mol", "wbo", "charges",
-        "xtbopt.log", ".xtboptok"
-    ]
-    for name in xtb_files:
-        _cleanup(work_dir / name)
-    # Nettoyer les copies perturbees residuelles
-    for f in work_dir.glob("_perturbed_*"):
-        _cleanup(f)
