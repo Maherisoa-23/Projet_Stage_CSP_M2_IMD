@@ -37,6 +37,13 @@ if "--n-runs" in _own_argv:
             n_runs = max(1, int(_own_argv[idx + 1]))
         except ValueError:
             n_runs = 1
+# Strategy de validation. Defaut "multi-runs" = comportement historique.
+# Voir utils.validation.list_strategies() pour les valeurs acceptees.
+method = "multi-runs"
+if "--method" in _own_argv:
+    idx = _own_argv.index("--method")
+    if idx + 1 < len(_own_argv):
+        method = _own_argv[idx + 1]
 
 # Nettoyer sys.argv pour que pycsp3 ne les intercepte pas
 sys.argv = [_own_argv[0]]
@@ -51,11 +58,17 @@ from utils.model import build_and_solve, format_solution
 
 def main():
     if filepath is None:
-        print("Usage: python main.py <fichier.graph> [--all] [--count] [--validate] [--no-freeze] [--adj-57]")
-        print("  --no-freeze : desactiver la contrainte des hexagones geles (b(v)>=2)")
-        print("  --no-table  : desactiver la contrainte de table de voisinage (C3)")
-        print("  --adj-57    : activer la contrainte d'adjacence 5-7 (C5)")
-        print("Exemple: python main.py data/first.graph")
+        print("Usage: python main.py <fichier.graph> [options]")
+        print("  --all         : enumerer toutes les solutions (defaut)")
+        print("  --count       : afficher seulement le nombre de solutions")
+        print("  --validate    : valider les solutions avec xTB + test planarite")
+        print("  --no-freeze   : desactiver la contrainte des hexagones geles (b(v)>=2)")
+        print("  --no-table    : desactiver la contrainte de table de voisinage (C3)")
+        print("  --adj-57      : activer la contrainte d'adjacence 5-7 (C5)")
+        print("  --n-runs N    : nombre d'optimisations xTB par solution (defaut 1)")
+        print("  --method M    : strategy de validation (defaut 'multi-runs')")
+        print("                  voir utils/validation/ pour les strategies disponibles")
+        print("Exemple: python main.py data/first.graph --validate --n-runs 10")
         sys.exit(1)
 
     # --- Etape 1 : Lecture du fichier Benzai ---
@@ -130,7 +143,8 @@ def main():
         print()
         print("=== Validation xTB + planarite ===")
         from reconstruction import reconstruct_and_validate
-        reconstruct_and_validate(graph, solutions, output_dir=output_dir, n_runs=n_runs)
+        reconstruct_and_validate(graph, solutions, output_dir=output_dir,
+                                 n_runs=n_runs, method=method)
 
 
 if __name__ == "__main__":

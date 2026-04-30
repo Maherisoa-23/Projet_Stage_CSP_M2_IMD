@@ -97,14 +97,18 @@ def main():
     # Generer les rapports si --validate
     if do_validate:
         print(f"\n=== Generation du rapport ({cfg}, n_runs={n_runs}) ===")
-        # 1. data.json pour cette config
+        # 1. data.json pour cette config.
+        #    NOTE : ce dispatcher est specifique a la strategy "multi-runs"
+        #    (qui produit la structure plate ou sol_X/run_NN_opt.xyz). Quand
+        #    on ajoutera la strategy MD, il faudra dispatcher selon --method
+        #    vers l'agregateur correspondant (ex. aggregate_md.py).
         #    - n_runs=1 : view.py (structure plate, format simple)
         #    - n_runs>1 : aggregate_runs.py (scan sous-dossiers, stats, classification)
         if n_runs > 1:
             subprocess.run([sys.executable, str(aggregate_py), str(config_dir)])
         else:
             subprocess.run([sys.executable, str(view_py), str(config_dir)])
-        # 2. view.html agrege au niveau hX (inchange)
+        # 2. view.html agrege au niveau hX (independant de la strategy)
         subprocess.run([sys.executable, str(view_py), str(h_dir), "--aggregate"])
 
 

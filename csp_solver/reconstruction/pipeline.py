@@ -78,7 +78,7 @@ def _run_single(graph, sol, i, threshold, opt_level, output_dir, sol_str):
         topo_probe = CycleTopology(graph, sol)
         multiblock = topo_probe.get_multiblock_hexagons()
         mb_str = ", ".join(f"v{v}({nb} blocs)" for v, nb in multiblock)
-        print(f"  Multi-blocs : {mb_str} → {n_variants} variantes")
+        print(f"  Multi-blocs : {mb_str} -> {n_variants} variantes")
 
     best_result = None
     best_angle = float('inf')
@@ -117,7 +117,7 @@ def _run_single(graph, sol, i, threshold, opt_level, output_dir, sol_str):
         print(f"  XYZ genere : sol_{i}_{sizes_str}.xyz")
         print(f"  Resultat : {best_result['message']}")
     else:
-        print(f"  → Meilleure variante : {best_result['variant']+1} "
+        print(f"  -> Meilleure variante : {best_result['variant']+1} "
               f"({best_result.get('angle_deg', 0):.1f} deg)")
     return best_result
 
@@ -160,7 +160,7 @@ def _run_multi(graph, sol, i, threshold, opt_level, output_dir, sol_str, n_runs)
         except Exception as e:
             print(f"  run {run_id:02d}/{n_runs}: EXCEPTION {e}")
 
-    print(f"  → {n_ok}/{n_runs} runs reussis")
+    print(f"  -> {n_ok}/{n_runs} runs reussis")
 
     if last_result is None:
         return {"index": i, "planar": False, "message": "Tous les runs ont echoue"}
@@ -171,15 +171,19 @@ def _run_multi(graph, sol, i, threshold, opt_level, output_dir, sol_str, n_runs)
 
 def reconstruct_and_validate(graph: BenzenoidGraph, solutions: list,
                              threshold=10.0, opt_level="tight",
-                             output_dir=None, n_runs=1):
+                             output_dir=None, n_runs=1, method="multi-runs"):
     """Pour chaque solution CSP, reconstruit la molecule et la valide.
 
-    Si n_runs=1 (defaut) : comportement historique, 1 run par variante,
-    on conserve la meilleure variante pour les molecules multi-blocs.
+    La validation est deleguee a une 'strategy' selectionnee par le parametre
+    `method`. Les strategies sont definies dans utils.validation. Chaque
+    strategy a sa propre logique (multi-runs xTB, MD/MTD, ...) et produit son
+    propre format de sortie dans data.json (cf. blocs 'runs', 'md_validation').
 
-    Si n_runs>1 : on lance N runs xTB sur la variante 0 avec des seeds
-    differents. Les XYZ sont stockes dans solutions/sol_X_sizes/run_NN_opt.xyz.
-    Les stats/classification sont calculees ensuite par aggregate_runs.py.
+    Strategies disponibles :
+      - "multi-runs" (defaut) : comportement historique. Si n_runs=1, single-run
+        avec selection de la meilleure variante multi-blocs ; si n_runs>1,
+        structure sol_X/run_NN_opt.xyz avec stats calculees par aggregate_runs.py.
+      - autres strategies a venir : voir utils.validation.list_strategies().
     """
     if output_dir is None:
         output_dir = Path(__file__).parent.parent / "output" / "molecules"
@@ -198,21 +202,21 @@ def reconstruct_and_validate(graph: BenzenoidGraph, solutions: list,
         print("ERREUR : xtb non trouve dans le PATH.")
         return
 
-    results = []
-    for i, sol in enumerate(solutions, 1):
-        sol_str = " ".join(f"v{v}={sol[v]}" for v in sorted(sol.keys()))
-        print(f"\n--- Solution {i}/{len(solutions)} : {sol_str} ---")
-        if n_runs > 1:
-            result = _run_multi(graph, sol, i, threshold, opt_level,
-                                output_dir, sol_str, n_runs)
-        else:
-            result = _run_single(graph, sol, i, threshold, opt_level,
-                                 output_dir, sol_str)
-        results.append(result)
+    # Selection de la strategy. Pour "multi-runs", on propage n_runs ;
+    # d'autres strategies prendront leurs propres parametres (ex. md_time,
+    # md_temp pour la methode MD a venir).
+    from utils.validation import get_strategy
+    strategy_kwargs = {"threshold": threshold, "opt_level": opt_level}
+    if method == "multi-runs":
+        strategy_kwargs["n_runs"] = n_runs
+    strategy = get_strategy(method, **strategy_kwargs)
+
+    results = strategy.validate_solutions(graph, solutions, output_dir)
 
     n_valid = sum(1 for r in results if r.get("planar", False))
     n_invalid = sum(1 for r in results if not r.get("planar", False))
     print(f"\n=== Resume validation globale ===")
+    print(f"Methode           : {method}")
     print(f"Solutions testees : {len(results)}")
     print(f"Planes (valides)  : {n_valid}")
     print(f"Non planes        : {n_invalid}")
