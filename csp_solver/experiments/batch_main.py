@@ -49,9 +49,11 @@ def main():
         except (ValueError, IndexError):
             n_runs = 1
 
-    # Detecter la strategy de validation. Defaut "multi-runs" -> comportement
-    # historique (et compatible avec data.json sans bloc md_validation).
-    method = "multi-runs"
+    # Detecter la strategy de validation. Defaut "md" depuis mai 2026 :
+    # le protocole xtb --md + opt remplace les multi-runs comme defaut, plus
+    # fiable physiquement et plus rapide (1 run au lieu de N=10). Pour
+    # revenir a l'historique : --method multi-runs.
+    method = "md"
     if "--method" in extra_args:
         idx = extra_args.index("--method")
         if idx + 1 < len(extra_args):

@@ -46,9 +46,11 @@ if "--n-runs" in _own_argv:
             n_runs = max(1, int(_own_argv[idx + 1]))
         except ValueError:
             n_runs = 1
-# Strategy de validation. Defaut "multi-runs" = comportement historique.
+# Strategy de validation. Defaut "md" depuis mai 2026 (protocole xtb --md
+# + opt, recommande par les chimistes -- casse les minima plats parasites).
+# Pour revenir a l'ancien comportement multi-runs : --method multi-runs.
 # Voir utils.validation.list_strategies() pour les valeurs acceptees.
-method = "multi-runs"
+method = "md"
 if "--method" in _own_argv:
     idx = _own_argv.index("--method")
     if idx + 1 < len(_own_argv):

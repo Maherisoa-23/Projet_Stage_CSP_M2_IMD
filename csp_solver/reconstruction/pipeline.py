@@ -247,7 +247,7 @@ def _run_multi(graph, sol, i, threshold, opt_level, output_dir, sol_str, n_runs)
 
 def reconstruct_and_validate(graph: BenzenoidGraph, solutions: list,
                              threshold=10.0, opt_level="tight",
-                             output_dir=None, n_runs=1, method="multi-runs",
+                             output_dir=None, n_runs=1, method="md",
                              md_params=None, md_deterministic=True):
     """Pour chaque solution CSP, reconstruit la molecule et la valide.
 
@@ -258,11 +258,12 @@ def reconstruct_and_validate(graph: BenzenoidGraph, solutions: list,
     'md_validation', ...).
 
     Strategies disponibles :
-      - "multi-runs" (defaut) : comportement historique. Si n_runs=1, single-run
+      - "md" (defaut depuis mai 2026) : 1 run protocole MD (~1 ps a 298 K)
+        + opt finale. Sortie dans sol_X/md_validation/. Stats agregees par
+        aggregate_md.py.
+      - "multi-runs" : comportement historique. Si n_runs=1, single-run
         avec selection de la meilleure variante multi-blocs ; si n_runs>1,
         structure sol_X/run_NN_opt.xyz avec stats calculees par aggregate_runs.py.
-      - "md" : 1 run protocole MD (~1 ps a 298 K) + opt finale. Sortie dans
-        sol_X/md_validation/. Stats agregees par aggregate_md.py.
       - autres a venir : voir utils.validation.list_strategies().
     """
     if output_dir is None:
