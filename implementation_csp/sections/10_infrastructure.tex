@@ -50,6 +50,31 @@ agrégé affiche ce méta-fichier sous forme de bandeau si présent.
 python batch_all.py plane/benzdb/h4 --n-runs 10
 \end{lstlisting}
 
+\subsection{\texttt{count\_all.py} — décompte rapide sans xTB}
+
+\dateblock{mai 2026 (mi-mois)}
+
+Pour estimer rapidement le nombre total de solutions CSP sur les 8 configurations
+\textbf{sans lancer la validation xTB} (utile pour calibrer la durée d'un futur
+\texttt{batch\_all}, ou pour suivre l'effet d'un changement de table de voisinage),
+le script \texttt{count\_all.py} itère les 8 combinaisons de flags et appelle
+\texttt{python main.py -{}-count -{}-all} sur chaque \texttt{.graph}. Aucun fichier
+de sortie n'est écrit, seul un récap par config et le total agrégé sont affichés.
+
+\begin{lstlisting}[style=benzai]
+python count_all.py plane/benzdb/h6
+\end{lstlisting}
+
+\textbf{Détail important :} le drapeau \texttt{-{}-all} est obligatoire en plus de
+\texttt{-{}-count}. Sans \texttt{-{}-all}, la logique de \texttt{main.py:26}
+(\texttt{enumerate\_all = "-{}-all" in argv or not count\_only}) impose
+\texttt{enumerate\_all=False}, et ACE renvoie \emph{une seule} solution par appel
+(le total devient alors 8 $\times$ nb\_molecules au lieu du vrai compte).
+\texttt{count\_all.py} passe les deux drapeaux automatiquement.
+
+Sur h5 : \textbf{527 solutions} en 2~min~45~s (vs 1~h~26~min pour le batch\_all
+multi-runs N=10 équivalent). Sur h6 : 2923 solutions en 15~min~47~s.
+
 \subsection{Structure de sortie complète}
 
 \begin{lstlisting}[style=benzai]

@@ -177,6 +177,35 @@ et compte exact \texttt{n/total} en petit dessous. Calculé en JS dans \texttt{v
 (fonction \texttt{renderMDSummaryTable}), affiché uniquement si au moins une solution a un
 bloc \texttt{md\_validation}.
 
+\subsection{Affichage ``Aucune solution CSP''}
+
+\dateblock{mai 2026 (mi-mois)}
+
+Avec l'exclusion par défaut de la solution tout-hexagones et la régénération de la
+table de voisinage par MD, certaines molécules (en particulier les benzénoïdes
+entièrement gelés où chaque hexagone a $\deg=6$) se retrouvent avec \textbf{zéro
+solution CSP}. Le viewer doit donc distinguer visuellement ces cas.
+
+Trois éléments d'UI ajoutés dans \texttt{view.html} :
+
+\begin{itemize}
+  \item Sur la \textbf{ligne molécule} : la cellule \emph{Verdict} affiche une pill
+    grise pointillée \texttt{$\oslash$ Aucune solution CSP} (au lieu d'un tiret).
+    La cellule \emph{Solutions} montre \texttt{0} dans une étiquette grise. La
+    ligne entière reçoit la classe CSS \texttt{.no-sol-row} qui grise le fond et
+    italique-grise le nom — la molécule reste lisible mais clairement secondaire.
+  \item Sur les \textbf{cards en haut} : si au moins une molécule est dans ce cas,
+    une nouvelle card grise \texttt{$\oslash$ Sans solution CSP : N} apparaît
+    automatiquement entre \emph{Solutions CSP} et \emph{Plans}. Cachée sinon
+    (zéro pollution visuelle quand toutes les molécules ont des solutions).
+  \item En \textbf{mode comparaison} (panneaux côte-à-côte) : même traitement,
+    version compacte \texttt{$\oslash$ Aucune sol.} pour tenir dans des panneaux
+    étroits.
+\end{itemize}
+
+Palette : \texttt{\#6a737d} / \texttt{\#eaecef} (gris neutre, distinct des verts /
+oranges / rouges des verdicts pour ne pas créer d'ambiguïté).
+
 \subsection{Section ``Couverture CSP'' alignée sur MD}
 
 \dateblock{1\textsuperscript{er} mai 2026}

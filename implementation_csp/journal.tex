@@ -32,6 +32,19 @@ marquent dans le texte les contenus ajoutes a chaque etape.
     validation. \texttt{aggregate\_md.py} additif. Refonte du dashboard en
     \textbf{MD-only}, KPIs uniformes, mini-tableau MD par config en haut de chaque
     \texttt{view.html}, section ``Couverture CSP'' alignee sur le verdict MD. \\
+  Mai 2026 (mi-mois) &
+    \textbf{MD devient la methode par defaut} (\texttt{-{}-method multi-runs} pour
+    l'ancien comportement). \textbf{Table de voisinage regeneree avec MD} :
+    T(5) 92$\to$63, T(6) 418$\to$280, T(7) 699$\to$367 (--41\%, faux positifs
+    plats elimines). Drapeau \texttt{-{}-count-hexagon} : la solution tout-hexagones
+    est desormais \textbf{exclue par defaut} des solutions CSP. Script
+    \texttt{count\_all.py} : compte les solutions CSP sur les 8 configs sans xTB.
+    Reconciliation des agregateurs (drop des entrees \texttt{data.json} obsoletes,
+    preservation des blocs \texttt{md\_validation} lors d'un re-run multi-runs).
+    Affichage ``Aucune solution CSP'' dans le viewer pour les molecules entierement
+    gelees. \texttt{utils/types.py} renomme \texttt{csp\_types.py} (fix shadowing
+    stdlib). \textbf{Documentation modulaire} : ce document est splitte en
+    \texttt{implementation\_csp/} (preamble + sections + bibliographie). \\
   \bottomrule
 \end{tabular}
 \end{center}

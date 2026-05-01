@@ -84,13 +84,33 @@ class MDStrategy(ValidationStrategy):
         ...
 \end{lstlisting}
 
-\texttt{main.py} accepte désormais le drapeau \texttt{-{}-method} qui sélectionne la stratégie :
-\texttt{multi-runs} (par défaut, rétrocompatible) ou \texttt{md}.
+\texttt{main.py} accepte le drapeau \texttt{-{}-method} qui sélectionne la stratégie :
+\texttt{md} ou \texttt{multi-runs}.
 
-\begin{lstlisting}[style=benzai]
-python main.py data/fichier.graph --validate --method md
-python main.py data/fichier.graph --validate --n-runs 10        # multi-runs (defaut)
-\end{lstlisting}
+\dateblock{mai 2026 (mi-mois) -- defaut bascule sur \texttt{md}}
+
+Depuis le bilan h3-h5 (98\% d'accord MR/MD) et la régénération de la table de voisinage
+au protocole MD, \textbf{MD est désormais la méthode par défaut}. Le défaut historique
+\texttt{multi-runs} reste accessible via \texttt{-{}-method multi-runs}, mais la
+recommandation est d'utiliser MD pour tout nouveau run.
+
+\begin{center}
+\begin{tabular}{ll}
+  \toprule
+  Commande & Méthode utilisée \\
+  \midrule
+  \texttt{python main.py f.graph -{}-validate}                   & MD (défaut) \\
+  \texttt{python main.py f.graph -{}-validate -{}-method md}     & MD (explicite) \\
+  \texttt{python main.py f.graph -{}-validate -{}-method multi-runs -{}-n-runs 10} & multi-runs N=10 \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\begin{attention}
+  \texttt{-{}-n-runs N} est ignoré si \texttt{-{}-method multi-runs} n'est pas explicitement
+  passé. C'est un changement de comportement par rapport à avril 2026 où \texttt{-{}-n-runs}
+  suffisait pour basculer en multi-runs.
+\end{attention}
 
 \subsection{\texttt{aggregate\_md.py} — agrégation additive}
 
@@ -109,6 +129,30 @@ output/h4/default/0-5-6-11/solutions/sol_1_5_7_7_5/
 charge le \texttt{data.json} existant, ajoute un bloc \texttt{md\_validation} à chaque
 solution sans toucher au bloc \texttt{runs} préexistant, puis ré-écrit. Cela permet d'avoir
 sur le même dataset les deux méthodes côte à côte si on les a toutes deux lancées.
+
+\dateblock{mai 2026 (mi-mois) -- reconciliation disque}
+
+Le caractère additif a un effet de bord : si \texttt{data.json} contient des solutions
+qui n'existent plus sur disque (par exemple parce qu'un re-run avec le nouveau défaut
+exclut désormais la solution tout-hexagones, ou parce que la table régénérée laisse
+moins de solutions), ces entrées resteraient indéfiniment dans le \texttt{data.json}.
+Pour éviter ce drift, \texttt{aggregate\_md.py} \textbf{réconcilie} maintenant la
+liste des solutions avec l'état du disque :
+
+\begin{itemize}
+  \item Pour chaque molécule, scan des dossiers \texttt{solutions/sol\_*/} pour
+    récupérer les \texttt{sizes} effectivement présents (depuis le commentaire de
+    \texttt{source.xyz}).
+  \item Filtrage de \texttt{data["molecules"][mol]["solutions"]} : on ne garde que les
+    entrées dont le \texttt{sizes} matche un dossier sur disque.
+  \item Drop des molécules entières si leur dossier \texttt{mol/} n'existe plus.
+\end{itemize}
+
+Le même mécanisme symétrique est en place dans \texttt{aggregate\_runs.py} : avant
+de réécrire \texttt{data.json}, on charge l'ancien et on \textbf{préserve les blocs
+md\_validation} existants pour les solutions toujours présentes (matching par
+\texttt{(mol\_name, sizes)}). Ainsi un re-run multi-runs sur une config qui avait déjà
+des données MD ne perd pas ces données.
 
 Schéma enrichi du \texttt{data.json} (extrait) :
 

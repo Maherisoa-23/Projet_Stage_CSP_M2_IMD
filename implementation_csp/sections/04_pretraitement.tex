@@ -53,14 +53,37 @@ python main.py data/5.graph --no-freeze  # seul deg=6 est gele
 
 \subsection{Filtrage de la table de voisinage}
 
-La table de voisinage $\mathcal{T}$ contient 1209 entrées réparties en :
-$\mathcal{T}(5)$ = 92 entrées, $\mathcal{T}(6)$ = 418 entrées, $\mathcal{T}(7)$ = 699 entrées.
+\dateblock{mai 2026 (mi-mois)}
+
+\textbf{Évolution :} la table a été regénérée avec le protocole MD (cf. section sur
+\texttt{non\_benzenoid\_generator/main.py optimize}). Tailles avant/après :
+
+\begin{center}
+\begin{tabular}{lrrr}
+  \toprule
+                & xTB \texttt{--opt} (avr. 2026) & MD + opt (mai 2026) & Variation \\
+  \midrule
+  $\mathcal{T}(5)$ &  92 &  63 & --32\% \\
+  $\mathcal{T}(6)$ & 418 & 280 & --33\% \\
+  $\mathcal{T}(7)$ & 699 & 367 & --48\% \\
+  \midrule
+  \textbf{Total}  & \textbf{1209} & \textbf{710} & \textbf{--41\%} \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+La baisse de 41\% confirme l'hypothèse : une part non négligeable de l'ancienne table
+était des \textbf{faux positifs planaires}, c'est-à-dire des configurations qui semblaient
+planes parce que xTB \texttt{--opt} restait piégé dans le minimum 2D plat parasite. Le
+protocole MD casse ces minima et ramène les structures à leur géométrie réelle (souvent
+courbée). Les entrées rejetées sont donc des cas que le solveur CSP \emph{n'aurait jamais
+dû} accepter comme bases de substitution admissibles.
 
 \begin{remarque}
-  La table $\mathcal{T}(6)$ inclut 6 entrées purement benzenoïdes (hexagone central avec
-  uniquement des voisins hexagonaux). Ces entrées sont nécessaires pour que le solveur CSP
-  considère le benzénoïde d'origine (toutes les tailles à 6) comme une solution valide —
-  un benzénoïde peut lui-même être non planaire pour les structures suffisamment grandes.
+  La table $\mathcal{T}(6)$ inclut toujours les 6 entrées purement benzenoïdes (hexagone
+  central avec uniquement des voisins hexagonaux). Elles permettraient de retrouver le
+  benzénoïde d'origine comme solution CSP, mais celui-ci est désormais \textbf{exclu par
+  defaut} des solutions énumérées (cf. drapeau \texttt{-{}-count-hexagon} en section~5).
 \end{remarque}
 
 Pour chaque hexagone libre $v$ de degré $\geq 2$, on filtre la table pour ne garder que les

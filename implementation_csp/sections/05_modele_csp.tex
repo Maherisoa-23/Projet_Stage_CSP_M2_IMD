@@ -135,6 +135,37 @@ Les drapeaux :
   \item \texttt{-xe} : exporter chaque solution au format XML dans la sortie standard.
 \end{itemize}
 
+\subsection{Exclusion par défaut de la solution tout-hexagones}
+
+\dateblock{mai 2026 (mi-mois)}
+
+L'objectif du solveur CSP est d'énumérer les substitutions \textbf{non-benzenoïdes}
+d'un benzénoïde donné. La solution triviale ``tous les cycles à 6'' (le benzénoïde
+d'origine lui-même) reste cependant une assignation valide pour C1, C3 et C4 — elle
+émerge naturellement d'ACE grâce aux 6 entrées purement benzenoïdes de
+$\mathcal{T}(6)$.
+
+Pour ne pas polluer la sortie avec ce cas trivial, la solution tout-hexagones est
+\textbf{post-filtrée} après le parsing ACE. Le drapeau \texttt{-{}-count-hexagon}
+permet de la réintroduire si on souhaite la valider explicitement.
+
+\begin{lstlisting}
+# build_and_solve(...) -- post-filtre apres parsing ACE
+if not count_hexagon and solutions_list:
+    solutions_list = [s for s in solutions_list
+                      if not all(v == 6 for v in s.values())]
+\end{lstlisting}
+
+\begin{remarque}
+  Pourquoi un post-filtre plutôt qu'une contrainte CSP globale du type
+  \texttt{Sum(x[v]!=6) >= 1} ? Parce que cette contrainte deviendrait infaisable si
+  tous les sommets sont gelés à $\{6\}$ (cas d'un benzénoïde où chaque hexagone a
+  $\deg=6$). Le post-filtre marche dans tous les cas avec un coût négligeable :
+  une seule solution à filtrer dans le pire cas. Le benzénoïde d'origine est
+  toujours testé séparément par \texttt{test.py} et apparaît dans le champ
+  \texttt{original} du \texttt{data.json}.
+\end{remarque}
+
 \subsection{Parsing de la sortie ACE}
 
 ACE écrit chaque solution sous forme de balise XML \texttt{<values>}. Le format utilise
