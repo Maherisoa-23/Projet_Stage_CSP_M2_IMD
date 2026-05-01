@@ -701,12 +701,13 @@
 
     /* Stats sur TOUTES les lignes (non filtrees) -- les cards montrent
        l'ensemble, pas le sous-ensemble filtre. */
-    var nMol = allRows.length, nOrigP = 0, nOrigN = 0, nSol = 0;
+    var nMol = allRows.length, nOrigP = 0, nOrigN = 0, nSol = 0, nNoSol = 0;
     var nPlane = 0, nAutres = 0, nNonPlane = 0;
     allRows.forEach(function (r) {
       if (r.origPlanar === true) nOrigP++;
       else if (r.origPlanar === false) nOrigN++;
       nSol += r.numSol;
+      if (r.numSol === 0) nNoSol++;
       nPlane    += r.bucketCount.PLANE;
       nAutres   += r.bucketCount.AUTRES;
       nNonPlane += r.bucketCount.NON_PLANE;
@@ -717,11 +718,15 @@
 
     /* Cards simplifiees : Mol + Originaux + 3 buckets (PLANE/AUTRES/NON_PLANE).
        En mode "both", AUTRES inclut les divergences MR vs MD (vu via solutionBucket). */
+    var noSolCard = nNoSol > 0
+      ? '<div class="card no-sol-card"><div class="value">' + nNoSol + '</div><div class="label">\u2298 Sans solution CSP</div></div>'
+      : '';
     var cardsHtml =
       '<div class="card blue"><div class="value">' + nMol + '</div><div class="label">Molecules' + badge + '</div></div>' +
       '<div class="card green"><div class="value">' + nOrigP + '</div><div class="label">Originaux plans</div></div>' +
       '<div class="card red"><div class="value">' + nOrigN + '</div><div class="label">Originaux non plans</div></div>' +
       '<div class="card blue"><div class="value">' + nSol + '</div><div class="label">Solutions CSP</div></div>' +
+      noSolCard +
       '<div class="card green"><div class="value">' + nPlane + '</div><div class="label">\uD83D\uDFE2 Plans</div></div>' +
       '<div class="card" style="border-top-color:#bf8700"><div class="value" style="color:#bf8700">' + nAutres + '</div><div class="label">\uD83D\uDFE1 Autres</div></div>' +
       '<div class="card red"><div class="value">' + nNonPlane + '</div><div class="label">\u26AB Non plans</div></div>';
@@ -740,12 +745,12 @@
       }
 
       var solCell = r.numSol === 0
-        ? '<span class="na">-</span>'
+        ? '<span class="no-sol-tag">0</span>'
         : r.numSol + ' solution' + (r.numSol > 1 ? 's' : '');
 
       var planCell;
       if (r.numSol === 0) {
-        planCell = '<span class="na">-</span>';
+        planCell = '<span class="no-sol-pill" title="Le solveur CSP n\'a trouve aucune substitution non-benzenoide pour cette molecule">&#x2298; Aucune solution CSP</span>';
       } else {
         var bc = r.bucketCount;
         var pills = [];
@@ -757,8 +762,9 @@
 
       var angleCell = r.numSol > 0 ? r.maxAngle + '&deg;' : '<span class="na">-</span>';
       var isExp = state.expandedMols[r.name] ? ' expanded' : '';
+      var noSolCls = r.numSol === 0 ? ' no-sol-row' : '';
 
-      html += '<tr class="mol-row' + isExp + '" data-mol="' + r.name + '" onclick="toggleDetails(\'' + r.name + '\')">' +
+      html += '<tr class="mol-row' + isExp + noSolCls + '" data-mol="' + r.name + '" onclick="toggleDetails(\'' + r.name + '\')">' +
         '<td class="mol-name"><span class="expand-icon">&#9654;</span> ' + r.name + '</td>' +
         '<td>' + origCell + '</td>' +
         '<td>' + solCell + '</td>' +
@@ -936,12 +942,13 @@
       rows = rows.filter(function (r) { return diffMols[r.name]; });
     }
 
-    var nMol = allRows.length, nOrigP = 0, nOrigN = 0, nSol = 0;
+    var nMol = allRows.length, nOrigP = 0, nOrigN = 0, nSol = 0, nNoSol = 0;
     var nPlane = 0, nAutres = 0, nNonPlane = 0;
     allRows.forEach(function (r) {
       if (r.origPlanar === true) nOrigP++;
       else if (r.origPlanar === false) nOrigN++;
       nSol += r.numSol;
+      if (r.numSol === 0) nNoSol++;
       nPlane    += r.bucketCount.PLANE;
       nAutres   += r.bucketCount.AUTRES;
       nNonPlane += r.bucketCount.NON_PLANE;
@@ -990,7 +997,7 @@
 
       var solCell;
       if (r.numSol === 0) {
-        solCell = '<span class="na">-</span>';
+        solCell = '<span class="no-sol-pill" title="Le solveur CSP n\'a trouve aucune substitution non-benzenoide">&#x2298; Aucune sol.</span>';
       } else {
         var bc = r.bucketCount;
         var pills = [];
@@ -1000,8 +1007,9 @@
         solCell = '<span class="bucket-pill-row">' + pills.join('') + '</span>';
       }
       var angleCell = r.numSol > 0 ? r.maxAngle + '&deg;' : '<span class="na">-</span>';
+      var noSolCls = r.numSol === 0 ? ' no-sol-row' : '';
 
-      html += '<tr class="mol-row' + expCls + diffCls + '" data-mol="' + r.name + '" onclick="toggleDetails(\'' + r.name + '\')">' +
+      html += '<tr class="mol-row' + expCls + diffCls + noSolCls + '" data-mol="' + r.name + '" onclick="toggleDetails(\'' + r.name + '\')">' +
         '<td class="mol-name"><span class="expand-icon">&#9654;</span> ' + r.name + diffBadge + '</td>' +
         '<td>' + origCell + '</td>' +
         '<td>' + solCell + '</td>' +
