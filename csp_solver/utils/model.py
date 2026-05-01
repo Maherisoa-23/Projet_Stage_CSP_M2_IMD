@@ -28,7 +28,7 @@ def _find_ace_jar():
 
 
 def build_and_solve(graph, preprocessed, enumerate_all=True,
-                    adj_57=False, no_table=False):
+                    adj_57=False, no_table=False, count_hexagon=False):
     """Construit le modele CSP, genere le XML, et appelle ACE.
 
     Args:
@@ -37,6 +37,12 @@ def build_and_solve(graph, preprocessed, enumerate_all=True,
         enumerate_all: enumerer toutes les solutions
         adj_57: activer la contrainte C5 (adjacence 5-7)
         no_table: desactiver la contrainte C3 (table de voisinage)
+        count_hexagon: si True, garder la solution tout-hexagones (le
+            benzenoide d'origine, x_v = 6 pour tout v) dans la liste.
+            Defaut False : on l'exclut puisque l'objectif du solveur est
+            d'enumerer les substitutions non-benzenoides. Le benzenoide
+            d'origine reste teste separement par test.py (champ "original"
+            du data.json).
 
     Returns:
         Liste de solutions, chaque solution est un dict {v: taille}
@@ -117,7 +123,20 @@ def build_and_solve(graph, preprocessed, enumerate_all=True,
     solutions_list = _parse_ace_output(result.stdout, h)
 
     print(f"  Statut ACE: {'SAT' if solutions_list else 'UNSAT'}")
-    print(f"  Solutions trouvees: {len(solutions_list)}")
+    print(f"  Solutions trouvees (brut): {len(solutions_list)}")
+
+    # --- Post-filtre : exclure la solution tout-hexagones (benzenoide d'origine) ---
+    # Choix architectural : post-filtre plutot qu'une contrainte CSP globale, car
+    # une contrainte "Sum(x[v] != 6) >= 1" devient infaisable si tous les sommets
+    # sont geles a {6}, ce qui est genant a gerer en amont. Le post-filtre marche
+    # toujours et le surcout est negligeable (1 solution a filtrer dans le pire cas).
+    if not count_hexagon and solutions_list:
+        before = len(solutions_list)
+        solutions_list = [s for s in solutions_list
+                          if not all(v == 6 for v in s.values())]
+        if len(solutions_list) < before:
+            print(f"  Filtre tout-hexagones : {before} -> {len(solutions_list)} "
+                  f"(--count-hexagon pour la conserver)")
 
     # Nettoyage
     if os.path.exists(xml_path):

@@ -3,11 +3,17 @@ Point d'entree du solveur CSP pour les non-benzenoides.
 
 Usage:
     python main.py <fichier.graph> [--all] [--count] [--validate]
+                                   [--count-hexagon]
 
 Options:
-    --all      : enumerer toutes les solutions (defaut)
-    --count    : afficher seulement le nombre de solutions
-    --validate : valider les solutions avec xTB + test planarite
+    --all            : enumerer toutes les solutions (defaut)
+    --count          : afficher seulement le nombre de solutions
+    --validate       : valider les solutions avec xTB + test planarite
+    --count-hexagon  : inclure la solution tout-hexagones (le benzenoide
+                       d'origine) dans la liste. Defaut : exclue, puisque
+                       l'objectif est d'enumerer les substitutions
+                       non-benzenoides. Le benzenoide d'origine reste
+                       teste separement par test.py.
 """
 
 import sys
@@ -23,6 +29,9 @@ do_validate = "--validate" in _own_argv
 no_freeze = "--no-freeze" in _own_argv
 adj_57 = "--adj-57" in _own_argv
 no_table = "--no-table" in _own_argv
+# Par defaut, le solveur exclut la solution tout-hexagones (le benzenoide
+# d'origine). Le flag --count-hexagon la reintroduit dans la liste.
+count_hexagon = "--count-hexagon" in _own_argv
 enumerate_all = "--all" in _own_argv or not count_only
 output_dir = None
 if "--output-dir" in _own_argv:
@@ -111,8 +120,13 @@ def main():
         print("  Contrainte C5 (adjacence 5-7) : ACTIVEE")
     if no_table:
         print("  Contrainte C3 (table voisinage) : DESACTIVEE")
+    if count_hexagon:
+        print("  Solution tout-hexagones : INCLUSE (--count-hexagon)")
+    else:
+        print("  Solution tout-hexagones : EXCLUE (defaut)")
     solutions = build_and_solve(graph, preprocessed, enumerate_all=enumerate_all,
-                                adj_57=adj_57, no_table=no_table)
+                                adj_57=adj_57, no_table=no_table,
+                                count_hexagon=count_hexagon)
 
     if not solutions:
         print("Aucune solution trouvee.")
