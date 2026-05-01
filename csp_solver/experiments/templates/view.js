@@ -22,8 +22,7 @@
     sortAsc: true,
     filterOrig: 'all',     // 'all' | 'planar' | 'nonplanar'
     filterSol: 'all',
-    filterStab: 'all',     // 'all' | 'stable_planar' | 'unstable' | 'stable_non_planar'
-    filterMD: 'all',       // 'all' | 'planar' | 'nonplanar' (filtre quand activeMethod = md)
+    filterVerdict: 'all',  // 'all' | 'plane' | 'autres' | 'nonplane' (3 buckets unifies)
     searchQuery: '',
     /* expandedMols est partage entre la vue simple et la vue comparaison :
        le meme selecteur CSS [data-parent="X"] matche dans les deux, donc
@@ -72,10 +71,57 @@
     ambiguous:         { emoji: '\u26AA',       label: 'Ambigu',            short: 'Ambigu',        color: '#6a737d' },
   };
 
-  /* Groupes de stabilite utilises pour les cards et le filtre (aggregats). */
-  var STABLE_PLANAR = { always_planar: 1, mostly_planar: 1 };
-  var UNSTABLE = { unstable: 1 };
-  var STABLE_NON_PLANAR = { always_non_planar: 1, mostly_non_planar: 1 };
+  /* === 3 BUCKETS unifies (vue simplifiee, demande utilisateur) ===
+     - PLANE     : always_planar + mostly_planar (MR), md.planar=true (MD)
+     - NON_PLANE : always_non_planar + mostly_non_planar (MR), md.planar=false (MD)
+     - AUTRES    : unstable + ambiguous (MR), ou desaccord MR vs MD en mode "both"
+     Les sous-categories (toujours/majoritairement) restent visibles dans la
+     ligne detail depliee, via les badges existants. */
+  var BUCKETS = {
+    PLANE:     { label: 'Plan',     color: '#1a7f37', bg: '#dafbe1', emoji: '🟢' },
+    AUTRES:    { label: 'Autres',   color: '#bf8700', bg: '#fff8c5', emoji: '🟡' },
+    NON_PLANE: { label: 'Non plan', color: '#cf222e', bg: '#ffebe9', emoji: '⚫' },
+  };
+
+  function _classToBucket(cls) {
+    if (cls === 'always_planar' || cls === 'mostly_planar') return 'PLANE';
+    if (cls === 'always_non_planar' || cls === 'mostly_non_planar') return 'NON_PLANE';
+    return 'AUTRES';
+  }
+
+  /* Bucket d'une solution selon la methode active.
+     - "multi-runs" : depuis runs.classification (fallback sur sol.planar)
+     - "md"         : depuis md_validation.planar (jamais AUTRES)
+     - "both"       : si les 2 d'accord -> ce bucket ; sinon AUTRES */
+  function solutionBucket(sol) {
+    var meth = state.activeMethod;
+    var hasMR = !!(sol.runs && sol.runs.classification);
+    var hasMD = !!sol.md_validation;
+    var mr = hasMR ? _classToBucket(sol.runs.classification) : null;
+    var md = hasMD ? (sol.md_validation.planar ? 'PLANE' : 'NON_PLANE') : null;
+    if (meth === 'multi-runs') {
+      return mr || (sol.planar ? 'PLANE' : 'NON_PLANE');
+    }
+    if (meth === 'md') {
+      return md || (sol.planar ? 'PLANE' : 'NON_PLANE');
+    }
+    /* both : consensus ou divergence */
+    if (mr && md) {
+      if (mr === md) return mr;
+      /* Si l'un dit AUTRES et l'autre PLANE/NON_PLANE -> AUTRES (incertitude) */
+      if (mr === 'AUTRES' || md === 'AUTRES') return 'AUTRES';
+      return 'AUTRES';  /* desaccord franc plane vs non plane */
+    }
+    return mr || md || (sol.planar ? 'PLANE' : 'NON_PLANE');
+  }
+
+  /* Pill bucket : badge unique 3-couleurs affiche dans la "Planarite" mol-row.
+     Dimension compacte. */
+  function renderBucketPill(bucket, count) {
+    var b = BUCKETS[bucket];
+    return '<span class="bucket-pill" style="background:' + b.bg + ';color:' + b.color + ';border-color:' + b.color + '" title="' + b.label + '">'
+         + (count !== undefined ? count + ' ' : '') + b.label + '</span>';
+  }
 
   /* ---- Rendu du badge classification ---- */
   function renderStabilityBadge(classKey) {
@@ -237,16 +283,8 @@
     return null;  /* aucun bloc enrichi : single-run classique */
   }
 
-  /* Classe une solution dans un des 3 groupes pour cards/filtres ('stable_planar',
-     'unstable', 'stable_non_planar'), ou null si pas de runs/ambigu. */
-  function stabilityGroup(sol) {
-    if (!sol.runs) return null;
-    var c = sol.runs.classification;
-    if (STABLE_PLANAR[c])     return 'stable_planar';
-    if (UNSTABLE[c])          return 'unstable';
-    if (STABLE_NON_PLANAR[c]) return 'stable_non_planar';
-    return null;
-  }
+  /* Mapping verdict (filtre Verdict) -> bucket. */
+  var FILTER_TO_BUCKET = { plane: 'PLANE', autres: 'AUTRES', nonplane: 'NON_PLANE' };
 
   /* ==== Partition CSP : couverture des solutions entre configs ==== */
 
@@ -553,32 +591,23 @@
     Object.keys(mols).forEach(function (name) {
       var m = mols[name];
       var nP = 0, nN = 0, maxA = 0;
-      var stabCount = { stable_planar: 0, unstable: 0, stable_non_planar: 0, other: 0 };
-      /* Stats MD : plans/non-plans par methode MD (1 verdict binaire par solution). */
-      var mdCount = { planar: 0, nonplanar: 0 };
+      var bucketCount = { PLANE: 0, AUTRES: 0, NON_PLANE: 0 };
       var hasRuns = false, hasMD = false;
       m.solutions.forEach(function (s) {
         if (s.planar) nP++; else nN++;
         if (s.angle_deg > maxA) maxA = s.angle_deg;
-        if (s.runs) {
-          hasRuns = true;
-          var g = stabilityGroup(s);
-          if (g) stabCount[g]++;
-          else   stabCount.other++;
-        }
-        if (s.md_validation) {
-          hasMD = true;
-          if (s.md_validation.planar) mdCount.planar++;
-          else                         mdCount.nonplanar++;
-        }
+        if (s.runs) hasRuns = true;
+        if (s.md_validation) hasMD = true;
+        var b = solutionBucket(s);
+        bucketCount[b]++;
       });
       rows.push({
         name: name, mol: m,
         origPlanar: m.original ? m.original.planar : null,
         origAngle: m.original ? m.original.angle_deg : null,
         numSol: m.solutions.length, numPlan: nP, numNon: nN, maxAngle: maxA,
-        hasRuns: hasRuns, stabCount: stabCount,
-        hasMD: hasMD, mdCount: mdCount,
+        hasRuns: hasRuns, hasMD: hasMD,
+        bucketCount: bucketCount,
       });
     });
     return rows;
@@ -601,14 +630,11 @@
     else if (state.filterOrig === 'nonplanar') rows = rows.filter(function (r) { return r.origPlanar === false; });
     if (state.filterSol === 'planar')          rows = rows.filter(function (r) { return r.numPlan > 0; });
     else if (state.filterSol === 'nonplanar')  rows = rows.filter(function (r) { return r.numNon > 0; });
-    /* Filtre stabilite : molecule retenue si au moins une de ses solutions
-       tombe dans le groupe choisi (stable_planar / unstable / stable_non_planar). */
-    if (state.filterStab !== 'all') {
-      rows = rows.filter(function (r) { return r.stabCount && r.stabCount[state.filterStab] > 0; });
-    }
-    /* Filtre MD : retenu si au moins une solution a un verdict MD du type choisi. */
-    if (state.filterMD !== 'all') {
-      rows = rows.filter(function (r) { return r.mdCount && r.mdCount[state.filterMD] > 0; });
+    /* Filtre Verdict (3 buckets unifies) : retenue si au moins une solution
+       est dans le bucket choisi pour la methode active. */
+    if (state.filterVerdict !== 'all') {
+      var b = FILTER_TO_BUCKET[state.filterVerdict];
+      rows = rows.filter(function (r) { return r.bucketCount && r.bucketCount[b] > 0; });
     }
     return rows;
   }
@@ -641,56 +667,30 @@
 
     /* Stats sur TOUTES les lignes (non filtrees) -- les cards montrent
        l'ensemble, pas le sous-ensemble filtre. */
-    var nMol = allRows.length, nOrigP = 0, nOrigN = 0, nSol = 0, nPlan = 0, nNon = 0;
-    var nStabPl = 0, nUnst = 0, nStabNon = 0;
-    var nMDPl = 0, nMDNon = 0;
+    var nMol = allRows.length, nOrigP = 0, nOrigN = 0, nSol = 0;
+    var nPlane = 0, nAutres = 0, nNonPlane = 0;
     allRows.forEach(function (r) {
       if (r.origPlanar === true) nOrigP++;
       else if (r.origPlanar === false) nOrigN++;
-      nSol += r.numSol; nPlan += r.numPlan; nNon += r.numNon;
-      if (r.hasRuns) {
-        nStabPl  += r.stabCount.stable_planar;
-        nUnst    += r.stabCount.unstable;
-        nStabNon += r.stabCount.stable_non_planar;
-      }
-      if (r.hasMD) {
-        nMDPl  += r.mdCount.planar;
-        nMDNon += r.mdCount.nonplanar;
-      }
+      nSol += r.numSol;
+      nPlane    += r.bucketCount.PLANE;
+      nAutres   += r.bucketCount.AUTRES;
+      nNonPlane += r.bucketCount.NON_PLANE;
     });
 
     var badge = rows.length < allRows.length
       ? '<span class="count-badge">(' + rows.length + '/' + allRows.length + ')</span>' : '';
 
-    /* Cards : 4 communes (mol + originaux + solutions total) + cards specifiques
-       a la methode active. Si activeMethod="both", on empile les 2 sets. */
+    /* Cards simplifiees : Mol + Originaux + 3 buckets (PLANE/AUTRES/NON_PLANE).
+       En mode "both", AUTRES inclut les divergences MR vs MD (vu via solutionBucket). */
     var cardsHtml =
       '<div class="card blue"><div class="value">' + nMol + '</div><div class="label">Molecules' + badge + '</div></div>' +
       '<div class="card green"><div class="value">' + nOrigP + '</div><div class="label">Originaux plans</div></div>' +
       '<div class="card red"><div class="value">' + nOrigN + '</div><div class="label">Originaux non plans</div></div>' +
-      '<div class="card blue"><div class="value">' + nSol + '</div><div class="label">Solutions CSP</div></div>';
-
-    var meth = state.activeMethod;
-    var showMR = (meth === 'multi-runs' || meth === 'both') && showStab;
-    var showMDcards = (meth === 'md' || meth === 'both') && allRows.some(function (r) { return r.hasMD; });
-
-    if (showMR) {
-      cardsHtml +=
-        '<div class="card green"><div class="value">' + nStabPl  + '</div><div class="label">\uD83D\uDFE2 Stables planes</div></div>' +
-        '<div class="card" style="border-top-color:#e66f00"><div class="value" style="color:#e66f00">' + nUnst + '</div><div class="label">\uD83D\uDFE0 Instables</div></div>' +
-        '<div class="card red"><div class="value">' + nStabNon + '</div><div class="label">\u26AB Stables non planes</div></div>';
-    }
-    if (showMDcards) {
-      cardsHtml +=
-        '<div class="card green"><div class="value">' + nMDPl  + '</div><div class="label">\uD83E\uDDEC MD plans</div></div>' +
-        '<div class="card red"><div class="value">'   + nMDNon + '</div><div class="label">\uD83E\uDDEC MD non plans</div></div>';
-    }
-    /* Fallback : single-run sans aucune methode multi-runs ni md. */
-    if (!showMR && !showMDcards) {
-      cardsHtml +=
-        '<div class="card green"><div class="value">' + nPlan + '</div><div class="label">Solutions planes</div></div>' +
-        '<div class="card red"><div class="value">' + nNon  + '</div><div class="label">Solutions non planes</div></div>';
-    }
+      '<div class="card blue"><div class="value">' + nSol + '</div><div class="label">Solutions CSP</div></div>' +
+      '<div class="card green"><div class="value">' + nPlane + '</div><div class="label">\uD83D\uDFE2 Plans</div></div>' +
+      '<div class="card" style="border-top-color:#bf8700"><div class="value" style="color:#bf8700">' + nAutres + '</div><div class="label">\uD83D\uDFE1 Autres</div></div>' +
+      '<div class="card red"><div class="value">' + nNonPlane + '</div><div class="label">\u26AB Non plans</div></div>';
     document.getElementById('cards').innerHTML = cardsHtml;
 
     var html = '';
@@ -713,8 +713,12 @@
       if (r.numSol === 0) {
         planCell = '<span class="na">-</span>';
       } else {
-        planCell = '<span class="planar">' + r.numPlan + ' plan</span>';
-        if (r.numNon > 0) planCell += ', <span class="non-planar">' + r.numNon + ' non</span>';
+        var bc = r.bucketCount;
+        var pills = [];
+        if (bc.PLANE > 0)     pills.push(renderBucketPill('PLANE', bc.PLANE));
+        if (bc.AUTRES > 0)    pills.push(renderBucketPill('AUTRES', bc.AUTRES));
+        if (bc.NON_PLANE > 0) pills.push(renderBucketPill('NON_PLANE', bc.NON_PLANE));
+        planCell = '<span class="bucket-pill-row">' + pills.join('') + '</span>';
       }
 
       var angleCell = r.numSol > 0 ? r.maxAngle + '&deg;' : '<span class="na">-</span>';
@@ -797,10 +801,9 @@
 
   /* ---- Filters ---- */
   function setFilter(group, value) {
-    if (group === 'orig')      state.filterOrig = value;
-    else if (group === 'sol')  state.filterSol = value;
-    else if (group === 'stab') state.filterStab = value;
-    else if (group === 'md')   state.filterMD = value;
+    if (group === 'orig')        state.filterOrig = value;
+    else if (group === 'sol')    state.filterSol = value;
+    else if (group === 'verdict') state.filterVerdict = value;
     /* Meme data-filter present dans les 2 toolbars (normal + compare) --
        un seul appel met a jour les deux. */
     document.querySelectorAll('.filter-btn').forEach(function (b) {
@@ -864,23 +867,18 @@
     });
     var diffMols = {};
     Object.keys(allNames).forEach(function (name) {
-      var planarities = [], solRatios = [], classSigs = [], mdSigs = [];
+      var planarities = [], bucketSigs = [];
       var hasMissing = false, hasPresent = false;
       cfgs.forEach(function (cfgName) {
         var mol = state.ALL_CONFIGS[cfgName].molecules[name];
         if (!mol) { hasMissing = true; return; }
         hasPresent = true;
         planarities.push(mol.original ? mol.original.planar : null);
-        var np = 0, classes = [], mdVerdicts = [];
-        mol.solutions.forEach(function (s) {
-          if (s.planar) np++;
-          classes.push(s.runs ? s.runs.classification : '-');
-          mdVerdicts.push(s.md_validation ? (s.md_validation.planar ? 'P' : 'N') : '-');
-        });
-        solRatios.push(np + '/' + mol.solutions.length);
-        /* Signatures triees : invariant a l'ordre des solutions. */
-        classSigs.push(classes.slice().sort().join(','));
-        mdSigs.push(mdVerdicts.slice().sort().join(','));
+        /* Signature 3-bucket : compte par bucket selon methode active.
+           Invariant a l'ordre des solutions. */
+        var bk = { PLANE: 0, AUTRES: 0, NON_PLANE: 0 };
+        mol.solutions.forEach(function (s) { bk[solutionBucket(s)]++; });
+        bucketSigs.push(bk.PLANE + '|' + bk.AUTRES + '|' + bk.NON_PLANE);
       });
       var hasDiff = hasMissing && hasPresent;
       function differs(arr) {
@@ -888,9 +886,7 @@
         return false;
       }
       if (!hasDiff && planarities.length > 1 && differs(planarities)) hasDiff = true;
-      if (!hasDiff && solRatios.length > 1   && differs(solRatios))   hasDiff = true;
-      if (!hasDiff && classSigs.length > 1   && differs(classSigs))   hasDiff = true;
-      if (!hasDiff && mdSigs.length > 1      && differs(mdSigs))      hasDiff = true;
+      if (!hasDiff && bucketSigs.length > 1  && differs(bucketSigs))  hasDiff = true;
       diffMols[name] = hasDiff;
     });
     return diffMols;
@@ -906,22 +902,15 @@
       rows = rows.filter(function (r) { return diffMols[r.name]; });
     }
 
-    var nMol = allRows.length, nOrigP = 0, nOrigN = 0, nSol = 0, nPlan = 0, nNon = 0;
-    var nStabPl = 0, nUnst = 0, nStabNon = 0;
-    var nMDPl = 0, nMDNon = 0;
+    var nMol = allRows.length, nOrigP = 0, nOrigN = 0, nSol = 0;
+    var nPlane = 0, nAutres = 0, nNonPlane = 0;
     allRows.forEach(function (r) {
       if (r.origPlanar === true) nOrigP++;
       else if (r.origPlanar === false) nOrigN++;
-      nSol += r.numSol; nPlan += r.numPlan; nNon += r.numNon;
-      if (r.hasRuns) {
-        nStabPl  += r.stabCount.stable_planar;
-        nUnst    += r.stabCount.unstable;
-        nStabNon += r.stabCount.stable_non_planar;
-      }
-      if (r.hasMD) {
-        nMDPl  += r.mdCount.planar;
-        nMDNon += r.mdCount.nonplanar;
-      }
+      nSol += r.numSol;
+      nPlane    += r.bucketCount.PLANE;
+      nAutres   += r.bucketCount.AUTRES;
+      nNonPlane += r.bucketCount.NON_PLANE;
     });
 
     var html = '<div class="compare-panel" data-panel-cfg="' + cfgName + '">';
@@ -930,26 +919,10 @@
       '<div class="mini-card blue"><div class="v">' + nMol   + '</div><div class="l">Molecules</div></div>' +
       '<div class="mini-card green"><div class="v">' + nOrigP + '</div><div class="l">Orig. plans</div></div>' +
       '<div class="mini-card red"><div class="v">' + nOrigN  + '</div><div class="l">Orig. non pl.</div></div>' +
-      '<div class="mini-card blue"><div class="v">' + nSol   + '</div><div class="l">Solutions</div></div>';
-    var meth = state.activeMethod;
-    var showMR = (meth === 'multi-runs' || meth === 'both') && showStab;
-    var showMDcards = (meth === 'md' || meth === 'both') && allRows.some(function (r) { return r.hasMD; });
-    if (showMR) {
-      html +=
-        '<div class="mini-card green"><div class="v">' + nStabPl  + '</div><div class="l">\uD83D\uDFE2 Stables pl.</div></div>' +
-        '<div class="mini-card" style="border-top-color:#e66f00"><div class="v" style="color:#e66f00">' + nUnst + '</div><div class="l">\uD83D\uDFE0 Instables</div></div>' +
-        '<div class="mini-card red"><div class="v">' + nStabNon + '</div><div class="l">\u26AB Stables non</div></div>';
-    }
-    if (showMDcards) {
-      html +=
-        '<div class="mini-card green"><div class="v">' + nMDPl  + '</div><div class="l">\uD83E\uDDEC MD pl.</div></div>' +
-        '<div class="mini-card red"><div class="v">'   + nMDNon + '</div><div class="l">\uD83E\uDDEC MD non pl.</div></div>';
-    }
-    if (!showMR && !showMDcards) {
-      html +=
-        '<div class="mini-card green"><div class="v">' + nPlan + '</div><div class="l">Sol. planes</div></div>' +
-        '<div class="mini-card red"><div class="v">'   + nNon  + '</div><div class="l">Sol. non pl.</div></div>';
-    }
+      '<div class="mini-card blue"><div class="v">' + nSol   + '</div><div class="l">Solutions</div></div>' +
+      '<div class="mini-card green"><div class="v">' + nPlane + '</div><div class="l">\uD83D\uDFE2 Plans</div></div>' +
+      '<div class="mini-card" style="border-top-color:#bf8700"><div class="v" style="color:#bf8700">' + nAutres + '</div><div class="l">\uD83D\uDFE1 Autres</div></div>' +
+      '<div class="mini-card red"><div class="v">' + nNonPlane + '</div><div class="l">\u26AB Non plans</div></div>';
     html += '</div>';
 
     function thClass(col) {
@@ -985,9 +958,12 @@
       if (r.numSol === 0) {
         solCell = '<span class="na">-</span>';
       } else {
-        solCell = r.numSol + ' <small>(<span class="planar">' + r.numPlan + '</span>';
-        if (r.numNon > 0) solCell += '/<span class="non-planar">' + r.numNon + '</span>';
-        solCell += ')</small>';
+        var bc = r.bucketCount;
+        var pills = [];
+        if (bc.PLANE > 0)     pills.push(renderBucketPill('PLANE', bc.PLANE));
+        if (bc.AUTRES > 0)    pills.push(renderBucketPill('AUTRES', bc.AUTRES));
+        if (bc.NON_PLANE > 0) pills.push(renderBucketPill('NON_PLANE', bc.NON_PLANE));
+        solCell = '<span class="bucket-pill-row">' + pills.join('') + '</span>';
       }
       var angleCell = r.numSol > 0 ? r.maxAngle + '&deg;' : '<span class="na">-</span>';
 
@@ -1064,14 +1040,6 @@
     document.querySelectorAll('[data-method-btn]').forEach(function (b) {
       b.classList.toggle('active', b.dataset.methodBtn === name);
     });
-    /* Affichage conditionnel des groupes de filtres (Stabilite vs Planeite MD). */
-    document.querySelectorAll('[data-filter-group]').forEach(function (g) {
-      var grp = g.dataset.filterGroup;
-      var show = false;
-      if (grp === 'stab') show = (name === 'multi-runs' || name === 'both');
-      if (grp === 'md')   show = (name === 'md' || name === 'both');
-      g.style.display = show ? '' : 'none';
-    });
     /* Re-render de tout ce qui depend de la methode. */
     renderCSPPartitionSection();
     if (state.compareMode) renderComparison();
@@ -1117,15 +1085,6 @@
     state.activeMethod = 'both';  /* affiche tout par defaut quand on a les 2 */
   }
   renderMethodToggle();
-  /* Affiche les bons groupes de filtres selon la methode active. */
-  document.querySelectorAll('[data-filter-group]').forEach(function (g) {
-    var grp = g.dataset.filterGroup;
-    var show = false;
-    if (grp === 'stab') show = (state.activeMethod === 'multi-runs' || state.activeMethod === 'both');
-    if (grp === 'md')   show = (state.activeMethod === 'md' || state.activeMethod === 'both');
-    g.style.display = show ? '' : 'none';
-  });
-
   /* Partition CSP : 1 calcul + 1 rendu, ne depend pas de la config courante. */
   renderCSPPartitionSection();
   /* Charge la premiere config par defaut (declenche render() pour cards + table). */

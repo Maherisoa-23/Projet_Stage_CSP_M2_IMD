@@ -56,18 +56,12 @@ $config_buttons
       <button class="filter-btn" data-filter="sol-planar" onclick="setFilter('sol','planar')">Planes</button>
       <button class="filter-btn" data-filter="sol-nonplanar" onclick="setFilter('sol','nonplanar')">Non planes</button>
     </div>
-    <div class="filter-group" data-filter-group="stab">
-      <span class="flabel">Stabilite :</span>
-      <button class="filter-btn active" data-filter="stab-all" onclick="setFilter('stab','all')">Tous</button>
-      <button class="filter-btn" data-filter="stab-stable_planar" onclick="setFilter('stab','stable_planar')">&#x1F7E2; Stables pl.</button>
-      <button class="filter-btn" data-filter="stab-unstable" onclick="setFilter('stab','unstable')">&#x1F7E0; Instables</button>
-      <button class="filter-btn" data-filter="stab-stable_non_planar" onclick="setFilter('stab','stable_non_planar')">&#x26AB; Stables non pl.</button>
-    </div>
-    <div class="filter-group" data-filter-group="md">
-      <span class="flabel">Planeite MD :</span>
-      <button class="filter-btn active" data-filter="md-all" onclick="setFilter('md','all')">Tous</button>
-      <button class="filter-btn" data-filter="md-planar" onclick="setFilter('md','planar')">Plans</button>
-      <button class="filter-btn" data-filter="md-nonplanar" onclick="setFilter('md','nonplanar')">Non plans</button>
+    <div class="filter-group" data-filter-group="verdict">
+      <span class="flabel">Verdict :</span>
+      <button class="filter-btn active" data-filter="verdict-all" onclick="setFilter('verdict','all')">Tous</button>
+      <button class="filter-btn" data-filter="verdict-plane" onclick="setFilter('verdict','plane')">🟢 Plans</button>
+      <button class="filter-btn" data-filter="verdict-autres" onclick="setFilter('verdict','autres')">🟡 Autres</button>
+      <button class="filter-btn" data-filter="verdict-nonplane" onclick="setFilter('verdict','nonplane')">⚫ Non plans</button>
     </div>
     <div class="btn-group">
       <button onclick="expandAll()">Tout ouvrir</button>
@@ -77,14 +71,12 @@ $config_buttons
 
   <!-- Legende des classes de stabilite multi-runs (pliable, fermee par defaut) -->
   <details class="stability-legend">
-    <summary>Legende des classes de stabilite (multi-runs)</summary>
+    <summary>Legende des verdicts et sous-categories (multi-runs)</summary>
     <div class="legend-grid">
-      <div><span class="legend-emoji">&#x1F7E2;</span> <b>Toujours plan</b> <span class="legend-criteria">(100% plans ET &mu;&lt;5&deg;)</span></div>
-      <div><span class="legend-emoji">&#x1F7E1;</span> <b>Majorit. plan</b> <span class="legend-criteria">(&ge;70% plans ET &sigma;&lt;3&deg;)</span></div>
-      <div><span class="legend-emoji">&#x1F7E0;</span> <b>Instable</b> <span class="legend-criteria">(30-70% plans OU &sigma;&gt;5&deg;)</span></div>
-      <div><span class="legend-emoji">&#x1F534;</span> <b>Majorit. non-plan</b> <span class="legend-criteria">(&lt;30% plans)</span></div>
-      <div><span class="legend-emoji">&#x26AB;</span> <b>Toujours non-plan</b> <span class="legend-criteria">(0% plans)</span></div>
-      <div><span class="legend-emoji">&#x26AA;</span> <b>Ambigu</b> <span class="legend-criteria">(autre cas)</span></div>
+      <div><b>🟢 Plan</b> = toujours plan (100% &amp; &mu;&lt;5&deg;) OU majoritairement plan (&ge;70% &amp; &sigma;&lt;3&deg;)</div>
+      <div><b>🟡 Autres</b> = instable (30-70% plans OU &sigma;&gt;5&deg;) OU ambigu (autres cas, OU desaccord MR vs MD)</div>
+      <div><b>⚫ Non plan</b> = toujours non-plan (0%) OU majoritairement non-plan (&lt;30% plans)</div>
+      <div class="legend-criteria">Sous-categorie visible en depliant la solution.</div>
     </div>
     <p class="legend-help">
       Chaque solution est lancee N fois avec perturbation aleatoire. La <b>barre coloree</b>
@@ -101,7 +93,7 @@ $config_buttons
         <th class="sortable sort-asc" data-sort="name" onclick="sortTable('name')">Molecule</th>
         <th class="sortable" data-sort="original" onclick="sortTable('original')">Original</th>
         <th class="sortable" data-sort="solutions" onclick="sortTable('solutions')">Solutions</th>
-        <th class="sortable" data-sort="planar" onclick="sortTable('planar')">Planarite</th>
+        <th class="sortable" data-sort="planar" onclick="sortTable('planar')">Verdict</th>
         <th class="sortable" data-sort="angle" onclick="sortTable('angle')">Angle max</th>
       </tr>
     </thead>
@@ -127,18 +119,12 @@ $config_buttons
       <button class="filter-btn" data-filter="sol-planar" onclick="setFilter('sol','planar')">Planes</button>
       <button class="filter-btn" data-filter="sol-nonplanar" onclick="setFilter('sol','nonplanar')">Non planes</button>
     </div>
-    <div class="filter-group" data-filter-group="stab">
-      <span class="flabel">Stabilite :</span>
-      <button class="filter-btn active" data-filter="stab-all" onclick="setFilter('stab','all')">Tous</button>
-      <button class="filter-btn" data-filter="stab-stable_planar" onclick="setFilter('stab','stable_planar')">&#x1F7E2; Stables pl.</button>
-      <button class="filter-btn" data-filter="stab-unstable" onclick="setFilter('stab','unstable')">&#x1F7E0; Instables</button>
-      <button class="filter-btn" data-filter="stab-stable_non_planar" onclick="setFilter('stab','stable_non_planar')">&#x26AB; Stables non pl.</button>
-    </div>
-    <div class="filter-group" data-filter-group="md">
-      <span class="flabel">Planeite MD :</span>
-      <button class="filter-btn active" data-filter="md-all" onclick="setFilter('md','all')">Tous</button>
-      <button class="filter-btn" data-filter="md-planar" onclick="setFilter('md','planar')">Plans</button>
-      <button class="filter-btn" data-filter="md-nonplanar" onclick="setFilter('md','nonplanar')">Non plans</button>
+    <div class="filter-group" data-filter-group="verdict">
+      <span class="flabel">Verdict :</span>
+      <button class="filter-btn active" data-filter="verdict-all" onclick="setFilter('verdict','all')">Tous</button>
+      <button class="filter-btn" data-filter="verdict-plane" onclick="setFilter('verdict','plane')">🟢 Plans</button>
+      <button class="filter-btn" data-filter="verdict-autres" onclick="setFilter('verdict','autres')">🟡 Autres</button>
+      <button class="filter-btn" data-filter="verdict-nonplane" onclick="setFilter('verdict','nonplane')">⚫ Non plans</button>
     </div>
     <div class="filter-group">
       <span class="flabel">Diff :</span>

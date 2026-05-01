@@ -250,11 +250,14 @@ td { padding: 8px 14px; border-top: 1px solid #f0f0f0; font-size: 0.88em; }
 
 .detail-row { background: var(--surface-alt); display: none; }
 .detail-row td {
-  padding: 6px 14px 6px 48px;
+  padding: 10px 14px 10px 48px;
   font-size: 0.82em;
-  border-left: 3px solid var(--border);
+  border-left: 4px solid #c8d1da;
+  border-bottom: 1px solid #d8dfe6;
 }
 .detail-row td:first-child { border-left: none; }
+/* Renforce la separation entre solutions consecutives d'une meme molecule. */
+.detail-row + .detail-row td { border-top: 2px solid #c8d1da; }
 
 .sizes { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.82em; }
 .sizes a { color: var(--accent); text-decoration: none; }
@@ -342,11 +345,13 @@ td { padding: 8px 14px; border-top: 1px solid #f0f0f0; font-size: 0.88em; }
 }
 .panel-table .detail-row { background: var(--surface-alt); display: none; }
 .panel-table .detail-row td {
-  padding: 4px 8px 4px 22px;
+  padding: 8px 8px 8px 22px;
   font-size: 0.78em;
-  border-left: 2px solid var(--border);
+  border-left: 4px solid #c8d1da;
+  border-bottom: 1px solid #d8dfe6;
 }
 .panel-table .detail-row td:first-child { border-left: none; }
+.panel-table .detail-row + .detail-row td { border-top: 2px solid #c8d1da; }
 .panel-table .sizes { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.9em; }
 .panel-table .sizes a { color: var(--accent); text-decoration: none; }
 .panel-table .sizes a:hover { text-decoration: underline; }
@@ -378,6 +383,25 @@ td { padding: 8px 14px; border-top: 1px solid #f0f0f0; font-size: 0.88em; }
   background: var(--surface);
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
+}
+
+/* ==== 3-bucket pills (Verdict simplifie) ==== */
+.bucket-pill-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.bucket-pill {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 11px;
+  font-size: 0.78em;
+  font-weight: 700;
+  border: 1px solid;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  line-height: 1.4;
 }
 
 /* ==== Multi-runs : badges, dispersion bar, legende ==== */
@@ -452,13 +476,18 @@ td { padding: 8px 14px; border-top: 1px solid #f0f0f0; font-size: 0.88em; }
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 10px;
-  padding: 3px 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--surface);
+  border-left: 4px solid var(--border);
+  width: 100%;
+  box-sizing: border-box;
 }
 .solution-multirun .method-block + .method-block {
-  border-top: 1px dashed var(--border);
-  margin-top: 4px;
-  padding-top: 6px;
+  margin-top: 8px;
 }
+.solution-multirun .method-block.method-multiruns { border-left-color: var(--accent); }
+.solution-multirun .method-block.method-md         { border-left-color: #8b5cf6; }
 .method-label {
   display: inline-block;
   min-width: 72px;

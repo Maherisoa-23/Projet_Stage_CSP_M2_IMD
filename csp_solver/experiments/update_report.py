@@ -41,22 +41,74 @@ def load_all_data(output_dir):
     return results
 
 
+# === 3-bucket categorization (invariant partage avec view.js) ============
+# PLANE     = always_planar + mostly_planar
+# NON_PLANE = always_non_planar + mostly_non_planar
+# AUTRES    = unstable + ambiguous (multi-runs) ou desaccord MR vs MD
+BUCKET_COLORS = {
+    "PLANE":     "#1a7f37",
+    "AUTRES":    "#bf8700",
+    "NON_PLANE": "#cf222e",
+}
+BUCKET_LABELS = {
+    "PLANE":     "🟢 Plans",
+    "AUTRES":    "🟡 Autres",
+    "NON_PLANE": "⚫ Non plans",
+}
+
+
+def _class_to_bucket(cls):
+    if cls in ("always_planar", "mostly_planar"):
+        return "PLANE"
+    if cls in ("always_non_planar", "mostly_non_planar"):
+        return "NON_PLANE"
+    return "AUTRES"
+
+
+def _solution_bucket(sol):
+    """Bucket consensus : MR si dispo (plus nuance), sinon MD, sinon planar bool.
+    En presence des 2 methodes : si elles divergent -> AUTRES."""
+    runs = sol.get("runs")
+    mv = sol.get("md_validation")
+    mr = _class_to_bucket(runs["classification"]) if runs and runs.get("classification") else None
+    md = ("PLANE" if mv.get("planar") else "NON_PLANE") if mv else None
+    if mr and md:
+        if mr == md:
+            return mr
+        if mr == "AUTRES" or md == "AUTRES":
+            return "AUTRES"
+        return "AUTRES"  # divergence franche
+    if mr:
+        return mr
+    if md:
+        return md
+    return "PLANE" if sol.get("planar") else "NON_PLANE"
+
+
 def compute_stats(data):
     """Stats agregees pour un data.json."""
     molecules = data["molecules"]
     n_mol = len(molecules)
-    n_sol = sum(len(m["solutions"]) for m in molecules.values())
-    n_plan = sum(1 for m in molecules.values() for s in m["solutions"] if s["planar"])
+    n_sol = 0
+    buckets = {"PLANE": 0, "AUTRES": 0, "NON_PLANE": 0}
+    n_plan = 0
+    for m in molecules.values():
+        for s in m["solutions"]:
+            n_sol += 1
+            if s.get("planar"):
+                n_plan += 1
+            buckets[_solution_bucket(s)] += 1
     n_non = n_sol - n_plan
     n_orig = sum(1 for m in molecules.values() if m.get("original"))
     n_orig_plan = sum(1 for m in molecules.values()
                       if m.get("original") and m["original"]["planar"])
-    pct = round(100 * n_plan / n_sol) if n_sol > 0 else 0
+    pct = round(100 * buckets["PLANE"] / n_sol) if n_sol > 0 else 0
     return {
         "molecules": n_mol,
         "solutions": n_sol,
         "planar": n_plan,
         "non_planar": n_non,
+        "buckets": buckets,
         "pct_planar": pct,
         "originals": n_orig,
         "originals_planar": n_orig_plan,
@@ -84,25 +136,24 @@ def _pct_color(pct):
 
 
 def generate_bar_chart_svg(stats_by_h):
-    """SVG bar chart empile : solutions planes (vert) + non-planes (rouge) par h."""
+    """SVG bar chart empile 3 buckets : Plans (vert) / Autres (jaune) / Non plans (rouge).
+    stats_by_h : [(h_num, {PLANE,AUTRES,NON_PLANE}), ...]"""
     if not stats_by_h:
         return ""
-    w, h = 600, 280
-    mt, mr, mb, ml = 24, 20, 44, 56
+    w, h = 620, 300
+    mt, mr, mb, ml = 28, 20, 48, 60
     cw = w - ml - mr
     ch = h - mt - mb
     n = len(stats_by_h)
-    max_val = max((p + np) for _, p, np in stats_by_h) or 1
+    max_val = max(sum(b.values()) for _, b in stats_by_h) or 1
 
-    bar_w = min(60, cw / n * 0.6)
+    bar_w = min(64, cw / n * 0.6)
     gap = (cw - n * bar_w) / (n + 1)
 
     lines = [
         f'<svg viewBox="0 0 {w} {h}" xmlns="http://www.w3.org/2000/svg"',
         f'  style="width:100%;max-width:{w}px;font-family:Segoe UI,system-ui,sans-serif;">',
     ]
-
-    # Gridlines + y-axis labels
     n_grid = 4
     for i in range(n_grid + 1):
         y = mt + ch - (i / n_grid) * ch
@@ -112,38 +163,69 @@ def generate_bar_chart_svg(stats_by_h):
         lines.append(f'  <text x="{ml-8}" y="{y+4:.1f}" text-anchor="end" '
                      f'font-size="11" fill="#6a737d">{val}</text>')
 
-    # Bars
-    for i, (h_num, planar, non_planar) in enumerate(stats_by_h):
+    order = ["NON_PLANE", "AUTRES", "PLANE"]  # ordre d'empilement: bas=plan, haut=non plan
+    for i, (h_num, buckets) in enumerate(stats_by_h):
         x = ml + gap + i * (bar_w + gap)
-        total = planar + non_planar
-
-        h_plan = (planar / max_val) * ch
-        y_plan = mt + ch - h_plan
-        lines.append(f'  <rect x="{x:.1f}" y="{y_plan:.1f}" width="{bar_w:.1f}" '
-                     f'height="{h_plan:.1f}" fill="#1a7f37" rx="2">'
-                     f'<title>h{h_num} : {planar} planes</title></rect>')
-
-        if non_planar > 0:
-            h_non = (non_planar / max_val) * ch
-            y_non = y_plan - h_non
-            lines.append(f'  <rect x="{x:.1f}" y="{y_non:.1f}" width="{bar_w:.1f}" '
-                         f'height="{h_non:.1f}" fill="#cf222e" rx="2">'
-                         f'<title>h{h_num} : {non_planar} non planes</title></rect>')
-        else:
-            y_non = y_plan
-
-        lines.append(f'  <text x="{x + bar_w/2:.1f}" y="{y_non - 6:.1f}" text-anchor="middle" '
+        total = sum(buckets.values())
+        # Bottom-up : on commence par PLANE en bas
+        y_top = mt + ch
+        for key in ["PLANE", "AUTRES", "NON_PLANE"]:
+            v = buckets.get(key, 0)
+            if v == 0:
+                continue
+            seg_h = (v / max_val) * ch
+            y_top -= seg_h
+            lines.append(f'  <rect x="{x:.1f}" y="{y_top:.1f}" width="{bar_w:.1f}" '
+                         f'height="{seg_h:.1f}" fill="{BUCKET_COLORS[key]}" rx="1">'
+                         f'<title>h{h_num} : {v} {BUCKET_LABELS[key]}</title></rect>')
+        lines.append(f'  <text x="{x + bar_w/2:.1f}" y="{y_top - 6:.1f}" text-anchor="middle" '
                      f'font-size="12" font-weight="700" fill="#24292e">{total}</text>')
         lines.append(f'  <text x="{x + bar_w/2:.1f}" y="{mt + ch + 22:.1f}" text-anchor="middle" '
                      f'font-size="13" font-weight="600" fill="#24292e">h{h_num}</text>')
 
-    # Legend
-    lx = w - mr - 160
-    lines.append(f'  <rect x="{lx}" y="6" width="12" height="12" fill="#1a7f37" rx="2"/>')
-    lines.append(f'  <text x="{lx+16}" y="16" font-size="11" fill="#6a737d">Planes</text>')
-    lines.append(f'  <rect x="{lx+80}" y="6" width="12" height="12" fill="#cf222e" rx="2"/>')
-    lines.append(f'  <text x="{lx+96}" y="16" font-size="11" fill="#6a737d">Non planes</text>')
+    # Legende
+    lx = w - mr - 240; ly = 6
+    for i, key in enumerate(["PLANE", "AUTRES", "NON_PLANE"]):
+        cx = lx + i * 80
+        lines.append(f'  <rect x="{cx}" y="{ly}" width="12" height="12" fill="{BUCKET_COLORS[key]}" rx="2"/>')
+        lines.append(f'  <text x="{cx+16}" y="{ly+10}" font-size="11" fill="#6a737d">{BUCKET_LABELS[key]}</text>')
 
+    lines.append('</svg>')
+    return "\n".join(lines)
+
+
+def generate_3bucket_donut_svg(buckets):
+    """SVG donut 3-bucket : proportions PLANE/AUTRES/NON_PLANE."""
+    total = sum(buckets.values())
+    if total == 0:
+        return ""
+    cx, cy, r = 100, 100, 70
+    sw = 24
+    circumference = 2 * math.pi * r
+
+    lines = [
+        '<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"',
+        '  style="width:100%;max-width:200px;font-family:Segoe UI,system-ui,sans-serif;">',
+        f'  <circle cx="{cx}" cy="{cy}" r="{r}" fill="none" stroke="#e1e4e8" stroke-width="{sw}"/>',
+    ]
+    offset = 0.0
+    for key in ["PLANE", "AUTRES", "NON_PLANE"]:
+        v = buckets.get(key, 0)
+        if v == 0:
+            continue
+        seg_len = (v / total) * circumference
+        lines.append(f'  <circle cx="{cx}" cy="{cy}" r="{r}" fill="none" '
+                     f'stroke="{BUCKET_COLORS[key]}" stroke-width="{sw}" '
+                     f'stroke-dasharray="{seg_len:.2f} {circumference - seg_len:.2f}" '
+                     f'stroke-dashoffset="{-offset:.2f}" '
+                     f'transform="rotate(-90 {cx} {cy})"/>')
+        offset += seg_len
+
+    pct_pl = round(100 * buckets.get("PLANE", 0) / total)
+    lines.append(f'  <text x="{cx}" y="{cy - 4}" text-anchor="middle" '
+                 f'font-size="32" font-weight="700" fill="#24292e">{pct_pl}%</text>')
+    lines.append(f'  <text x="{cx}" y="{cy + 16}" text-anchor="middle" '
+                 f'font-size="11" fill="#6a737d">plans</text>')
     lines.append('</svg>')
     return "\n".join(lines)
 
@@ -557,17 +639,20 @@ def _compute_per_h(all_data):
     """Agrege les donnees par h : stats + totals + donnees pour le chart.
     Retourne un dict avec tout ce dont les helpers de rendu ont besoin."""
     h_list = sorted(all_data.keys(), key=lambda x: int(x[1:]))
-    totals = {"molecules": 0, "solutions": 0, "planar": 0, "non_planar": 0}
+    totals = {"molecules": 0, "solutions": 0, "planar": 0, "non_planar": 0,
+              "buckets": {"PLANE": 0, "AUTRES": 0, "NON_PLANE": 0}}
     per_h = []  # [{h_name, h_num, stats}]
-    chart_data = []  # [(h_num_int, planar, non_planar)] pour le bar chart
+    chart_data = []  # [(h_num_int, {PLANE,AUTRES,NON_PLANE}), ...]
 
     for h_name in h_list:
         stats = compute_stats(all_data[h_name])
         h_num = h_name[1:]
         per_h.append({"h_name": h_name, "h_num": h_num, "stats": stats})
-        chart_data.append((int(h_num), stats["planar"], stats["non_planar"]))
-        for k in totals:
+        chart_data.append((int(h_num), stats["buckets"]))
+        for k in ("molecules", "solutions", "planar", "non_planar"):
             totals[k] += stats[k]
+        for bk in totals["buckets"]:
+            totals["buckets"][bk] += stats["buckets"][bk]
 
     return {
         "h_list": h_list,
@@ -577,33 +662,54 @@ def _compute_per_h(all_data):
     }
 
 
+def _bucket_pill(key, count):
+    return (f'<span class="bucket-pill" style="background:{BUCKET_COLORS[key]}1a;'
+            f'color:{BUCKET_COLORS[key]};border:1px solid {BUCKET_COLORS[key]}">'
+            f'{count} {BUCKET_LABELS[key]}</span>')
+
+
+def _render_bucket_bar_inline(buckets, width=180):
+    """Mini barre 3-bucket inline (proportions). Width en px."""
+    total = sum(buckets.values()) or 1
+    parts = ['<div class="inline-bucket-bar" style="width:{}px;">'.format(width)]
+    for key in ["PLANE", "AUTRES", "NON_PLANE"]:
+        v = buckets.get(key, 0)
+        if v == 0:
+            continue
+        pct = 100 * v / total
+        parts.append(f'<span style="background:{BUCKET_COLORS[key]};width:{pct:.1f}%;" '
+                     f'title="{v} {BUCKET_LABELS[key]}"></span>')
+    parts.append('</div>')
+    return "".join(parts)
+
+
 def _render_results_row(h_num, stats):
-    """Ligne principale du tableau resultats (avec barre de progression %)."""
+    """Ligne tableau dashboard : h | mol | sol | mini-bar 3-bucket | pills | originaux."""
+    bk = stats["buckets"]
     pct = stats["pct_planar"]
-    bar_color = _pct_color(pct)
-    non_cls = ' class="non-planar"' if stats["non_planar"] > 0 else ""
+    pills = (_bucket_pill("PLANE", bk["PLANE"]) +
+             _bucket_pill("AUTRES", bk["AUTRES"]) +
+             _bucket_pill("NON_PLANE", bk["NON_PLANE"]))
     return (
         f'    <tr class="h-row">'
         f'<td class="h-toggle" onclick="toggleDetail(\'h{h_num}\')">'
         f'<strong>h={h_num}</strong> <span class="chevron" id="chev-h{h_num}">&#9654;</span></td>'
         f'<td>{stats["molecules"]}</td>'
         f'<td>{stats["solutions"]}</td>'
-        f'<td class="planar">{stats["planar"]}</td>'
-        f'<td{non_cls}>{stats["non_planar"]}</td>'
-        f'<td><div class="pct-bar-wrap">'
-        f'<div class="pct-bar" style="width:{pct}%;background:{bar_color};"></div>'
-        f'<span class="pct-label">{pct}%</span>'
-        f'</div></td>'
+        f'<td>{_render_bucket_bar_inline(bk)}</td>'
+        f'<td class="bucket-pills-cell">{pills}</td>'
+        f'<td><b>{pct}%</b></td>'
         f'<td class="planar">{stats["originals_planar"]}/{stats["originals"]}</td>'
         f'</tr>'
     )
 
 
 def _render_mol_mini_row(mol_name, mol):
-    """Une ligne de la mini-table (detail par molecule)."""
+    """Une ligne de la mini-table : nom mol + counts par bucket + original."""
+    bk = {"PLANE": 0, "AUTRES": 0, "NON_PLANE": 0}
+    for s in mol["solutions"]:
+        bk[_solution_bucket(s)] += 1
     n_sol = len(mol["solutions"])
-    n_plan = sum(1 for s in mol["solutions"] if s["planar"])
-    n_non = n_sol - n_plan
     orig = mol.get("original")
     if orig:
         o_cls = "planar" if orig["planar"] else "non-planar"
@@ -613,13 +719,13 @@ def _render_mol_mini_row(mol_name, mol):
         o_cls = "na"
         o_txt = "-"
         o_angle = "-"
-    non_cls_mol = ' class="non-planar"' if n_non > 0 else ""
     return (
         f'      <tr>'
         f'<td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">{mol_name}</td>'
         f'<td>{n_sol}</td>'
-        f'<td class="planar">{n_plan}</td>'
-        f'<td{non_cls_mol}>{n_non}</td>'
+        f'<td style="color:{BUCKET_COLORS["PLANE"]};font-weight:700">{bk["PLANE"]}</td>'
+        f'<td style="color:{BUCKET_COLORS["AUTRES"]};font-weight:700">{bk["AUTRES"]}</td>'
+        f'<td style="color:{BUCKET_COLORS["NON_PLANE"]};font-weight:700">{bk["NON_PLANE"]}</td>'
         f'<td class="{o_cls}">{o_txt}</td>'
         f'<td>{o_angle}</td>'
         f'</tr>'
@@ -636,8 +742,9 @@ def _render_detail_row(h_num, mols_dict):
         f'<td colspan="7" style="padding:0;">'
         f'<div class="detail-panel">'
         f'<table class="mini-table"><thead><tr>'
-        f'<th>Molecule</th><th>Solutions</th><th>Planes</th>'
-        f'<th>Non pl.</th><th>Original</th><th>Angle</th>'
+        f'<th>Molecule</th><th>Sol.</th>'
+        f'<th>🟢 Plans</th><th>🟡 Autres</th><th>⚫ Non pl.</th>'
+        f'<th>Original</th><th>Angle</th>'
         f'</tr></thead><tbody>\n'
         f'{mol_rows}\n'
         f'    </tbody></table></div></td></tr>'
@@ -655,14 +762,21 @@ def _render_rows_html(per_h, all_data):
 
 
 def _render_h_cards(per_h):
-    """Cards cliquables (une par h) qui menent vers le viewer."""
-    return "\n".join(
-        f'  <a href="../output/{e["h_name"]}/view.html" target="_blank" class="card blue">'
-        f'<div class="value">{e["h_name"]}</div>'
-        f'<div class="label">{e["stats"]["molecules"]} molecules</div>'
-        f'<div class="sub">{e["stats"]["planar"]} pl. / {e["stats"]["non_planar"]} non pl.</div></a>'
-        for e in per_h
-    )
+    """Cards cliquables (une par h) qui menent vers le viewer.
+    Affiche les 3 buckets en sub-text."""
+    out = []
+    for e in per_h:
+        bk = e["stats"]["buckets"]
+        sub = (f'<span style="color:{BUCKET_COLORS["PLANE"]}">{bk["PLANE"]} pl.</span> · '
+               f'<span style="color:{BUCKET_COLORS["AUTRES"]}">{bk["AUTRES"]} autres</span> · '
+               f'<span style="color:{BUCKET_COLORS["NON_PLANE"]}">{bk["NON_PLANE"]} non pl.</span>')
+        out.append(
+            f'  <a href="../output/{e["h_name"]}/view.html" target="_blank" class="card blue">'
+            f'<div class="value">{e["h_name"]}</div>'
+            f'<div class="label">{e["stats"]["molecules"]} molecules &middot; {e["stats"]["solutions"]} sol.</div>'
+            f'<div class="sub">{sub}</div></a>'
+        )
+    return "\n".join(out)
 
 
 def _render_batch_rows(h_list):
@@ -882,17 +996,136 @@ def _render_md_section(md_stats, compare_points, h_list):
 """
 
 
+def _compute_dashboard_kpis(all_data, totals):
+    """KPIs hero du dashboard : counts + % accord MR/MD."""
+    n_pairs = 0
+    n_agree = 0
+    n_disagree_pl_non = 0  # MR plan, MD non plan ou inverse (cas critiques)
+    divergences = []       # liste detaillee pour la section "alertes"
+    for h_name, cfg, mol, sol in _walk_all_solutions(all_data):
+        runs = sol.get("runs")
+        mv = sol.get("md_validation")
+        if not (runs and mv):
+            continue
+        n_pairs += 1
+        mr_b = _class_to_bucket(runs.get("classification", "ambiguous"))
+        md_b = "PLANE" if mv.get("planar") else "NON_PLANE"
+        if mr_b == md_b:
+            n_agree += 1
+        else:
+            if (mr_b == "PLANE" and md_b == "NON_PLANE") or (mr_b == "NON_PLANE" and md_b == "PLANE"):
+                n_disagree_pl_non += 1
+                divergences.append({
+                    "h": h_name, "cfg": cfg, "mol": mol,
+                    "sizes": sol.get("sizes", ""),
+                    "mr": runs.get("classification"), "md": "plan" if mv.get("planar") else "non plan",
+                    "mu": runs.get("angle_mean"), "md_angle": mv.get("angle_deg"),
+                })
+    pct_agree = round(100 * n_agree / n_pairs) if n_pairs > 0 else None
+    pct_plane_global = (round(100 * totals["buckets"]["PLANE"] / totals["solutions"])
+                        if totals["solutions"] > 0 else 0)
+    return {
+        "n_pairs": n_pairs,
+        "n_agree": n_agree,
+        "pct_agree": pct_agree,
+        "n_disagree_pl_non": n_disagree_pl_non,
+        "divergences": divergences,
+        "pct_plane_global": pct_plane_global,
+    }
+
+
+def _render_hero(totals, kpis, h_min, h_max, now):
+    """Bandeau dashboard : 4 KPIs hero + meta. Visible en haut, gros chiffres."""
+    bk = totals["buckets"]
+    accord_block = ""
+    if kpis["pct_agree"] is not None:
+        accord_block = (
+            f'<div class="kpi-tile accord"><div class="kpi-value">{kpis["pct_agree"]}%</div>'
+            f'<div class="kpi-label">Accord MR vs MD</div>'
+            f'<div class="kpi-sub">{kpis["n_agree"]}/{kpis["n_pairs"]} solutions</div></div>'
+        )
+    return f"""
+<section class="hero">
+  <div class="hero-meta">BenzAI DB &middot; h{h_min} a h{h_max} &middot; mis a jour le {now}</div>
+  <div class="kpi-grid">
+    <div class="kpi-tile primary">
+      <div class="kpi-value">{totals["molecules"]}</div>
+      <div class="kpi-label">Molecules</div>
+      <div class="kpi-sub">{totals["solutions"]} solutions CSP</div>
+    </div>
+    <div class="kpi-tile plane">
+      <div class="kpi-value">{kpis["pct_plane_global"]}%</div>
+      <div class="kpi-label">🟢 Plans</div>
+      <div class="kpi-sub">{bk["PLANE"]} solutions</div>
+    </div>
+    <div class="kpi-tile autres">
+      <div class="kpi-value">{bk["AUTRES"]}</div>
+      <div class="kpi-label">🟡 Autres</div>
+      <div class="kpi-sub">instables / divergences</div>
+    </div>
+    <div class="kpi-tile nonplane">
+      <div class="kpi-value">{bk["NON_PLANE"]}</div>
+      <div class="kpi-label">⚫ Non plans</div>
+      <div class="kpi-sub">a investiguer</div>
+    </div>
+    {accord_block}
+  </div>
+</section>
+"""
+
+
+def _render_alerts(kpis):
+    """Strip d'alertes : s'affiche uniquement si quelque chose de notable."""
+    items = []
+    n_div = kpis["n_disagree_pl_non"]
+    if n_div > 0:
+        items.append(
+            f'<li><b>{n_div} divergence(s) franche(s) MR vs MD</b> '
+            f'(une methode dit plan, l\'autre non plan). Voir section MD ci-dessous.</li>'
+        )
+    if not items:
+        return ""
+    return f"""
+<section class="alerts">
+  <div class="alerts-header">⚠ Points d'attention</div>
+  <ul>{''.join(items)}</ul>
+</section>
+"""
+
+
+def _render_divergences_block(divergences):
+    """Tableau des divergences franches MR plan vs MD non plan (ou inverse)."""
+    if not divergences:
+        return ""
+    rows = []
+    for d in divergences:
+        rows.append(
+            f'<tr><td>{d["h"]}/{d["cfg"]}</td>'
+            f'<td><code>{d["mol"]}</code></td>'
+            f'<td><code>{d["sizes"]}</code></td>'
+            f'<td>{d["mr"]} (&mu;={d["mu"]}&deg;)</td>'
+            f'<td>{d["md"]} ({d["md_angle"]}&deg;)</td></tr>'
+        )
+    return f"""
+<details class="divergences" open>
+  <summary>Divergences MR vs MD ({len(divergences)} cas)</summary>
+  <table class="mini-table">
+    <thead><tr><th>h / config</th><th>Molecule</th><th>Tailles</th><th>Multi-runs</th><th>MD</th></tr></thead>
+    <tbody>{''.join(rows)}</tbody>
+  </table>
+</details>
+"""
+
+
 def generate_html(all_data):
-    """Assemble le rapport : charge le template, substitue les placeholders."""
+    """Assemble le dashboard : charge le template, substitue les placeholders."""
     data = _compute_per_h(all_data)
     per_h = data["per_h"]
     totals = data["totals"]
     h_list = data["h_list"]
+    now = datetime.now().strftime("%d/%m/%Y %H:%M")
 
-    # Stabilite multi-runs (None si aucun data.json n'a de bloc runs)
-    stab = _compute_stability(all_data)
-    stability_section = _render_stability_section(stab, h_list)
-    stability_nav = '  <a href="#stabilite">Stabilite</a>' if stab else ""
+    kpis = _compute_dashboard_kpis(all_data, totals)
 
     # Section MD (None si aucun bloc md_validation dans le dataset)
     md_stats = _compute_md_stats(all_data)
@@ -900,22 +1133,37 @@ def generate_html(all_data):
     md_section = _render_md_section(md_stats, md_compare, h_list)
     md_nav = '  <a href="#validation-md">Validation MD</a>' if md_stats else ""
 
+    # Section stabilite : pliable, secondaire dans le dashboard
+    stab = _compute_stability(all_data)
+    if stab:
+        stability_section = (
+            '<details class="collapsible-section" id="stabilite-details">'
+            '<summary><b>Details stabilite multi-runs</b> '
+            '(distribution des classes et scatter angle &mu;&times;&sigma;)</summary>'
+            + _render_stability_section(stab, h_list)
+            + '</details>'
+        )
+    else:
+        stability_section = ""
+
     template = Template(_load_template("report.html"))
     return template.safe_substitute(
-        now=datetime.now().strftime("%d/%m/%Y %H:%M"),
+        now=now,
         h_min=h_list[0][1:],
         h_max=h_list[-1][1:],
         total_molecules=totals["molecules"],
         total_solutions=totals["solutions"],
         total_planar=totals["planar"],
         total_non_planar=totals["non_planar"],
+        hero_section=_render_hero(totals, kpis, h_list[0][1:], h_list[-1][1:], now),
+        alerts_section=_render_alerts(kpis),
+        divergences_block=_render_divergences_block(kpis["divergences"]),
         bar_chart_svg=generate_bar_chart_svg(data["chart_data"]),
-        donut_svg=generate_donut_svg(totals["planar"], totals["non_planar"]),
+        donut_svg=generate_3bucket_donut_svg(totals["buckets"]),
         rows_html=_render_rows_html(per_h, all_data),
         cards_html=_render_h_cards(per_h),
         batch_rows=_render_batch_rows(h_list),
         stability_section=stability_section,
-        stability_nav=stability_nav,
         md_section=md_section,
         md_nav=md_nav,
         common_css=_load_template("common.css"),
