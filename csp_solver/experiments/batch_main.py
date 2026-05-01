@@ -36,7 +36,8 @@ def main():
     test_py = Path(__file__).parent.parent / "test.py"
     output_base = Path(__file__).parent / "output"
     view_py = Path(__file__).parent / "view.py"
-    aggregate_py = Path(__file__).parent / "aggregate_runs.py"
+    aggregate_runs_py = Path(__file__).parent / "aggregate_runs.py"
+    aggregate_md_py = Path(__file__).parent / "aggregate_md.py"
     do_validate = "--validate" in extra_args
 
     # Detecter n_runs
@@ -47,6 +48,14 @@ def main():
             n_runs = max(1, int(extra_args[idx + 1]))
         except (ValueError, IndexError):
             n_runs = 1
+
+    # Detecter la strategy de validation. Defaut "multi-runs" -> comportement
+    # historique (et compatible avec data.json sans bloc md_validation).
+    method = "multi-runs"
+    if "--method" in extra_args:
+        idx = extra_args.index("--method")
+        if idx + 1 < len(extra_args):
+            method = extra_args[idx + 1]
 
     if not dossier.is_dir():
         print(f"ERREUR : {dossier} n'est pas un dossier.")
@@ -96,19 +105,20 @@ def main():
 
     # Generer les rapports si --validate
     if do_validate:
-        print(f"\n=== Generation du rapport ({cfg}, n_runs={n_runs}) ===")
-        # 1. data.json pour cette config.
-        #    NOTE : ce dispatcher est specifique a la strategy "multi-runs"
-        #    (qui produit la structure plate ou sol_X/run_NN_opt.xyz). Quand
-        #    on ajoutera la strategy MD, il faudra dispatcher selon --method
-        #    vers l'agregateur correspondant (ex. aggregate_md.py).
-        #    - n_runs=1 : view.py (structure plate, format simple)
-        #    - n_runs>1 : aggregate_runs.py (scan sous-dossiers, stats, classification)
-        if n_runs > 1:
-            subprocess.run([sys.executable, str(aggregate_py), str(config_dir)])
+        print(f"\n=== Generation du rapport ({cfg}, methode={method}, n_runs={n_runs}) ===")
+        # 1. data.json pour cette config -- dispatch selon la strategy.
+        #    Chaque agregateur est ADDITIF : il met a jour son propre bloc
+        #    (runs ou md_validation) sans toucher a l'autre. Si les 2 methodes
+        #    ont ete lancees sequentiellement sur la meme config, les 2 blocs
+        #    coexistent dans data.json.
+        if method == "md":
+            subprocess.run([sys.executable, str(aggregate_md_py), str(config_dir)])
+        elif n_runs > 1:
+            subprocess.run([sys.executable, str(aggregate_runs_py), str(config_dir)])
         else:
             subprocess.run([sys.executable, str(view_py), str(config_dir)])
-        # 2. view.html agrege au niveau hX (independant de la strategy)
+        # 2. view.html agrege au niveau hX (independant de la strategy --
+        #    le viewer detecte les blocs presents dans chaque data.json)
         subprocess.run([sys.executable, str(view_py), str(h_dir), "--aggregate"])
 
 

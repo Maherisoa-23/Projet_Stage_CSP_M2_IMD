@@ -331,7 +331,7 @@ table.stability-table td.na { color: #b2bec3; font-weight: 400; }
   <h1>Phase experimentale — Structures planes</h1>
   <p class="meta">Source : BenzAI DB &mdash; h3 a h5
     &mdash; 25 molecules, 53 solutions
-    &mdash; Mis a jour le 26/04/2026 18:01</p>
+    &mdash; Mis a jour le 01/05/2026 10:04</p>
 </header>
 
 <nav class="nav-bar" id="nav">
@@ -339,6 +339,7 @@ table.stability-table td.na { color: #b2bec3; font-weight: 400; }
   <a href="#methodologie">Methodologie</a>
   <a href="#resultats">Resultats</a>
   <a href="#stabilite">Stabilite</a>
+  <a href="#validation-md">Validation MD</a>
   <a href="#observations">Observations</a>
   <a href="#details">Details</a>
   <a href="#commandes">Commandes</a>
@@ -2003,8 +2004,171 @@ table.stability-table td.na { color: #b2bec3; font-weight: 400; }
 
 
 <!-- ============================================================ -->
+<!-- Section "Validation MD" -- injectee si au moins une solution a un bloc
+     md_validation. Comprend cards globales, tableau per-h et scatter de
+     comparaison multi-runs vs MD si applicable. Vide sinon. -->
+
+<section id="validation-md">
+<h2><span class="section-num">5</span> Validation MD (xtb --md + opt)</h2>
+
+<p>
+  Validation par dynamique moleculaire courte (1 ps a 298 K) suivie d'une
+  optimisation finale, selon le protocole recommande par les chimistes.
+  Compare aux multi-runs : 1 seul run par solution (vs N=10), exploration
+  thermique reelle pour casser les symetries plates parasites avant l'opt.
+</p>
+
+<div class="cards">
+  <div class="card blue"><div class="value">38</div><div class="label">Solutions validees MD</div></div>
+  <div class="card green"><div class="value">38</div><div class="label">🧬 Plans (MD)</div></div>
+  <div class="card red"><div class="value">0</div><div class="label">🧬 Non plans (MD)</div></div>
+  <div class="card" style="border-top-color:#8b5cf6"><div class="value" style="color:#6d28d9">100%</div><div class="label">% plans MD</div></div>
+</div>
+
+<h3>Par taille de benzenoide</h3>
+<table class="results">
+  <thead>
+    <tr><th>h</th><th>Total</th><th>🧬 Plans</th><th>🧬 Non plans</th><th>% plans</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>h3</strong></td><td>38</td><td class="planar">38</td><td class="non-planar">0</td><td><b>100%</b></td></tr>
+    <tr><td><strong>h4</strong></td><td colspan="3" class="na">(pas de donnees MD)</td></tr>
+    <tr><td><strong>h5</strong></td><td colspan="3" class="na">(pas de donnees MD)</td></tr>
+  </tbody>
+</table>
+
+<h3>Comparaison multi-runs vs MD</h3>
+<p>
+  Pour les <b>38</b> solutions validees par les <b>2 methodes</b>,
+  on compare l'angle moyen des multi-runs (μ) avec l'angle final apres MD+opt.
+  Accord global : <b>100%</b> (38 plans + 0 non plans).
+  <span class="non-planar">0 divergences</span> a investiguer.
+</p>
+<div class="charts-row">
+  <div class="chart-box wide">
+    <svg viewBox="0 0 680 480" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:680px;font-family:Segoe UI,system-ui,sans-serif;">
+  <line x1="64.0" y1="24" x2="64.0" y2="424" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <line x1="64" y1="424.0" x2="656" y2="424.0" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <text x="64.0" y="440" text-anchor="middle" font-size="11" fill="#6a737d">0</text>
+  <text x="58" y="428.0" text-anchor="end" font-size="11" fill="#6a737d">0</text>
+  <line x1="182.4" y1="24" x2="182.4" y2="424" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <line x1="64" y1="344.0" x2="656" y2="344.0" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <text x="182.4" y="440" text-anchor="middle" font-size="11" fill="#6a737d">2</text>
+  <text x="58" y="348.0" text-anchor="end" font-size="11" fill="#6a737d">2</text>
+  <line x1="300.8" y1="24" x2="300.8" y2="424" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <line x1="64" y1="264.0" x2="656" y2="264.0" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <text x="300.8" y="440" text-anchor="middle" font-size="11" fill="#6a737d">5</text>
+  <text x="58" y="268.0" text-anchor="end" font-size="11" fill="#6a737d">5</text>
+  <line x1="419.2" y1="24" x2="419.2" y2="424" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <line x1="64" y1="184.0" x2="656" y2="184.0" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <text x="419.2" y="440" text-anchor="middle" font-size="11" fill="#6a737d">7</text>
+  <text x="58" y="188.0" text-anchor="end" font-size="11" fill="#6a737d">7</text>
+  <line x1="537.6" y1="24" x2="537.6" y2="424" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <line x1="64" y1="104.0" x2="656" y2="104.0" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <text x="537.6" y="440" text-anchor="middle" font-size="11" fill="#6a737d">10</text>
+  <text x="58" y="108.0" text-anchor="end" font-size="11" fill="#6a737d">10</text>
+  <line x1="656.0" y1="24" x2="656.0" y2="424" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <line x1="64" y1="24.0" x2="656" y2="24.0" stroke="#e1e4e8" stroke-dasharray="3,3"/>
+  <text x="656.0" y="440" text-anchor="middle" font-size="11" fill="#6a737d">12</text>
+  <text x="58" y="28.0" text-anchor="end" font-size="11" fill="#6a737d">12</text>
+  <line x1="64" y1="424.0" x2="656" y2="24.0" stroke="#0969da" stroke-width="1" stroke-dasharray="6,4" opacity="0.5"/>
+  <text x="652.0" y="36.0" text-anchor="end" font-size="10" fill="#0969da" font-style="italic">y = x (accord parfait)</text>
+  <line x1="557.3" y1="24" x2="557.3" y2="424" stroke="#bf8700" stroke-width="1.2" stroke-dasharray="4,3"/>
+  <line x1="64" y1="90.7" x2="656" y2="90.7" stroke="#bf8700" stroke-width="1.2" stroke-dasharray="4,3"/>
+  <text x="561.3" y="36" text-anchor="start" font-size="10" fill="#bf8700" font-weight="600">seuil 10&#176;</text>
+  <text x="360.0" y="472" text-anchor="middle" font-size="12" font-weight="600" fill="#24292e">Multi-runs &mdash; angle moyen &#956; (&#176;)</text>
+  <text x="14" y="224.0" text-anchor="middle" font-size="12" font-weight="600" fill="#24292e" transform="rotate(-90 14 224.0)">MD &mdash; angle final (&#176;)</text>
+  <circle cx="65.5" cy="423.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/adj-57 - 0-3-4 [v0=6 v1=6 v2=6] | multi-runs: μ=0.03° (always_planar), MD: 0.03° (plan) | Accord (planes)</title></circle>
+  <circle cx="69.4" cy="420.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/adj-57 - 0-4-8 [v0=6 v1=6 v2=6] | multi-runs: μ=0.11° (always_planar), MD: 0.12° (plan) | Accord (planes)</title></circle>
+  <circle cx="72.4" cy="418.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/adj-57 - 1-3-4 [v0=6 v1=6 v2=6] | multi-runs: μ=0.17° (always_planar), MD: 0.18° (plan) | Accord (planes)</title></circle>
+  <circle cx="66.0" cy="422.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/adj-57_no-freeze - 0-3-4 [v0=6 v1=6 v2=6] | multi-runs: μ=0.04° (always_planar), MD: 0.04° (plan) | Accord (planes)</title></circle>
+  <circle cx="68.9" cy="419.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/adj-57_no-freeze - 0-4-8 [v0=6 v1=6 v2=6] | multi-runs: μ=0.1° (always_planar), MD: 0.15° (plan) | Accord (planes)</title></circle>
+  <circle cx="75.3" cy="417.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/adj-57_no-freeze - 1-3-4 [v0=6 v1=6 v2=6] | multi-runs: μ=0.23° (always_planar), MD: 0.21° (plan) | Accord (planes)</title></circle>
+  <circle cx="68.9" cy="422.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/adj-57_no-freeze_no-table - 0-3-4 [v0=5 v1=6 v2=7] | multi-runs: μ=0.1° (always_planar), MD: 0.04° (plan) | Accord (planes)</title></circle>
+  <circle cx="66.0" cy="422.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/adj-57_no-freeze_no-table - 0-3-4 [v0=6 v1=6 v2=6] | multi-runs: μ=0.04° (always_planar), MD: 0.04° (plan) | Accord (planes)</title></circle>
+  <circle cx="77.3" cy="422.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/adj-57_no-freeze_no-table - 0-4-8 [v0=5 v1=7 v2=6] | multi-runs: μ=0.27° (always_planar), MD: 0.05° (plan) | Accord (planes)</title></circle>
+  <circle cx="70.4" cy="421.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/adj-57_no-freeze_no-table - 0-4-8 [v0=6 v1=6 v2=6] | multi-runs: μ=0.13° (always_planar), MD: 0.07° (plan) | Accord (planes)</title></circle>
+  <circle cx="82.7" cy="367.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/adj-57_no-freeze_no-table - 1-3-4 [v0=5 v1=6 v2=7] | multi-runs: μ=0.38° (always_planar), MD: 1.71° (plan) | Accord (planes)</title></circle>
+  <circle cx="73.4" cy="414.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/adj-57_no-freeze_no-table - 1-3-4 [v0=6 v1=6 v2=6] | multi-runs: μ=0.19° (always_planar), MD: 0.29° (plan) | Accord (planes)</title></circle>
+  <circle cx="69.4" cy="422.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/adj-57_no-table - 0-3-4 [v0=5 v1=6 v2=7] | multi-runs: μ=0.11° (always_planar), MD: 0.05° (plan) | Accord (planes)</title></circle>
+  <circle cx="65.5" cy="423.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/adj-57_no-table - 0-3-4 [v0=6 v1=6 v2=6] | multi-runs: μ=0.03° (always_planar), MD: 0.02° (plan) | Accord (planes)</title></circle>
+  <circle cx="70.4" cy="421.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/adj-57_no-table - 0-4-8 [v0=6 v1=6 v2=6] | multi-runs: μ=0.13° (always_planar), MD: 0.08° (plan) | Accord (planes)</title></circle>
+  <circle cx="71.9" cy="420.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/adj-57_no-table - 1-3-4 [v0=6 v1=6 v2=6] | multi-runs: μ=0.16° (always_planar), MD: 0.11° (plan) | Accord (planes)</title></circle>
+  <circle cx="66.0" cy="422.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/default - 0-3-4 [v0=6 v1=6 v2=6] | multi-runs: μ=0.04° (always_planar), MD: 0.05° (plan) | Accord (planes)</title></circle>
+  <circle cx="69.9" cy="422.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/default - 0-4-8 [v0=5 v1=6 v2=7] | multi-runs: μ=0.12° (always_planar), MD: 0.05° (plan) | Accord (planes)</title></circle>
+  <circle cx="69.4" cy="418.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/default - 0-4-8 [v0=6 v1=6 v2=6] | multi-runs: μ=0.11° (always_planar), MD: 0.18° (plan) | Accord (planes)</title></circle>
+  <circle cx="74.9" cy="408.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/default - 1-3-4 [v0=5 v1=7 v2=6] | multi-runs: μ=0.22° (always_planar), MD: 0.46° (plan) | Accord (planes)</title></circle>
+  <circle cx="71.9" cy="419.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/default - 1-3-4 [v0=6 v1=6 v2=6] | multi-runs: μ=0.16° (always_planar), MD: 0.15° (plan) | Accord (planes)</title></circle>
+  <circle cx="66.0" cy="423.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/no-freeze - 0-3-4 [v0=6 v1=6 v2=6] | multi-runs: μ=0.04° (always_planar), MD: 0.01° (plan) | Accord (planes)</title></circle>
+  <circle cx="70.4" cy="417.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/no-freeze - 0-4-8 [v0=6 v1=6 v2=6] | multi-runs: μ=0.13° (always_planar), MD: 0.19° (plan) | Accord (planes)</title></circle>
+  <circle cx="72.4" cy="415.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/no-freeze - 1-3-4 [v0=6 v1=6 v2=6] | multi-runs: μ=0.17° (always_planar), MD: 0.26° (plan) | Accord (planes)</title></circle>
+  <circle cx="68.4" cy="422.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/no-freeze_no-table - 0-3-4 [v0=5 v1=6 v2=7] | multi-runs: μ=0.09° (always_planar), MD: 0.06° (plan) | Accord (planes)</title></circle>
+  <circle cx="65.5" cy="423.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/no-freeze_no-table - 0-3-4 [v0=6 v1=6 v2=6] | multi-runs: μ=0.03° (always_planar), MD: 0.02° (plan) | Accord (planes)</title></circle>
+  <circle cx="71.9" cy="422.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/no-freeze_no-table - 0-4-8 [v0=5 v1=6 v2=7] | multi-runs: μ=0.16° (always_planar), MD: 0.05° (plan) | Accord (planes)</title></circle>
+  <circle cx="72.4" cy="419.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/no-freeze_no-table - 0-4-8 [v0=5 v1=7 v2=6] | multi-runs: μ=0.17° (always_planar), MD: 0.13° (plan) | Accord (planes)</title></circle>
+  <circle cx="68.9" cy="420.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/no-freeze_no-table - 0-4-8 [v0=6 v1=6 v2=6] | multi-runs: μ=0.1° (always_planar), MD: 0.12° (plan) | Accord (planes)</title></circle>
+  <circle cx="82.7" cy="402.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/no-freeze_no-table - 1-3-4 [v0=5 v1=6 v2=7] | multi-runs: μ=0.38° (always_planar), MD: 0.65° (plan) | Accord (planes)</title></circle>
+  <circle cx="76.3" cy="402.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/no-freeze_no-table - 1-3-4 [v0=5 v1=7 v2=6] | multi-runs: μ=0.25° (always_planar), MD: 0.66° (plan) | Accord (planes)</title></circle>
+  <circle cx="74.4" cy="419.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/no-freeze_no-table - 1-3-4 [v0=6 v1=6 v2=6] | multi-runs: μ=0.21° (always_planar), MD: 0.15° (plan) | Accord (planes)</title></circle>
+  <circle cx="67.9" cy="422.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/no-table - 0-3-4 [v0=5 v1=6 v2=7] | multi-runs: μ=0.08° (always_planar), MD: 0.05° (plan) | Accord (planes)</title></circle>
+  <circle cx="66.0" cy="422.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/no-table - 0-3-4 [v0=6 v1=6 v2=6] | multi-runs: μ=0.04° (always_planar), MD: 0.05° (plan) | Accord (planes)</title></circle>
+  <circle cx="72.4" cy="418.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/no-table - 0-4-8 [v0=5 v1=6 v2=7] | multi-runs: μ=0.17° (always_planar), MD: 0.17° (plan) | Accord (planes)</title></circle>
+  <circle cx="69.9" cy="420.3" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/no-table - 0-4-8 [v0=6 v1=6 v2=6] | multi-runs: μ=0.12° (always_planar), MD: 0.11° (plan) | Accord (planes)</title></circle>
+  <circle cx="75.8" cy="403.0" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/no-table - 1-3-4 [v0=5 v1=7 v2=6] | multi-runs: μ=0.24° (always_planar), MD: 0.63° (plan) | Accord (planes)</title></circle>
+  <circle cx="72.9" cy="420.7" r="4" fill="#1a7f37" stroke="#fff" stroke-width="1" opacity="0.9">
+    <title>h3/no-table - 1-3-4 [v0=6 v1=6 v2=6] | multi-runs: μ=0.18° (always_planar), MD: 0.1° (plan) | Accord (planes)</title></circle>
+</svg>
+    <p class="caption" style="font-size:0.82em;color:var(--text-muted);margin:8px 0 0;">
+      Chaque point = 1 solution. Vert = les 2 methodes plates, rouge = les 2 non plates,
+      orange = divergence. Les lignes pointillees jaunes marquent le seuil 10°.
+      La diagonale bleue (y=x) materialise un accord parfait sur l'angle.
+    </p>
+  </div>
+</div>
+
+</section>
+
+
+<!-- ============================================================ -->
 <section id="observations">
-<h2><span class="section-num">5</span> Observations</h2>
+<h2><span class="section-num">6</span> Observations</h2>
 
 <div class="observation">
   <strong>Les originaux sont tous plans.</strong>
@@ -2035,7 +2199,7 @@ table.stability-table td.na { color: #b2bec3; font-weight: 400; }
 
 <!-- ============================================================ -->
 <section id="details">
-<h2><span class="section-num">6</span> Resultats detailles</h2>
+<h2><span class="section-num">7</span> Resultats detailles</h2>
 <p>Cliquez sur une carte pour ouvrir le viewer interactif de chaque taille.</p>
 <div class="cards">
   <a href="../output/h3/view.html" target="_blank" class="card blue"><div class="value">h3</div><div class="label">3 molecules</div><div class="sub">5 pl. / 0 non pl.</div></a>
@@ -2046,7 +2210,7 @@ table.stability-table td.na { color: #b2bec3; font-weight: 400; }
 
 <!-- ============================================================ -->
 <section id="commandes">
-<h2><span class="section-num">7</span> Commandes</h2>
+<h2><span class="section-num">8</span> Commandes</h2>
 
 <p>Toutes les commandes se lancent depuis le dossier <code>csp_solver/experiments/</code>.</p>
 

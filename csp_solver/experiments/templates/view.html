@@ -26,6 +26,10 @@ $config_buttons
   <button class="compare-toggle" id="compareModeBtn" onclick="toggleCompareMode()">Comparer</button>
 </div>
 
+<!-- Toggle methode de validation. Visible uniquement si >= 2 methodes
+     detectees dans le dataset (rempli par renderMethodToggle()). -->
+<div class="method-toggle" id="methodToggle"></div>
+
 <!-- ====== Normal view ====== -->
 <div id="normalView">
   <div class="cards" id="cards"></div>
@@ -52,12 +56,18 @@ $config_buttons
       <button class="filter-btn" data-filter="sol-planar" onclick="setFilter('sol','planar')">Planes</button>
       <button class="filter-btn" data-filter="sol-nonplanar" onclick="setFilter('sol','nonplanar')">Non planes</button>
     </div>
-    <div class="filter-group">
+    <div class="filter-group" data-filter-group="stab">
       <span class="flabel">Stabilite :</span>
       <button class="filter-btn active" data-filter="stab-all" onclick="setFilter('stab','all')">Tous</button>
       <button class="filter-btn" data-filter="stab-stable_planar" onclick="setFilter('stab','stable_planar')">&#x1F7E2; Stables pl.</button>
       <button class="filter-btn" data-filter="stab-unstable" onclick="setFilter('stab','unstable')">&#x1F7E0; Instables</button>
       <button class="filter-btn" data-filter="stab-stable_non_planar" onclick="setFilter('stab','stable_non_planar')">&#x26AB; Stables non pl.</button>
+    </div>
+    <div class="filter-group" data-filter-group="md">
+      <span class="flabel">Planeite MD :</span>
+      <button class="filter-btn active" data-filter="md-all" onclick="setFilter('md','all')">Tous</button>
+      <button class="filter-btn" data-filter="md-planar" onclick="setFilter('md','planar')">Plans</button>
+      <button class="filter-btn" data-filter="md-nonplanar" onclick="setFilter('md','nonplanar')">Non plans</button>
     </div>
     <div class="btn-group">
       <button onclick="expandAll()">Tout ouvrir</button>
@@ -117,12 +127,18 @@ $config_buttons
       <button class="filter-btn" data-filter="sol-planar" onclick="setFilter('sol','planar')">Planes</button>
       <button class="filter-btn" data-filter="sol-nonplanar" onclick="setFilter('sol','nonplanar')">Non planes</button>
     </div>
-    <div class="filter-group">
+    <div class="filter-group" data-filter-group="stab">
       <span class="flabel">Stabilite :</span>
       <button class="filter-btn active" data-filter="stab-all" onclick="setFilter('stab','all')">Tous</button>
       <button class="filter-btn" data-filter="stab-stable_planar" onclick="setFilter('stab','stable_planar')">&#x1F7E2; Stables pl.</button>
       <button class="filter-btn" data-filter="stab-unstable" onclick="setFilter('stab','unstable')">&#x1F7E0; Instables</button>
       <button class="filter-btn" data-filter="stab-stable_non_planar" onclick="setFilter('stab','stable_non_planar')">&#x26AB; Stables non pl.</button>
+    </div>
+    <div class="filter-group" data-filter-group="md">
+      <span class="flabel">Planeite MD :</span>
+      <button class="filter-btn active" data-filter="md-all" onclick="setFilter('md','all')">Tous</button>
+      <button class="filter-btn" data-filter="md-planar" onclick="setFilter('md','planar')">Plans</button>
+      <button class="filter-btn" data-filter="md-nonplanar" onclick="setFilter('md','nonplanar')">Non plans</button>
     </div>
     <div class="filter-group">
       <span class="flabel">Diff :</span>

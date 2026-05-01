@@ -23,13 +23,42 @@
     filterOrig: 'all',     // 'all' | 'planar' | 'nonplanar'
     filterSol: 'all',
     filterStab: 'all',     // 'all' | 'stable_planar' | 'unstable' | 'stable_non_planar'
+    filterMD: 'all',       // 'all' | 'planar' | 'nonplanar' (filtre quand activeMethod = md)
     searchQuery: '',
     /* expandedMols est partage entre la vue simple et la vue comparaison :
        le meme selecteur CSS [data-parent="X"] matche dans les deux, donc
        un toggle dans un panneau deplie la molecule dans tous. Voulu. */
     expandedMols: {},
     compareFilter: 'all',  // 'all' | 'diff'
+    /* Methode de validation active (toggle UI). Calcule a l'init :
+       'multi-runs' si seul ce bloc est present, 'md' si seul md, 'both'
+       par defaut quand les 2 sont disponibles. */
+    activeMethod: 'multi-runs',
+    availableMethods: [],  // ['multi-runs'] | ['md'] | ['multi-runs', 'md']
   };
+
+  /* Detecte les methodes disponibles globalement (presence d'au moins une
+     solution avec le bloc correspondant). Calcule une fois a l'init. */
+  function detectAvailableMethods(allConfigs) {
+    var hasRuns = false, hasMD = false;
+    var cfgs = Object.keys(allConfigs);
+    for (var i = 0; i < cfgs.length && (!hasRuns || !hasMD); i++) {
+      var mols = allConfigs[cfgs[i]].molecules;
+      var molKeys = Object.keys(mols);
+      for (var j = 0; j < molKeys.length && (!hasRuns || !hasMD); j++) {
+        var sols = mols[molKeys[j]].solutions;
+        for (var k = 0; k < sols.length; k++) {
+          if (sols[k].runs) hasRuns = true;
+          if (sols[k].md_validation) hasMD = true;
+          if (hasRuns && hasMD) break;
+        }
+      }
+    }
+    var avail = [];
+    if (hasRuns) avail.push('multi-runs');
+    if (hasMD) avail.push('md');
+    return avail;
+  }
 
   /* ==== Multi-runs : classes de stabilite ====
      Invariant partage avec update_report.py (CLASSIFICATIONS). Si on change
@@ -147,6 +176,67 @@
     );
   }
 
+  /* ---- Bloc complet d'une solution MD (1 run deterministe + opt finale) ----
+     Contenu : lien fichier final, badge planar/non-planar, angle, params MD. */
+  function renderSolutionMD(sol, hrefBase) {
+    var mv = sol.md_validation;
+    /* Le final_opt_file est relatif au dossier solutions/sol_X/ ; on extrait
+       sol_X depuis sol.file (qui pointe lui aussi dans sol_X/). */
+    var solDir = (sol.file || '').split('/')[0];
+    var finalRel = mv.final_opt_file || 'md_validation/md_final_opt.xyz';
+    var trajRel = mv.trajectory_file || 'md_validation/md_traj.xyz';
+    var hrefFinal = hrefBase + '/' + solDir + '/' + finalRel;
+    var hrefTraj  = hrefBase + '/' + solDir + '/' + trajRel;
+
+    var planarCls = mv.planar ? 'planar' : 'non-planar';
+    var planarTxt = mv.planar ? 'PLAN' : 'NON PLAN';
+    var p = mv.params || {};
+    var meta = '';
+    if (p.temp !== undefined && p.time !== undefined) {
+      meta = '<span class="md-meta">T=' + p.temp + 'K, t=' + p.time + 'ps</span>';
+    }
+    return (
+      '<a class="sol-link" href="' + hrefFinal + '" target="_blank">' + (sol.sizes || sol.file) + '</a>' +
+      '<span class="md-badge ' + planarCls + '">' + planarTxt + '</span>' +
+      '<span class="md-angle">angle=' + mv.angle_deg + '&deg;</span>' +
+      meta +
+      '<a class="md-traj-link" href="' + hrefTraj + '" target="_blank" title="Trajectoire MD">trajectoire</a>'
+    );
+  }
+
+  /* Dispatcher : selon les blocs presents ET la methode active, render
+     multi-runs et/ou md. Retourne le HTML interieur d'un <td> ; null si
+     fallback single-run requis (aucun bloc enrichi present). */
+  function renderSolutionDetail(sol, hrefBase) {
+    var hasRuns = !!sol.runs;
+    var hasMD = !!sol.md_validation;
+    var meth = state.activeMethod;
+    /* Filtre selon methode active : on n'affiche que ce que l'utilisateur a
+       choisi via le toggle (ou les 2 si "both"). */
+    var showRuns = hasRuns && (meth === 'multi-runs' || meth === 'both');
+    var showMD   = hasMD   && (meth === 'md'         || meth === 'both');
+
+    if (showRuns && showMD) {
+      return (
+        '<div class="method-block method-multiruns">' +
+          '<span class="method-label">Multi-runs</span>' +
+          renderSolutionMultiRun(sol, hrefBase) +
+        '</div>' +
+        '<div class="method-block method-md">' +
+          '<span class="method-label">MD</span>' +
+          renderSolutionMD(sol, hrefBase) +
+        '</div>'
+      );
+    }
+    if (showRuns) return renderSolutionMultiRun(sol, hrefBase);
+    if (showMD)   return renderSolutionMD(sol, hrefBase);
+    /* Si la methode active n'est pas dispo pour cette solution, on retombe
+       sur l'autre methode si elle existe (mieux qu'une ligne vide). */
+    if (hasRuns) return renderSolutionMultiRun(sol, hrefBase);
+    if (hasMD)   return renderSolutionMD(sol, hrefBase);
+    return null;  /* aucun bloc enrichi : single-run classique */
+  }
+
   /* Classe une solution dans un des 3 groupes pour cards/filtres ('stable_planar',
      'unstable', 'stable_non_planar'), ou null si pas de runs/ambigu. */
   function stabilityGroup(sol) {
@@ -164,11 +254,25 @@
      - Multi-runs : classe always_planar ou mostly_planar.
      - Single-run (h5 par ex.) : booleen sol.planar. */
   function isPlanarSolution(sol) {
-    if (sol.runs && sol.runs.classification) {
+    /* Critere depend de state.activeMethod :
+         "multi-runs" : classe always_planar ou mostly_planar
+         "md"         : md_validation.planar = true
+         "both"       : planaire selon AU MOINS une des methodes (OR)
+       Fallback (aucun bloc enrichi present) : booleen sol.planar. */
+    var meth = state.activeMethod;
+    var ranMR = !!(sol.runs && sol.runs.classification);
+    var ranMD = !!sol.md_validation;
+    if ((meth === 'multi-runs' || meth === 'both') && ranMR) {
       var c = sol.runs.classification;
-      return c === 'always_planar' || c === 'mostly_planar';
+      if (c === 'always_planar' || c === 'mostly_planar') return true;
+      if (meth === 'multi-runs') return false;
     }
-    return !!sol.planar;
+    if ((meth === 'md' || meth === 'both') && ranMD) {
+      if (sol.md_validation.planar) return true;
+      if (meth === 'md') return false;
+    }
+    if (!ranMR && !ranMD) return !!sol.planar;
+    return false;
   }
 
   /* Calcule la partition des solutions planes entre les configs CSP.
@@ -450,7 +554,9 @@
       var m = mols[name];
       var nP = 0, nN = 0, maxA = 0;
       var stabCount = { stable_planar: 0, unstable: 0, stable_non_planar: 0, other: 0 };
-      var hasRuns = false;
+      /* Stats MD : plans/non-plans par methode MD (1 verdict binaire par solution). */
+      var mdCount = { planar: 0, nonplanar: 0 };
+      var hasRuns = false, hasMD = false;
       m.solutions.forEach(function (s) {
         if (s.planar) nP++; else nN++;
         if (s.angle_deg > maxA) maxA = s.angle_deg;
@@ -460,6 +566,11 @@
           if (g) stabCount[g]++;
           else   stabCount.other++;
         }
+        if (s.md_validation) {
+          hasMD = true;
+          if (s.md_validation.planar) mdCount.planar++;
+          else                         mdCount.nonplanar++;
+        }
       });
       rows.push({
         name: name, mol: m,
@@ -467,6 +578,7 @@
         origAngle: m.original ? m.original.angle_deg : null,
         numSol: m.solutions.length, numPlan: nP, numNon: nN, maxAngle: maxA,
         hasRuns: hasRuns, stabCount: stabCount,
+        hasMD: hasMD, mdCount: mdCount,
       });
     });
     return rows;
@@ -493,6 +605,10 @@
        tombe dans le groupe choisi (stable_planar / unstable / stable_non_planar). */
     if (state.filterStab !== 'all') {
       rows = rows.filter(function (r) { return r.stabCount && r.stabCount[state.filterStab] > 0; });
+    }
+    /* Filtre MD : retenu si au moins une solution a un verdict MD du type choisi. */
+    if (state.filterMD !== 'all') {
+      rows = rows.filter(function (r) { return r.mdCount && r.mdCount[state.filterMD] > 0; });
     }
     return rows;
   }
@@ -527,6 +643,7 @@
        l'ensemble, pas le sous-ensemble filtre. */
     var nMol = allRows.length, nOrigP = 0, nOrigN = 0, nSol = 0, nPlan = 0, nNon = 0;
     var nStabPl = 0, nUnst = 0, nStabNon = 0;
+    var nMDPl = 0, nMDNon = 0;
     allRows.forEach(function (r) {
       if (r.origPlanar === true) nOrigP++;
       else if (r.origPlanar === false) nOrigN++;
@@ -536,23 +653,40 @@
         nUnst    += r.stabCount.unstable;
         nStabNon += r.stabCount.stable_non_planar;
       }
+      if (r.hasMD) {
+        nMDPl  += r.mdCount.planar;
+        nMDNon += r.mdCount.nonplanar;
+      }
     });
 
     var badge = rows.length < allRows.length
       ? '<span class="count-badge">(' + rows.length + '/' + allRows.length + ')</span>' : '';
 
-    /* Cards : 4 communes + (3 stabilite SI runs presents SINON 2 anciennes). */
+    /* Cards : 4 communes (mol + originaux + solutions total) + cards specifiques
+       a la methode active. Si activeMethod="both", on empile les 2 sets. */
     var cardsHtml =
       '<div class="card blue"><div class="value">' + nMol + '</div><div class="label">Molecules' + badge + '</div></div>' +
       '<div class="card green"><div class="value">' + nOrigP + '</div><div class="label">Originaux plans</div></div>' +
       '<div class="card red"><div class="value">' + nOrigN + '</div><div class="label">Originaux non plans</div></div>' +
       '<div class="card blue"><div class="value">' + nSol + '</div><div class="label">Solutions CSP</div></div>';
-    if (showStab) {
+
+    var meth = state.activeMethod;
+    var showMR = (meth === 'multi-runs' || meth === 'both') && showStab;
+    var showMDcards = (meth === 'md' || meth === 'both') && allRows.some(function (r) { return r.hasMD; });
+
+    if (showMR) {
       cardsHtml +=
         '<div class="card green"><div class="value">' + nStabPl  + '</div><div class="label">\uD83D\uDFE2 Stables planes</div></div>' +
         '<div class="card" style="border-top-color:#e66f00"><div class="value" style="color:#e66f00">' + nUnst + '</div><div class="label">\uD83D\uDFE0 Instables</div></div>' +
         '<div class="card red"><div class="value">' + nStabNon + '</div><div class="label">\u26AB Stables non planes</div></div>';
-    } else {
+    }
+    if (showMDcards) {
+      cardsHtml +=
+        '<div class="card green"><div class="value">' + nMDPl  + '</div><div class="label">\uD83E\uDDEC MD plans</div></div>' +
+        '<div class="card red"><div class="value">'   + nMDNon + '</div><div class="label">\uD83E\uDDEC MD non plans</div></div>';
+    }
+    /* Fallback : single-run sans aucune methode multi-runs ni md. */
+    if (!showMR && !showMDcards) {
       cardsHtml +=
         '<div class="card green"><div class="value">' + nPlan + '</div><div class="label">Solutions planes</div></div>' +
         '<div class="card red"><div class="value">' + nNon  + '</div><div class="label">Solutions non planes</div></div>';
@@ -597,13 +731,13 @@
       var hrefBase = cfg + '/' + r.name + '/solutions';
       m.solutions.forEach(function (s) {
         var disp = state.expandedMols[r.name] ? 'table-row' : 'none';
+        var detailHTML = renderSolutionDetail(s, hrefBase);
         var rowInner;
-        if (s.runs) {
-          /* Multi-runs : cellule unique colspan=5 avec bloc structure. */
-          rowInner = '<td colspan="5" class="solution-multirun">' +
-            renderSolutionMultiRun(s, hrefBase) + '</td>';
+        if (detailHTML !== null) {
+          /* Multi-runs et/ou MD : cellule unique colspan=5. */
+          rowInner = '<td colspan="5" class="solution-multirun">' + detailHTML + '</td>';
         } else {
-          /* Single-run classique (retrocompat). */
+          /* Single-run classique (retrocompat, aucun bloc enrichi). */
           var scls = s.planar ? 'planar' : 'non-planar';
           var stxt = s.planar ? 'PLAN' : 'NON PLAN';
           var href = hrefBase + '/' + s.file;
@@ -666,6 +800,7 @@
     if (group === 'orig')      state.filterOrig = value;
     else if (group === 'sol')  state.filterSol = value;
     else if (group === 'stab') state.filterStab = value;
+    else if (group === 'md')   state.filterMD = value;
     /* Meme data-filter present dans les 2 toolbars (normal + compare) --
        un seul appel met a jour les deux. */
     document.querySelectorAll('.filter-btn').forEach(function (b) {
@@ -718,9 +853,10 @@
     }
   }
 
-  /* Detecte les molecules dont la planarite, le ratio plan/total, ou la
-     classification multi-runs differe entre les configs selectionnees (ou
-     qui sont absentes de certaines). Ces lignes seront highlightees. */
+  /* Detecte les molecules dont la planarite, le ratio plan/total, la
+     classification multi-runs OU le verdict MD differe entre les configs
+     selectionnees (ou qui sont absentes de certaines). Ces lignes seront
+     highlightees. */
   function computeDiffMols(cfgs) {
     var allNames = {};
     cfgs.forEach(function (cfgName) {
@@ -728,40 +864,33 @@
     });
     var diffMols = {};
     Object.keys(allNames).forEach(function (name) {
-      var planarities = [], solRatios = [], classSigs = [];
+      var planarities = [], solRatios = [], classSigs = [], mdSigs = [];
       var hasMissing = false, hasPresent = false;
       cfgs.forEach(function (cfgName) {
         var mol = state.ALL_CONFIGS[cfgName].molecules[name];
         if (!mol) { hasMissing = true; return; }
         hasPresent = true;
         planarities.push(mol.original ? mol.original.planar : null);
-        var np = 0, classes = [];
+        var np = 0, classes = [], mdVerdicts = [];
         mol.solutions.forEach(function (s) {
           if (s.planar) np++;
           classes.push(s.runs ? s.runs.classification : '-');
+          mdVerdicts.push(s.md_validation ? (s.md_validation.planar ? 'P' : 'N') : '-');
         });
         solRatios.push(np + '/' + mol.solutions.length);
-        /* Signature classification : concat triee (taille independante de l'ordre). */
+        /* Signatures triees : invariant a l'ordre des solutions. */
         classSigs.push(classes.slice().sort().join(','));
+        mdSigs.push(mdVerdicts.slice().sort().join(','));
       });
       var hasDiff = hasMissing && hasPresent;
-      if (!hasDiff && planarities.length > 1) {
-        for (var i = 1; i < planarities.length; i++) {
-          if (planarities[i] !== planarities[0]) { hasDiff = true; break; }
-        }
+      function differs(arr) {
+        for (var i = 1; i < arr.length; i++) if (arr[i] !== arr[0]) return true;
+        return false;
       }
-      if (!hasDiff && solRatios.length > 1) {
-        for (var j = 1; j < solRatios.length; j++) {
-          if (solRatios[j] !== solRatios[0]) { hasDiff = true; break; }
-        }
-      }
-      /* Diff de classification : si au moins 2 configs ont des runs et
-         leur signature classification differe, on highlight. */
-      if (!hasDiff && classSigs.length > 1) {
-        for (var k = 1; k < classSigs.length; k++) {
-          if (classSigs[k] !== classSigs[0]) { hasDiff = true; break; }
-        }
-      }
+      if (!hasDiff && planarities.length > 1 && differs(planarities)) hasDiff = true;
+      if (!hasDiff && solRatios.length > 1   && differs(solRatios))   hasDiff = true;
+      if (!hasDiff && classSigs.length > 1   && differs(classSigs))   hasDiff = true;
+      if (!hasDiff && mdSigs.length > 1      && differs(mdSigs))      hasDiff = true;
       diffMols[name] = hasDiff;
     });
     return diffMols;
@@ -779,6 +908,7 @@
 
     var nMol = allRows.length, nOrigP = 0, nOrigN = 0, nSol = 0, nPlan = 0, nNon = 0;
     var nStabPl = 0, nUnst = 0, nStabNon = 0;
+    var nMDPl = 0, nMDNon = 0;
     allRows.forEach(function (r) {
       if (r.origPlanar === true) nOrigP++;
       else if (r.origPlanar === false) nOrigN++;
@@ -787,6 +917,10 @@
         nStabPl  += r.stabCount.stable_planar;
         nUnst    += r.stabCount.unstable;
         nStabNon += r.stabCount.stable_non_planar;
+      }
+      if (r.hasMD) {
+        nMDPl  += r.mdCount.planar;
+        nMDNon += r.mdCount.nonplanar;
       }
     });
 
@@ -797,12 +931,21 @@
       '<div class="mini-card green"><div class="v">' + nOrigP + '</div><div class="l">Orig. plans</div></div>' +
       '<div class="mini-card red"><div class="v">' + nOrigN  + '</div><div class="l">Orig. non pl.</div></div>' +
       '<div class="mini-card blue"><div class="v">' + nSol   + '</div><div class="l">Solutions</div></div>';
-    if (showStab) {
+    var meth = state.activeMethod;
+    var showMR = (meth === 'multi-runs' || meth === 'both') && showStab;
+    var showMDcards = (meth === 'md' || meth === 'both') && allRows.some(function (r) { return r.hasMD; });
+    if (showMR) {
       html +=
         '<div class="mini-card green"><div class="v">' + nStabPl  + '</div><div class="l">\uD83D\uDFE2 Stables pl.</div></div>' +
         '<div class="mini-card" style="border-top-color:#e66f00"><div class="v" style="color:#e66f00">' + nUnst + '</div><div class="l">\uD83D\uDFE0 Instables</div></div>' +
         '<div class="mini-card red"><div class="v">' + nStabNon + '</div><div class="l">\u26AB Stables non</div></div>';
-    } else {
+    }
+    if (showMDcards) {
+      html +=
+        '<div class="mini-card green"><div class="v">' + nMDPl  + '</div><div class="l">\uD83E\uDDEC MD pl.</div></div>' +
+        '<div class="mini-card red"><div class="v">'   + nMDNon + '</div><div class="l">\uD83E\uDDEC MD non pl.</div></div>';
+    }
+    if (!showMR && !showMDcards) {
       html +=
         '<div class="mini-card green"><div class="v">' + nPlan + '</div><div class="l">Sol. planes</div></div>' +
         '<div class="mini-card red"><div class="v">'   + nNon  + '</div><div class="l">Sol. non pl.</div></div>';
@@ -858,10 +1001,10 @@
       var disp = state.expandedMols[r.name] ? 'table-row' : 'none';
       var hrefBase = cfgName + '/' + r.name + '/solutions';
       m.solutions.forEach(function (s) {
+        var detailHTML = renderSolutionDetail(s, hrefBase);
         var rowInner;
-        if (s.runs) {
-          rowInner = '<td colspan="4" class="solution-multirun">' +
-            renderSolutionMultiRun(s, hrefBase) + '</td>';
+        if (detailHTML !== null) {
+          rowInner = '<td colspan="4" class="solution-multirun">' + detailHTML + '</td>';
         } else {
           var scls = s.planar ? 'planar' : 'non-planar';
           var stxt = s.planar ? 'PLAN' : 'NON';
@@ -913,10 +1056,82 @@
   window.expandAll         = expandAll;
   window.collapseAll       = collapseAll;
 
+  /* ---- Toggle methode active (multi-runs / md / both) ---- */
+  function setMethod(name) {
+    if (state.availableMethods.indexOf(name) < 0 && name !== 'both') return;
+    state.activeMethod = name;
+    /* Mise a jour des classes actives sur les boutons. */
+    document.querySelectorAll('[data-method-btn]').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.methodBtn === name);
+    });
+    /* Affichage conditionnel des groupes de filtres (Stabilite vs Planeite MD). */
+    document.querySelectorAll('[data-filter-group]').forEach(function (g) {
+      var grp = g.dataset.filterGroup;
+      var show = false;
+      if (grp === 'stab') show = (name === 'multi-runs' || name === 'both');
+      if (grp === 'md')   show = (name === 'md' || name === 'both');
+      g.style.display = show ? '' : 'none';
+    });
+    /* Re-render de tout ce qui depend de la methode. */
+    renderCSPPartitionSection();
+    if (state.compareMode) renderComparison();
+    else if (state.currentConfig) render(state.ALL_CONFIGS[state.currentConfig]);
+  }
+
+  /* Genere les boutons du toggle methode, attache au container HTML.
+     Affiche seulement si >= 2 methodes disponibles. */
+  function renderMethodToggle() {
+    var container = document.getElementById('methodToggle');
+    if (!container) return;
+    var avail = state.availableMethods;
+    if (avail.length < 2) {
+      container.style.display = 'none';
+      return;
+    }
+    container.style.display = '';
+    var labels = {
+      'multi-runs': '🔬 Multi-runs',  /* microscope */
+      'md':         '🧬 MD',          /* dna helix */
+      'both':       '🔀 Les deux',    /* shuffle */
+    };
+    var html = '<span class="label">Methode :</span>';
+    avail.forEach(function (m) {
+      var active = (m === state.activeMethod) ? ' active' : '';
+      html += '<button class="method-btn' + active + '" data-method-btn="' + m
+            + '" onclick="setMethod(\'' + m + '\')">' + labels[m] + '</button>';
+    });
+    /* "Les deux" disponible si les 2 methodes existent */
+    var bothActive = (state.activeMethod === 'both') ? ' active' : '';
+    html += '<button class="method-btn' + bothActive + '" data-method-btn="both" '
+          + 'onclick="setMethod(\'both\')">' + labels['both'] + '</button>';
+    container.innerHTML = html;
+  }
+
   /* ---- Init ---- */
+  /* Detection des methodes disponibles dans les data.json embarques. */
+  state.availableMethods = detectAvailableMethods(state.ALL_CONFIGS);
+  /* Choix de la methode active par defaut : multi-runs si dispo, sinon md. */
+  if (state.availableMethods.length === 1) {
+    state.activeMethod = state.availableMethods[0];
+  } else if (state.availableMethods.length >= 2) {
+    state.activeMethod = 'both';  /* affiche tout par defaut quand on a les 2 */
+  }
+  renderMethodToggle();
+  /* Affiche les bons groupes de filtres selon la methode active. */
+  document.querySelectorAll('[data-filter-group]').forEach(function (g) {
+    var grp = g.dataset.filterGroup;
+    var show = false;
+    if (grp === 'stab') show = (state.activeMethod === 'multi-runs' || state.activeMethod === 'both');
+    if (grp === 'md')   show = (state.activeMethod === 'md' || state.activeMethod === 'both');
+    g.style.display = show ? '' : 'none';
+  });
+
   /* Partition CSP : 1 calcul + 1 rendu, ne depend pas de la config courante. */
   renderCSPPartitionSection();
   /* Charge la premiere config par defaut (declenche render() pour cards + table). */
   var firstConfig = Object.keys(state.ALL_CONFIGS).sort()[0];
   if (firstConfig) selectConfig(firstConfig);
+
+  /* Expose les handlers onclick (le HTML les appelle inline) */
+  window.setMethod = setMethod;
 })();

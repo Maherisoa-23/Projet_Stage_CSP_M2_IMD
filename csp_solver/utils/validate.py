@@ -26,17 +26,44 @@ compute_planarity = _plan_mod.compute_planarity
 is_planar = _plan_mod.is_planar
 
 
+def test_planarity_from_xyz(xyz_path, threshold=10.0):
+    """Lit un XYZ deja optimise et teste sa planarite (ACP + seuil).
+
+    Helper independant : utile pour tester la planarite d'une geometrie
+    sans la re-optimiser. Utilise par les strategies multi-runs (apres
+    --opt) et MD (apres --md + --opt).
+
+    Returns:
+        dict avec les cles 'planar', 'angle_deg', 'rmsd', 'height'.
+        Si moins de 3 atomes, retourne planar=False et angle 0.
+    """
+    coords = read_optimized_coords(str(xyz_path))
+    if len(coords) < 3:
+        return {'planar': False, 'angle_deg': 0.0, 'rmsd': 0.0, 'height': 0.0}
+    metrics = compute_planarity(coords)
+    return {
+        'planar': is_planar(metrics, threshold),
+        'angle_deg': metrics['max_angle_deg'],
+        'rmsd': metrics['rmsd_plane'],
+        'height': metrics['height'],
+    }
+
+
 def validate_xyz(xyz_path, opt_path=None, threshold=10.0, opt_level="tight", seed=None):
-    """Optimise un XYZ avec xTB et teste la planarite.
+    """Optimise un XYZ avec xTB (--opt) et teste la planarite.
+
+    Strategy "multi-runs" : passe par optimize_xtb (un run --opt avec
+    perturbation aleatoire en z) puis test ACP de la geometrie obtenue.
 
     Args:
         xyz_path: chemin du fichier XYZ a valider
         opt_path: chemin de sortie pour le XYZ optimise (defaut: *_opt.xyz)
         threshold: seuil de planarite en degres
         opt_level: niveau de convergence xTB
+        seed: seed du generateur de perturbation (deterministe si fourni)
 
     Returns:
-        dict avec les resultats
+        dict avec 'optimized', 'planar', 'angle_deg', 'rmsd', 'height', 'message'.
     """
     xyz_path = Path(xyz_path)
     if opt_path is None:
@@ -59,14 +86,9 @@ def validate_xyz(xyz_path, opt_path=None, threshold=10.0, opt_level="tight", see
 
     result['optimized'] = True
 
-    # Test de planarite
-    coords = read_optimized_coords(str(opt_path))
-    if len(coords) >= 3:
-        metrics = compute_planarity(coords)
-        result['angle_deg'] = metrics['max_angle_deg']
-        result['rmsd'] = metrics['rmsd_plane']
-        result['height'] = metrics['height']
-        result['planar'] = is_planar(metrics, threshold)
+    # Test de planarite (helper partage)
+    plan = test_planarity_from_xyz(str(opt_path), threshold)
+    result.update(plan)
 
     status = "PLAN" if result['planar'] else f"NON PLAN ({result['angle_deg']:.1f} deg)"
     result['message'] = status

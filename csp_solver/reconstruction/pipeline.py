@@ -122,6 +122,82 @@ def _run_single(graph, sol, i, threshold, opt_level, output_dir, sol_str):
     return best_result
 
 
+def _run_md(graph, sol, i, threshold, opt_level, output_dir, sol_str,
+            md_params=None, deterministic=True):
+    """1 run protocole MD + opt finale (Yannick Carissan).
+
+    Reconstruit la molecule (variante 0), ecrit source.xyz, puis lance
+    optimizer_md.md_then_optimize qui :
+      1. xtb --md --input md.inp  -> xtb.trj
+      2. extraction de la derniere frame
+      3. xtb --opt sur la frame   -> md_final_opt.xyz
+
+    Sortie dans output_dir/sol_X_sizes/md_validation/ :
+        md.inp, md_traj.xyz, md_geom.xyz, md_final_opt.xyz
+
+    Le test de planarite est fait sur md_final_opt.xyz.
+    Si deterministic=True (defaut), xTB tourne en single-thread pour
+    reproductibilite parfaite entre runs.
+    """
+    sizes_str = "_".join(str(sol[v]) for v in sorted(sol.keys()))
+    sol_dir = output_dir / f"sol_{i}_{sizes_str}"
+    sol_dir.mkdir(parents=True, exist_ok=True)
+
+    # Reconstruction unique (variante 0, comme multi-runs)
+    try:
+        mol = reconstruct_molecule(graph, sol, None)
+    except Exception as e:
+        print(f"  ERREUR reconstruction : {e}")
+        return {"index": i, "planar": False, "message": f"Reconstruction echouee: {e}"}
+
+    source_path = sol_dir / "source.xyz"
+    export_xyz(mol, str(source_path), comment=f"Solution {i}: {sol_str}")
+
+    # MD + opt protocole (artefacts dans md_validation/)
+    md_dir = sol_dir / "md_validation"
+
+    # Import local pour eviter de charger optimizer_md si la strategy
+    # MD n'est pas utilisee.
+    import sys
+    _gen_root = Path(__file__).parent.parent.parent / "non_benzenoid_generator"
+    _gen_str = str(_gen_root)
+    if _gen_str not in sys.path:
+        sys.path.insert(0, _gen_str)
+    from core.optimizer_md import md_then_optimize
+
+    success, final_xyz, info = md_then_optimize(
+        str(source_path), str(md_dir),
+        params=md_params, opt_level=opt_level,
+        deterministic=deterministic,
+    )
+    if not success:
+        print(f"  ECHEC MD : {info.get('message', '?')}")
+        return {
+            "index": i, "solution": sol,
+            "planar": False, "angle_deg": 0.0,
+            "message": f"MD failed: {info.get('message', '?')}",
+            "md_info": info,
+        }
+
+    # Test planarite sur md_final_opt.xyz
+    from utils.validate import test_planarity_from_xyz
+    plan = test_planarity_from_xyz(str(final_xyz), threshold)
+
+    status = "PLAN" if plan["planar"] else f"NON PLAN ({plan['angle_deg']:.1f} deg)"
+    print(f"  MD + opt : {status} {'(converge)' if info['converged'] else '(non converge)'}")
+
+    return {
+        "index": i,
+        "solution": sol,
+        "planar": plan["planar"],
+        "angle_deg": plan["angle_deg"],
+        "rmsd": plan["rmsd"],
+        "height": plan["height"],
+        "message": status,
+        "md_info": info,
+    }
+
+
 def _run_multi(graph, sol, i, threshold, opt_level, output_dir, sol_str, n_runs):
     """N runs xTB sur la variante 0, stockes dans solutions/sol_X_sizes/run_NN_opt.xyz.
     Les stats/classification sont calculees par aggregate_runs.py.
@@ -171,19 +247,23 @@ def _run_multi(graph, sol, i, threshold, opt_level, output_dir, sol_str, n_runs)
 
 def reconstruct_and_validate(graph: BenzenoidGraph, solutions: list,
                              threshold=10.0, opt_level="tight",
-                             output_dir=None, n_runs=1, method="multi-runs"):
+                             output_dir=None, n_runs=1, method="multi-runs",
+                             md_params=None, md_deterministic=True):
     """Pour chaque solution CSP, reconstruit la molecule et la valide.
 
     La validation est deleguee a une 'strategy' selectionnee par le parametre
     `method`. Les strategies sont definies dans utils.validation. Chaque
-    strategy a sa propre logique (multi-runs xTB, MD/MTD, ...) et produit son
-    propre format de sortie dans data.json (cf. blocs 'runs', 'md_validation').
+    strategy a sa propre logique (multi-runs xTB, MD courte + opt, ...) et
+    produit son propre format de sortie dans data.json (blocs 'runs',
+    'md_validation', ...).
 
     Strategies disponibles :
       - "multi-runs" (defaut) : comportement historique. Si n_runs=1, single-run
         avec selection de la meilleure variante multi-blocs ; si n_runs>1,
         structure sol_X/run_NN_opt.xyz avec stats calculees par aggregate_runs.py.
-      - autres strategies a venir : voir utils.validation.list_strategies().
+      - "md" : 1 run protocole MD (~1 ps a 298 K) + opt finale. Sortie dans
+        sol_X/md_validation/. Stats agregees par aggregate_md.py.
+      - autres a venir : voir utils.validation.list_strategies().
     """
     if output_dir is None:
         output_dir = Path(__file__).parent.parent / "output" / "molecules"
@@ -209,6 +289,10 @@ def reconstruct_and_validate(graph: BenzenoidGraph, solutions: list,
     strategy_kwargs = {"threshold": threshold, "opt_level": opt_level}
     if method == "multi-runs":
         strategy_kwargs["n_runs"] = n_runs
+    elif method == "md":
+        if md_params is not None:
+            strategy_kwargs["md_params"] = md_params
+        strategy_kwargs["deterministic"] = md_deterministic
     strategy = get_strategy(method, **strategy_kwargs)
 
     results = strategy.validate_solutions(graph, solutions, output_dir)

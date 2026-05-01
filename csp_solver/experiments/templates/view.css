@@ -106,6 +106,40 @@ body { line-height: 1.5; }
 .compare-toggle:hover { border-color: #bf8700; color: #bf8700; }
 .compare-toggle.active { background: #bf8700; color: #fff; border-color: #bf8700; }
 
+/* Toggle methode de validation : visible uniquement si >= 2 methodes
+   detectees dans le dataset. Style similaire a la config-bar mais plus
+   discret (couleur violet/teal pour ne pas conflicter avec les boutons configs). */
+.method-toggle {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 8px 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  border-left: 3px solid #8b5cf6;  /* violet : couleur "MD" */
+}
+.method-toggle .label {
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 0.82em;
+  white-space: nowrap;
+}
+.method-btn {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 0.82em;
+  transition: all 0.15s;
+  color: var(--text);
+}
+.method-btn:hover { border-color: #8b5cf6; color: #6d28d9; }
+.method-btn.active { background: #8b5cf6; color: #fff; border-color: #8b5cf6; }
+
 /* ---- Cards layout ---- */
 .cards {
   display: grid;
@@ -409,6 +443,70 @@ td { padding: 8px 14px; border-top: 1px solid #f0f0f0; font-size: 0.88em; }
   border-radius: 3px;
   overflow: visible;
 }
+
+/* Dual-method layout : empile multi-runs + md dans la meme cellule
+   avec un label methode discret a gauche. Permet de comparer en un coup d'oeil
+   les 2 verdicts pour la meme solution. */
+.solution-multirun .method-block {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 3px 0;
+}
+.solution-multirun .method-block + .method-block {
+  border-top: 1px dashed var(--border);
+  margin-top: 4px;
+  padding-top: 6px;
+}
+.method-label {
+  display: inline-block;
+  min-width: 72px;
+  font-size: 0.7em;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  background: var(--surface-alt);
+  padding: 2px 8px;
+  border-radius: 4px;
+  border-left: 3px solid var(--border);
+  flex-shrink: 0;
+}
+.method-block.method-multiruns .method-label { border-left-color: var(--accent); color: var(--accent); }
+.method-block.method-md         .method-label { border-left-color: #8b5cf6;     color: #6d28d9; }
+
+/* Badge planar/non-planar pour le bloc MD (vs stab-badge avec emoji
+   classification pour multi-runs). Style sobre, juste plan / non plan. */
+.md-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 0.78em;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+.md-badge.planar     { background: var(--green-bg); color: var(--green); }
+.md-badge.non-planar { background: var(--red-bg);   color: var(--red); }
+
+.md-angle {
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.85em;
+  color: var(--text);
+}
+.md-meta {
+  font-size: 0.75em;
+  color: var(--text-muted);
+  font-family: 'SFMono-Regular', Consolas, monospace;
+}
+.md-traj-link {
+  font-size: 0.78em;
+  color: var(--text-muted);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--text-muted);
+}
+.md-traj-link:hover { color: var(--accent); border-bottom-color: var(--accent); }
 
 /* ==== CSP partition section ====
    Repliable, contenant 2 SVG cote a cote (UpSet + per-config) et une legende. */

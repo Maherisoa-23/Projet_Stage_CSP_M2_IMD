@@ -22,12 +22,13 @@ Usage :
 
 from utils.validation.base import ValidationStrategy
 from utils.validation.multi_runs import MultiRunsStrategy
+from utils.validation.md import MDStrategy
 
 # Registry des strategies disponibles. Pour ajouter une methode, importer
 # la classe et l'enregistrer ici.
 _STRATEGIES = {
     "multi-runs": MultiRunsStrategy,
-    # "md": MDStrategy,  # a brancher quand md.py sera implemente
+    "md": MDStrategy,
 }
 
 
@@ -56,4 +57,5 @@ def get_strategy(name, **kwargs):
     return _STRATEGIES[name](**kwargs)
 
 
-__all__ = ["ValidationStrategy", "MultiRunsStrategy", "get_strategy", "list_strategies"]
+__all__ = ["ValidationStrategy", "MultiRunsStrategy", "MDStrategy",
+           "get_strategy", "list_strategies"]

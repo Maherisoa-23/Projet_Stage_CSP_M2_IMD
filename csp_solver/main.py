@@ -44,6 +44,9 @@ if "--method" in _own_argv:
     idx = _own_argv.index("--method")
     if idx + 1 < len(_own_argv):
         method = _own_argv[idx + 1]
+# MD : par defaut deterministe (single-thread). Flag pour autoriser le multi-thread
+# (plus rapide mais runs non-reproductibles -- xTB n'a pas de seed pour MD).
+md_deterministic = "--md-no-deterministic" not in _own_argv
 
 # Nettoyer sys.argv pour que pycsp3 ne les intercepte pas
 sys.argv = [_own_argv[0]]
@@ -68,7 +71,10 @@ def main():
         print("  --n-runs N    : nombre d'optimisations xTB par solution (defaut 1)")
         print("  --method M    : strategy de validation (defaut 'multi-runs')")
         print("                  voir utils/validation/ pour les strategies disponibles")
+        print("  --md-no-deterministic : autoriser xTB MD multi-thread (plus rapide,")
+        print("                          mais runs non-reproductibles ; defaut deterministe)")
         print("Exemple: python main.py data/first.graph --validate --n-runs 10")
+        print("Exemple: python main.py data/first.graph --validate --method md")
         sys.exit(1)
 
     # --- Etape 1 : Lecture du fichier Benzai ---
@@ -144,7 +150,8 @@ def main():
         print("=== Validation xTB + planarite ===")
         from reconstruction import reconstruct_and_validate
         reconstruct_and_validate(graph, solutions, output_dir=output_dir,
-                                 n_runs=n_runs, method=method)
+                                 n_runs=n_runs, method=method,
+                                 md_deterministic=md_deterministic)
 
 
 if __name__ == "__main__":

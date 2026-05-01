@@ -200,11 +200,10 @@ CLASSIFICATIONS = [
 CLASS_INFO = {key: (label, emoji, color) for key, label, emoji, color in CLASSIFICATIONS}
 
 
-def _walk_solutions_with_runs(all_data):
-    """Generator : yield (h_name, cfg_name, mol_name, sol) pour chaque
-    solution ayant un bloc 'runs'. On relit explicitement tous les data.json
-    de chaque config (pas seulement celui retenu par load_all_data) pour
-    avoir la vue complete multi-configs."""
+def _walk_all_solutions(all_data):
+    """Generator : yield (h_name, cfg_name, mol_name, sol) pour TOUTES les
+    solutions de tous les data.json multi-config. Ne filtre pas sur la
+    presence d'un bloc particulier -- au consommateur de filtrer."""
     experiments_dir = Path(__file__).parent
     output_dir = experiments_dir / "output"
     for data_file in sorted(output_dir.glob("*/*/data.json")):
@@ -217,8 +216,15 @@ def _walk_solutions_with_runs(all_data):
             continue
         for mol_name, mol in d.get("molecules", {}).items():
             for sol in mol.get("solutions", []):
-                if sol.get("runs"):
-                    yield h_name, cfg_name, mol_name, sol
+                yield h_name, cfg_name, mol_name, sol
+
+
+def _walk_solutions_with_runs(all_data):
+    """Comme _walk_all_solutions mais filtre uniquement les solutions avec
+    un bloc 'runs' (multi-runs). Conserve pour retrocompat."""
+    for h_name, cfg_name, mol_name, sol in _walk_all_solutions(all_data):
+        if sol.get("runs"):
+            yield h_name, cfg_name, mol_name, sol
 
 
 def _compute_stability(all_data):
@@ -304,6 +310,159 @@ def generate_pie_svg(counts_by_class):
     lines.append(f'  <text x="{cx}" y="{cy + 14}" text-anchor="middle" '
                  f'font-size="11" fill="#fff" '
                  f'style="paint-order:stroke;stroke:#24292e;stroke-width:3px">solutions</text>')
+    lines.append('</svg>')
+    return "\n".join(lines)
+
+
+def _compute_md_stats(all_data):
+    """Compte global et per-h des verdicts MD. Retourne None si aucune
+    solution n'a de bloc md_validation."""
+    counts_global = {"planar": 0, "non_planar": 0}
+    counts_per_h = {}
+    has_any = False
+    for h_name, cfg_name, mol_name, sol in _walk_all_solutions(all_data):
+        mv = sol.get("md_validation")
+        if not mv:
+            continue
+        has_any = True
+        key = "planar" if mv.get("planar") else "non_planar"
+        counts_global[key] += 1
+        counts_per_h.setdefault(h_name, {"planar": 0, "non_planar": 0})
+        counts_per_h[h_name][key] += 1
+    if not has_any:
+        return None
+    return {
+        "counts_global": counts_global,
+        "counts_per_h": counts_per_h,
+        "total": sum(counts_global.values()),
+    }
+
+
+def _collect_method_compare_points(all_data):
+    """Pour chaque solution ayant LES DEUX blocs (runs ET md_validation),
+    retourne un point (x=runs.angle_mean, y=md_validation.angle_deg) pour
+    le scatter de comparaison des methodes."""
+    points = []
+    for h_name, cfg_name, mol_name, sol in _walk_all_solutions(all_data):
+        runs = sol.get("runs")
+        mv = sol.get("md_validation")
+        if not runs or not mv:
+            continue
+        x = runs.get("angle_mean")
+        y = mv.get("angle_deg")
+        if x is None or y is None:
+            continue
+        # Categorie d'accord pour le code couleur :
+        #   - both_planar : multi-runs (always_/mostly_planar) ET md.planar=True
+        #   - both_non    : multi-runs non plan ET md.planar=False
+        #   - disagree    : les 2 methodes divergent
+        c = runs.get("classification", "ambiguous")
+        is_mr_planar = (c == "always_planar" or c == "mostly_planar")
+        is_md_planar = bool(mv.get("planar"))
+        if is_mr_planar and is_md_planar:
+            agree = "both_planar"
+        elif (not is_mr_planar) and (not is_md_planar):
+            agree = "both_non_planar"
+        else:
+            agree = "disagree"
+        points.append({
+            "x": x, "y": y, "agree": agree,
+            "h": h_name, "cfg": cfg_name, "mol": mol_name,
+            "sizes": sol.get("sizes", ""),
+            "mr_class": c, "md_planar": is_md_planar,
+        })
+    return points
+
+
+def generate_method_compare_svg(points):
+    """SVG scatter X=multi-runs angle_mean, Y=MD angle_deg.
+    1 point = 1 solution validee par les 2 methodes. Couleur = accord :
+    vert (les 2 plates), rouge fonce (les 2 non plates), orange (divergent).
+    Diagonale y=x : les 2 methodes donnent le meme angle. Lignes seuil 10 deg
+    sur les 2 axes."""
+    if not points:
+        return ""
+
+    w, h_ = 680, 480
+    mt, mr, mb, ml = 24, 24, 56, 64
+    cw = w - ml - mr
+    ch = h_ - mt - mb
+
+    # Echelle commune sur les 2 axes pour faciliter la lecture diagonale.
+    max_v = max(max(p["x"] for p in points), max(p["y"] for p in points))
+    xmax = max(12, min(40, max_v * 1.1))
+    ymax = xmax  # axes carrees
+
+    def to_x(v): return ml + min(1.0, v / xmax) * cw
+    def to_y(v): return mt + ch - min(1.0, v / ymax) * ch
+
+    AGREE_COLORS = {
+        "both_planar":     "#1a7f37",   # vert
+        "both_non_planar": "#cf222e",   # rouge
+        "disagree":        "#e66f00",   # orange (alerte)
+    }
+
+    lines = [
+        f'<svg viewBox="0 0 {w} {h_}" xmlns="http://www.w3.org/2000/svg" '
+        f'style="width:100%;max-width:{w}px;font-family:Segoe UI,system-ui,sans-serif;">',
+    ]
+
+    # Grille
+    n_grid = 5
+    for i in range(n_grid + 1):
+        v = xmax * i / n_grid
+        x = ml + (i / n_grid) * cw
+        y = mt + ch - (i / n_grid) * ch
+        lines.append(f'  <line x1="{x:.1f}" y1="{mt}" x2="{x:.1f}" y2="{mt+ch}" '
+                     f'stroke="#e1e4e8" stroke-dasharray="3,3"/>')
+        lines.append(f'  <line x1="{ml}" y1="{y:.1f}" x2="{ml+cw}" y2="{y:.1f}" '
+                     f'stroke="#e1e4e8" stroke-dasharray="3,3"/>')
+        lines.append(f'  <text x="{x:.1f}" y="{mt+ch+16}" text-anchor="middle" '
+                     f'font-size="11" fill="#6a737d">{v:.0f}</text>')
+        lines.append(f'  <text x="{ml-6}" y="{y+4:.1f}" text-anchor="end" '
+                     f'font-size="11" fill="#6a737d">{v:.0f}</text>')
+
+    # Diagonale y=x : si les 2 methodes donnent le meme angle, le point y est
+    diag_x1 = ml; diag_y1 = mt + ch
+    diag_x2 = ml + cw; diag_y2 = mt
+    lines.append(f'  <line x1="{diag_x1}" y1="{diag_y1:.1f}" x2="{diag_x2}" y2="{diag_y2:.1f}" '
+                 f'stroke="#0969da" stroke-width="1" stroke-dasharray="6,4" opacity="0.5"/>')
+    lines.append(f'  <text x="{diag_x2 - 4:.1f}" y="{diag_y2 + 12:.1f}" text-anchor="end" '
+                 f'font-size="10" fill="#0969da" font-style="italic">y = x (accord parfait)</text>')
+
+    # Lignes seuil 10 deg sur les 2 axes
+    if 10 <= xmax:
+        tx = to_x(10); ty = to_y(10)
+        lines.append(f'  <line x1="{tx:.1f}" y1="{mt}" x2="{tx:.1f}" y2="{mt+ch}" '
+                     f'stroke="#bf8700" stroke-width="1.2" stroke-dasharray="4,3"/>')
+        lines.append(f'  <line x1="{ml}" y1="{ty:.1f}" x2="{ml+cw}" y2="{ty:.1f}" '
+                     f'stroke="#bf8700" stroke-width="1.2" stroke-dasharray="4,3"/>')
+        lines.append(f'  <text x="{tx + 4:.1f}" y="{mt+12}" text-anchor="start" '
+                     f'font-size="10" fill="#bf8700" font-weight="600">seuil 10&#176;</text>')
+
+    # Axis labels
+    lines.append(f'  <text x="{ml+cw/2:.1f}" y="{h_-8}" text-anchor="middle" '
+                 f'font-size="12" font-weight="600" fill="#24292e">Multi-runs &mdash; angle moyen &#956; (&#176;)</text>')
+    lines.append(f'  <text x="14" y="{mt+ch/2:.1f}" text-anchor="middle" '
+                 f'font-size="12" font-weight="600" fill="#24292e" '
+                 f'transform="rotate(-90 14 {mt+ch/2:.1f})">MD &mdash; angle final (&#176;)</text>')
+
+    # Points : ordre = both_planar puis both_non puis disagree (au-dessus pour visibilite)
+    order = ["both_planar", "both_non_planar", "disagree"]
+    sorted_pts = sorted(points, key=lambda p: order.index(p["agree"]))
+    for p in sorted_pts:
+        color = AGREE_COLORS[p["agree"]]
+        x = to_x(p["x"]); y = to_y(p["y"])
+        verdict_label = {"both_planar": "Accord (planes)",
+                          "both_non_planar": "Accord (non planes)",
+                          "disagree": "DIVERGENCE"}[p["agree"]]
+        tooltip = (f'{p["h"]}/{p["cfg"]} - {p["mol"]} [{p["sizes"]}] | '
+                   f'multi-runs: μ={p["x"]}° ({p["mr_class"]}), MD: {p["y"]}° '
+                   f'({"plan" if p["md_planar"] else "non plan"}) | {verdict_label}')
+        lines.append(f'  <circle cx="{x:.1f}" cy="{y:.1f}" r="4" fill="{color}" '
+                     f'stroke="#fff" stroke-width="1" opacity="0.9">')
+        lines.append(f'    <title>{tooltip}</title></circle>')
+
     lines.append('</svg>')
     return "\n".join(lines)
 
@@ -612,6 +771,117 @@ def _render_stability_section(stab, h_list):
 """
 
 
+def _render_md_section(md_stats, compare_points, h_list):
+    """HTML de la section 'Validation MD' (apres section Stabilite).
+
+    Affiche :
+      - cards : counts plans/non-plans MD (global)
+      - donut : % plans MD
+      - scatter de comparaison μ_multi-runs vs angle_MD (si on a des
+        solutions avec les 2 blocs)
+      - tableau par h : counts MD par taille
+
+    Si md_stats est None, retourne chaine vide (section masquee)."""
+    if md_stats is None:
+        return ""
+
+    n_pl = md_stats["counts_global"]["planar"]
+    n_non = md_stats["counts_global"]["non_planar"]
+    total = md_stats["total"]
+    pct = round(100 * n_pl / total) if total else 0
+
+    # Cards globales
+    cards = (
+        f'  <div class="card blue"><div class="value">{total}</div>'
+        f'<div class="label">Solutions validees MD</div></div>\n'
+        f'  <div class="card green"><div class="value">{n_pl}</div>'
+        f'<div class="label">🧬 Plans (MD)</div></div>\n'
+        f'  <div class="card red"><div class="value">{n_non}</div>'
+        f'<div class="label">🧬 Non plans (MD)</div></div>\n'
+        f'  <div class="card" style="border-top-color:#8b5cf6">'
+        f'<div class="value" style="color:#6d28d9">{pct}%</div>'
+        f'<div class="label">% plans MD</div></div>'
+    )
+
+    # Tableau per-h
+    rows = []
+    for h_name in h_list:
+        c = md_stats["counts_per_h"].get(h_name, {"planar": 0, "non_planar": 0})
+        ph = c["planar"]; np_ = c["non_planar"]; tot = ph + np_
+        if tot == 0:
+            rows.append(f'    <tr><td><strong>{h_name}</strong></td>'
+                        f'<td colspan="3" class="na">(pas de donnees MD)</td></tr>')
+        else:
+            ppct = round(100 * ph / tot)
+            rows.append(
+                f'    <tr><td><strong>{h_name}</strong></td>'
+                f'<td>{tot}</td>'
+                f'<td class="planar">{ph}</td>'
+                f'<td class="non-planar">{np_}</td>'
+                f'<td><b>{ppct}%</b></td></tr>'
+            )
+    per_h_rows = "\n".join(rows)
+
+    # Section scatter de comparaison (visible seulement si donnees suffisantes)
+    if compare_points:
+        # Stats agreement
+        n_agree_pl = sum(1 for p in compare_points if p["agree"] == "both_planar")
+        n_agree_non = sum(1 for p in compare_points if p["agree"] == "both_non_planar")
+        n_disagree = sum(1 for p in compare_points if p["agree"] == "disagree")
+        total_pairs = len(compare_points)
+        pct_agree = round(100 * (n_agree_pl + n_agree_non) / total_pairs) if total_pairs else 0
+
+        compare_block = f"""
+<h3>Comparaison multi-runs vs MD</h3>
+<p>
+  Pour les <b>{total_pairs}</b> solutions validees par les <b>2 methodes</b>,
+  on compare l'angle moyen des multi-runs (μ) avec l'angle final apres MD+opt.
+  Accord global : <b>{pct_agree}%</b> ({n_agree_pl} plans + {n_agree_non} non plans).
+  <span class="non-planar">{n_disagree} divergences</span> a investiguer.
+</p>
+<div class="charts-row">
+  <div class="chart-box wide">
+    {generate_method_compare_svg(compare_points)}
+    <p class="caption" style="font-size:0.82em;color:var(--text-muted);margin:8px 0 0;">
+      Chaque point = 1 solution. Vert = les 2 methodes plates, rouge = les 2 non plates,
+      orange = divergence. Les lignes pointillees jaunes marquent le seuil 10°.
+      La diagonale bleue (y=x) materialise un accord parfait sur l'angle.
+    </p>
+  </div>
+</div>
+"""
+    else:
+        compare_block = ""
+
+    return f"""
+<section id="validation-md">
+<h2><span class="section-num">5</span> Validation MD (xtb --md + opt)</h2>
+
+<p>
+  Validation par dynamique moleculaire courte (1 ps a 298 K) suivie d'une
+  optimisation finale, selon le protocole recommande par les chimistes.
+  Compare aux multi-runs : 1 seul run par solution (vs N=10), exploration
+  thermique reelle pour casser les symetries plates parasites avant l'opt.
+</p>
+
+<div class="cards">
+{cards}
+</div>
+
+<h3>Par taille de benzenoide</h3>
+<table class="results">
+  <thead>
+    <tr><th>h</th><th>Total</th><th>🧬 Plans</th><th>🧬 Non plans</th><th>% plans</th></tr>
+  </thead>
+  <tbody>
+{per_h_rows}
+  </tbody>
+</table>
+{compare_block}
+</section>
+"""
+
+
 def generate_html(all_data):
     """Assemble le rapport : charge le template, substitue les placeholders."""
     data = _compute_per_h(all_data)
@@ -622,8 +892,13 @@ def generate_html(all_data):
     # Stabilite multi-runs (None si aucun data.json n'a de bloc runs)
     stab = _compute_stability(all_data)
     stability_section = _render_stability_section(stab, h_list)
-    # Lien nav : ajoute seulement si section presente
     stability_nav = '  <a href="#stabilite">Stabilite</a>' if stab else ""
+
+    # Section MD (None si aucun bloc md_validation dans le dataset)
+    md_stats = _compute_md_stats(all_data)
+    md_compare = _collect_method_compare_points(all_data)
+    md_section = _render_md_section(md_stats, md_compare, h_list)
+    md_nav = '  <a href="#validation-md">Validation MD</a>' if md_stats else ""
 
     template = Template(_load_template("report.html"))
     return template.safe_substitute(
@@ -641,6 +916,8 @@ def generate_html(all_data):
         batch_rows=_render_batch_rows(h_list),
         stability_section=stability_section,
         stability_nav=stability_nav,
+        md_section=md_section,
+        md_nav=md_nav,
         common_css=_load_template("common.css"),
         report_css=_load_template("report.css"),
         report_js=_load_template("report.js"),
