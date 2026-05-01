@@ -93,6 +93,19 @@
 \newcommand{\GD}{G_{\!D}}
 \newcommand{\Tn}{\mathcal{T}(n)}
 
+% ---- marqueur de date pour suivre l'evolution du document ----
+\newcommand{\dateblock}[1]{%
+  \par\medskip
+  \begingroup
+    \setlength{\fboxsep}{4pt}%
+    \fcolorbox{primary}{blue!5}{%
+      \color{primary}\footnotesize\bfseries
+      \textsc{Ajout du #1}%
+    }%
+  \endgroup
+  \par\smallskip
+}
+
 % ============================================================
 \begin{document}
 
@@ -114,12 +127,47 @@
   {\normalsize
     \textbf{Implémentation :} Python 3 + PyCSP3 + ACE (Java)\\[0.5em]
     \textbf{Modèle formel :} voir \textit{Stage\_M2\_IMD\_modelisation\_csp.tex}\\[0.5em]
-    \textbf{Date :} Avril 2026
+    \textbf{Premiere version :} Avril 2026\\[0.3em]
+    \textbf{Derniere mise a jour :} 1\textsuperscript{er} mai 2026
   }
   \vfill
 \end{titlepage}
 
 \tableofcontents
+\newpage
+
+% ============================================================
+\section*{Journal des evolutions}
+\addcontentsline{toc}{section}{Journal des evolutions}
+% ============================================================
+
+Ce document evolue avec le projet. Pour faciliter le suivi, les blocs
+\fcolorbox{primary}{blue!5}{\color{primary}\footnotesize\bfseries\textsc{Ajout du AAAA-MM-JJ}}
+marquent dans le texte les contenus ajoutes a chaque etape.
+
+\begin{center}
+\begin{tabular}{lp{11cm}}
+  \toprule
+  Date & Contenu ajoute \\
+  \midrule
+  Avril 2026 &
+    Version initiale : modele CSP (PyCSP3 + ACE), reconstruction 3D, validation
+    xTB en single-run, infrastructure de batch (\texttt{batch\_main}, \texttt{batch\_all}),
+    viewer HTML par taille et rapport global. \\
+  Avril 2026 (mi-mois) &
+    Validation multi-runs (\texttt{-{}-n-runs N}), classification de stabilite
+    (6 classes), \texttt{aggregate\_runs.py}, viewer enrichi (badges, barre de
+    dispersion SVG), section ``Couverture CSP'' (partition entre les 8 configs). \\
+  1\textsuperscript{er} mai 2026 &
+    Validation par \textbf{dynamique moleculaire courte} (xtb -{}-md + opt) selon le
+    protocole des chimistes. Pattern \emph{Strategy} pour decoupler les methodes de
+    validation. \texttt{aggregate\_md.py} additif. Refonte du dashboard en
+    \textbf{MD-only}, KPIs uniformes, mini-tableau MD par config en haut de chaque
+    \texttt{view.html}, section ``Couverture CSP'' alignee sur le verdict MD. \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
 \newpage
 
 % ============================================================
@@ -844,6 +892,8 @@ pas garanti pour les grandes structures.
 \section{Validation multi-runs et classification de stabilité}
 % ============================================================
 
+\dateblock{avril 2026}
+
 \subsection{Motivation : non-déterminisme de xTB}
 
 L'optimisation xTB repose sur une descente de gradient. Combinée à la perturbation aléatoire
@@ -938,6 +988,185 @@ $N \geq 59$. En pratique :
 
 La stratégie adoptée est à \textbf{deux vitesses} : N=10 sur l'ensemble du dataset pour
 identifier les cas instables, puis N=30+ ciblé sur ceux-ci si nécessaire.
+
+% ============================================================
+\section{Validation par dynamique moléculaire (MD)}
+% ============================================================
+
+\dateblock{1\textsuperscript{er} mai 2026}
+
+\subsection{Motivation : protocole recommandé par les chimistes}
+
+Après réunion avec Yannick Carissan (LS2N) et discussion sur les cas marginaux du
+multi-runs, un \textbf{protocole alternatif} a été proposé :
+\textit{lancer une dynamique moléculaire courte avant l'optimisation finale}.
+
+\begin{quote}
+\textit{Idée :} la reconstruction 3D produit une géométrie 2D plane par construction.
+Une optimisation directe (\texttt{--opt}) reste piégée près de ce minimum local plat
+même quand un minimum non-plat existe. La MD courte (1~ps à 298~K) injecte de
+l'énergie thermique qui déforme la structure hors du plan, puis l'optimisation finale
+relaxe vers le \emph{vrai} minimum énergétique. Si la structure y revient plate, elle est
+réellement plate. Si elle se courbe, elle ne l'est pas.
+\end{quote}
+
+Ce protocole donne un verdict \textbf{binaire} (plan / non plan) sur un seul run par solution,
+mais avec une validation physique plus stricte que le multi-runs perturbé.
+
+\subsection{Protocole en 3 étapes}
+
+Pour chaque solution issue du CSP :
+
+\begin{enumerate}
+  \item \texttt{xtb solution.xyz -{}-md} : MD NVT à 298~K, 1~ps, dump 50~fs $\to$ \texttt{md\_traj.xyz}
+  \item Extraire la \textbf{dernière frame} de la trajectoire $\to$ \texttt{md\_geom.xyz}
+  \item \texttt{xtb md\_geom.xyz -{}-opt tight} $\to$ \texttt{md\_final\_opt.xyz}, géométrie testée par l'ACP
+\end{enumerate}
+
+\subsection{Paramètres MD adoptés}
+
+\begin{center}
+\begin{tabular}{lll}
+  \toprule
+  Paramètre & Valeur & Justification \\
+  \midrule
+  Méthode quantique & GFN2-xTB    & cohérent avec le pipeline existant \\
+  Ensemble          & NVT (Berendsen) & équilibrage thermique rapide \\
+  Température       & 298.15~K    & condition standard \\
+  Durée             & 1~ps        & suffisant pour s'écarter d'un plan métastable \\
+  Pas               & 4~fs        & avec \texttt{hmass=4} pour relaxer la contrainte H \\
+  \texttt{hmass}    & 4           & masse des H artificiellement augmentée \\
+  Dump              & 50~fs       & $\sim$20 frames sur la trajectoire \\
+  \texttt{velo}     & false       & xTB régénère les vélocités initiales \\
+  \texttt{sccacc}   & 2.0         & tolérance SCC relâchée pour la MD (xTB) \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Pattern Strategy : décorrélation des méthodes de validation}
+
+Pour permettre la \textbf{coexistence} des deux méthodes (multi-runs et MD) sans conflit, le
+pipeline a été refactoré selon le \emph{Strategy Pattern}. Une classe abstraite
+\texttt{ValidationStrategy} définit l'interface, deux implémentations concrètes la remplissent.
+
+\begin{lstlisting}[style=benzai]
+csp_solver/utils/validation/
+  base.py              # ABC ValidationStrategy.validate_solutions(graph, sols, out_dir)
+  multi_runs.py        # MultiRunsStrategy : delegue vers _run_single / _run_multi
+  md.py                # MDStrategy : appelle optimizer_md.run_md_pipeline
+  __init__.py          # Registry : get_strategy(name, **kwargs)
+\end{lstlisting}
+
+\begin{lstlisting}
+class ValidationStrategy(ABC):
+    name: str = ""
+    @abstractmethod
+    def validate_solutions(self, graph, solutions, output_dir):
+        raise NotImplementedError
+
+class MDStrategy(ValidationStrategy):
+    name = "md"
+    def __init__(self, threshold=10.0, opt_level="tight",
+                 md_params=None, deterministic=True):
+        ...
+    def validate_solutions(self, graph, solutions, output_dir):
+        # appelle non_benzenoid_generator/core/optimizer_md.py::run_md_pipeline
+        ...
+\end{lstlisting}
+
+\texttt{main.py} accepte désormais le drapeau \texttt{-{}-method} qui sélectionne la stratégie :
+\texttt{multi-runs} (par défaut, rétrocompatible) ou \texttt{md}.
+
+\begin{lstlisting}[style=benzai]
+python main.py data/fichier.graph --validate --method md
+python main.py data/fichier.graph --validate --n-runs 10        # multi-runs (defaut)
+\end{lstlisting}
+
+\subsection{\texttt{aggregate\_md.py} — agrégation additive}
+
+À l'image de \texttt{aggregate\_runs.py}, un script dédié recompose le \texttt{data.json}
+d'une config à partir des fichiers \texttt{md\_validation/} produits par les runs MD :
+
+\begin{lstlisting}[style=benzai]
+output/h4/default/0-5-6-11/solutions/sol_1_5_7_7_5/
+  md_validation/
+    md_geom.xyz              # frame finale de la trajectoire (input de l'opt)
+    md_traj.xyz              # trajectoire complete (input pour debug)
+    md_final_opt.xyz         # geometrie testee par l'ACP
+\end{lstlisting}
+
+\textbf{Choix architectural important :} \texttt{aggregate\_md.py} est \textbf{additif}. Il
+charge le \texttt{data.json} existant, ajoute un bloc \texttt{md\_validation} à chaque
+solution sans toucher au bloc \texttt{runs} préexistant, puis ré-écrit. Cela permet d'avoir
+sur le même dataset les deux méthodes côte à côte si on les a toutes deux lancées.
+
+Schéma enrichi du \texttt{data.json} (extrait) :
+
+\begin{lstlisting}[style=benzai]
+{
+  "molecules": {
+    "0-5-6-11": {
+      "solutions": [
+        {
+          "sizes": "v0=5 v1=7 v2=7 v3=5",
+          "file": "sol_1_5_7_7_5/md_final_opt.xyz",
+          "planar": true, "angle_deg": 0.4,
+          "runs":          { ... },  /* multi-runs (si lance) */
+          "md_validation": {         /* MD (si lance) */
+            "planar": true,
+            "angle_deg": 0.4,
+            "rmsd": 0.03,
+            "height": 0.12,
+            "params": {"temp": 298.15, "time": 1.0, "step": 4, "dump": 50,
+                       "hmass": 4, "sccacc": 2.0, "velo": false, "nvt": true},
+            "trajectory_file": "md_validation/md_traj.xyz",
+            "final_opt_file":  "md_validation/md_final_opt.xyz"
+          }
+        }
+      ]
+    }
+  }
+}
+\end{lstlisting}
+
+\subsection{Non-déterminisme contrôlé}
+
+\texttt{xtb} initialise les vélocités MD à partir de l'horloge système : deux exécutions
+identiques produisent des trajectoires différentes. Ce comportement n'est pas configurable
+côté utilisateur (l'option \texttt{seed} dans le bloc \texttt{\$md} est ignorée par xTB).
+
+\textbf{Mitigation} : \texttt{MDStrategy} fixe \texttt{OMP\_NUM\_THREADS=1} et
+\texttt{MKL\_NUM\_THREADS=1} dans l'environnement du subprocess. Cela élimine
+le non-déterminisme de l'addition flottante en parallèle, ce qui réduit la variance
+des angles finaux à environ \textbf{0.01°} (très en dessous du seuil 10°). Les verdicts
+plan/non plan sont donc stables d'une exécution à l'autre, même si les trajectoires
+diffèrent en détail.
+
+Désactivable via \texttt{-{}-md-no-deterministic} si on veut récupérer le parallélisme.
+
+\subsection{Lancement des batchs MD}
+
+Le drapeau \texttt{-{}-method md} se propage de \texttt{batch\_all.py} jusqu'à
+\texttt{main.py}, et déclenche \texttt{aggregate\_md.py} en fin de batch (au lieu
+d'\texttt{aggregate\_runs.py}) :
+
+\begin{lstlisting}[style=benzai]
+# Batch MD complet (8 configs) sur h3
+python batch_all.py plane/benzdb/h3 --method md
+
+# Une seule config MD
+python batch_main.py plane/benzdb/h3 --validate --method md --no-freeze --adj-57
+\end{lstlisting}
+
+\subsection{Comparaison MR vs MD : résultats}
+
+Sur le dataset h3--h5 (53 solutions, 8 configs), les deux méthodes convergent à
+\textbf{98\%} : 52 verdicts plan/non-plan identiques, 1 seul cas de divergence franche
+(MR plan, MD non plan ou inverse) sur la config \texttt{default}.
+
+Les multi-runs apportent une \emph{nuance qualitative} (always\_/mostly\_planar,
+unstable, etc.) mais identifient le même ensemble de cas problématiques que le MD.
+Le MD est plus court à exécuter (1 run au lieu de 10) mais physiquement plus rigoureux.
 
 % ============================================================
 \section{Infrastructure d'expérimentation systématique}
@@ -1151,6 +1380,96 @@ L'archive est destinée à être envoyée à un collaborateur. Le destinataire l
 \texttt{report/index.html} dans Chrome — toutes les visualisations fonctionnent en
 \texttt{file://}, sans serveur ni installation.
 
+\subsection{Refonte du dashboard : passage en MD-only}
+
+\dateblock{1\textsuperscript{er} mai 2026}
+
+Le dashboard \texttt{report/index.html} a été \textbf{repensé en true dashboard} :
+information cruciale visible immédiatement, sections secondaires repliées par défaut.
+Suite à la convergence MR/MD à 98\%, le choix a été fait de \textbf{ne plus mentionner
+les multi-runs dans le résumé} et de présenter uniquement le verdict MD.
+
+\textbf{Hero KPIs (4 tuiles uniformes en haut de page).} Format régulier :
+chiffre absolu en gros (BIG), pourcentage ou contexte en petit (SUB). Plus de
+mélange chiffres absolus / pourcentages dans la même rangée.
+
+\begin{center}
+\begin{tabular}{lll}
+  \toprule
+  Tuile & BIG (compte) & SUB (\%/contexte) \\
+  \midrule
+  Molécules     & 25  & h3 à h5 \\
+  Solutions CSP & 53  & toutes configurations \\
+  🟢 Plans (MD) & 39  & 74\% des solutions \\
+  ⚫ Non plans (MD) & 14  & 26\% des solutions \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Sections masquées du dashboard (mais conservées dans le code).}
+Les helpers Python (\texttt{\_compute\_stability}, \texttt{\_render\_alerts},
+\texttt{\_render\_divergences\_block}, \texttt{\_render\_md\_section},
+\texttt{\_compute\_dashboard\_kpis}) restent appelables, mais
+\texttt{generate\_html} ne les rend plus pour le moment :
+
+\begin{itemize}
+  \item Section ``Stabilité multi-runs'' (pie + scatter $\mu \times \sigma$) : retirée.
+  \item Strip d'alertes (divergences MR/MD) : retiré.
+  \item Bloc tableau divergences franches : retiré.
+  \item Section ``Validation MD'' redondante avec le hero : retirée.
+\end{itemize}
+
+\textbf{Bar chart et tableau ``Par taille''.} Refondus pour afficher 2 segments
+(plan/non plan MD) au lieu de 6 classes de stabilité multi-runs. La fonction interne
+\texttt{generate\_bar\_chart\_svg} accepte toujours un dict \texttt{\{PLANE, AUTRES, NON\_PLANE\}},
+mais \texttt{AUTRES} est forcé à 0 par \texttt{\_solution\_bucket} qui retourne
+uniquement \texttt{PLANE} ou \texttt{NON\_PLANE} basé sur \texttt{md\_validation.planar}.
+La logique 3-bucket préexistante reste accessible via \texttt{\_solution\_bucket\_3bucket}
+si on veut la réactiver.
+
+\textbf{Méthodologie et Commandes.} Repliées par défaut (\texttt{<details>}). La section
+\textit{Méthodologie} a été enrichie d'un détail étape par étape (Étapes 1 à 5, du
+\texttt{.graph} à l'ACP) avec les paramètres MD complets. La section \textit{Commandes}
+classe les commandes en 5 sous-sections, MD en premier (recommandé), puis multi-runs,
+puis 1-run, puis régénération des rapports, puis explication des combinaisons de flags CSP.
+
+\subsection{Mini-tableau MD par config dans \texttt{view.html}}
+
+\dateblock{1\textsuperscript{er} mai 2026}
+
+En haut de chaque page \texttt{output/hX/view.html}, juste avant la barre de sélection de
+config, un \textbf{petit tableau récap MD} donne d'un coup d'\oe{}il les pourcentages plans
+et non-plans par configuration :
+
+\begin{center}
+\begin{tabular}{lcccc}
+  \toprule
+                     & default       & no-freeze     & adj-57       & \ldots \\
+  \midrule
+  🟢 Plans (MD)    & 100\% (5/5) & 100\% (5/5) & 100\% (5/5) & \ldots \\
+  ⚫ Non plans (MD) & 0\% (0/5)   & 0\% (0/5)   & 0\% (0/5)   & \ldots \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+Lignes colorées (vert pour plan, rouge pour non plan) avec valeur principale en pourcentage
+et compte exact \texttt{n/total} en petit dessous. Calculé en JS dans \texttt{view.js}
+(fonction \texttt{renderMDSummaryTable}), affiché uniquement si au moins une solution a un
+bloc \texttt{md\_validation}.
+
+\subsection{Section ``Couverture CSP'' alignée sur MD}
+
+\dateblock{1\textsuperscript{er} mai 2026}
+
+Le critère d'inclusion d'une solution dans la partition CSP était auparavant :
+\textit{always\_planar + mostly\_planar} (multi-runs) avec fallback \texttt{sol.planar}.
+Il devient simplement : \texttt{md\_validation.planar = true} (fallback \texttt{sol.planar}).
+
+\textbf{Conséquence sur le bar chart ``Répartition par config''} : il n'affiche plus 6 classes
+de stabilité mais 2 segments par ligne (vert plan / rouge non-plan), cohérent avec le
+verdict MD. Les fonctions \texttt{computePerConfigBreakdown} et \texttt{renderPerConfigBarSVG}
+ont été simplifiées en conséquence.
+
 \subsection{Architecture des templates}
 
 Les templates HTML/CSS/JS sont externalisés dans \texttt{templates/} pour bénéficier de la
@@ -1190,18 +1509,25 @@ csp_solver/experiments/templates/
 \begin{lstlisting}[style=benzai]
 csp_solver/
   main.py                    # Point d'entree CSP, orchestration
+                             # Drapeaux : --validate, --n-runs, --method (md|multi-runs)
   test.py                    # Test sur l'original (toutes tailles a 6)
   utils/
     parser.py                # Lecture Benzai (.graph) -> graphe dual
     table.py                 # Chargement table voisinage (JSON, 1209 entrees)
     preprocessing.py         # Domaines, filtrage tables, automorphismes
     model.py                 # Modele PyCSP3 + appel ACE
-    validate.py              # xTB + planarite (single-run et multi-runs)
+    validate.py              # xTB + planarite (test ACP, single-run et multi-runs)
+    validation/              # Strategy Pattern (mai 2026)
+      base.py                # ABC ValidationStrategy
+      multi_runs.py          # MultiRunsStrategy (delegue aux helpers existants)
+      md.py                  # MDStrategy (xtb --md + opt + ACP)
+      __init__.py            # Registry get_strategy(name, **kwargs)
   reconstruction/
     topology.py              # Phase A : modifications topologiques
     placement.py             # Phase B : placement geometrique BFS
     assembler.py             # Phase C : MolecularGraph + export XYZ
     pipeline.py              # Orchestration reconstruction + validation
+                             # Dispatch via get_strategy(method, ...)
   data/
     table_voisinage.json     # Table T(5)=92, T(6)=412, T(7)=699
     first.graph              # Test : 3 hexagones lineaires
@@ -1211,13 +1537,19 @@ csp_solver/
     batch_all.py             # Lance batch_main.py pour les 8 combinaisons
     batch_test.py            # Test rapide sur les originaux
     aggregate_runs.py        # Agrege les runs multi-N en stats + classification
+    aggregate_md.py          # Agrege les runs MD (additif sur data.json)  [mai 2026]
     view.py                  # Generation des output/hX/view.html
-    update_report.py         # Generation du rapport global
+    update_report.py         # Generation du rapport global (dashboard MD-only)
     bundle.py                # Creation de l'archive portable .zip
     templates/               # HTML/CSS/JS externalises (cf. section 9)
     plane/benzdb/            # Datasets BenzAI DB d'entree (h3, h4, h5, ...)
     output/                  # Resultats des batchs (cf. section 8)
     report/index.html        # Rapport global genere
+
+non_benzenoid_generator/core/
+  optimizer.py               # Wrapper xtb --opt (single-run, multi-runs)
+  optimizer_md.py            # Wrapper xtb --md + --opt (mai 2026)
+                             # OMP/MKL=1 par defaut pour reduire la variance
 \end{lstlisting}
 
 \textbf{Flux de données :}
@@ -1249,6 +1581,12 @@ csp_solver/
   \texttt{--n-runs N} & Lance \texttt{N} optimisations xTB par solution (N=1 par défaut,
     N=10 recommandé pour la classification de stabilité). Active automatiquement
     l'agrégation via \texttt{aggregate\_runs.py}. \\
+  \texttt{--method M} & \emph{[mai 2026]} Sélectionne la stratégie de validation :
+    \texttt{multi-runs} (par défaut) ou \texttt{md}. Active automatiquement
+    \texttt{aggregate\_md.py} en sortie de batch quand M = \texttt{md}. \\
+  \texttt{--md-no-deterministic} & \emph{[mai 2026]} Désactive le forçage
+    \texttt{OMP\_NUM\_THREADS=1} + \texttt{MKL\_NUM\_THREADS=1} (pour récupérer
+    le parallélisme au prix d'une variance accrue, sub-seuil mais visible). \\
   \texttt{--count} & Affiche seulement le nombre de solutions. \\
   \bottomrule
 \end{tabular}
@@ -1262,14 +1600,17 @@ python main.py data/fichier.graph --no-table               # Sans C3 (table)
 python main.py data/fichier.graph --adj-57                 # Avec C5 (adj 5-7)
 python main.py data/fichier.graph --validate               # + reconstruction + xTB
 python main.py data/fichier.graph --validate --n-runs 10   # multi-runs (stabilite)
+python main.py data/fichier.graph --validate --method md   # MD courte + opt [mai 2026]
 
 # Batch sur un dossier (depuis csp_solver/experiments/)
 python batch_main.py plane/benzdb/h4 --validate --n-runs 10
-python batch_all.py  plane/benzdb/h4 --n-runs 10           # les 8 configs
+python batch_main.py plane/benzdb/h4 --validate --method md  # [mai 2026]
+python batch_all.py  plane/benzdb/h4 --n-runs 10             # multi-runs sur 8 configs
+python batch_all.py  plane/benzdb/h4 --method md             # MD sur 8 configs [mai 2026]
 
 # Generation des rapports HTML
 python view.py output/h4 --aggregate                       # viewer h4
-python update_report.py                                    # rapport global
+python update_report.py                                    # rapport global (dashboard MD)
 python bundle.py                                           # archive .zip portable
 \end{lstlisting}
 

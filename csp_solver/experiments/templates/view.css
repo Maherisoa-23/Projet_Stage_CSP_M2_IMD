@@ -385,6 +385,66 @@ td { padding: 8px 14px; border-top: 1px solid #f0f0f0; font-size: 0.88em; }
   box-shadow: var(--shadow-sm);
 }
 
+/* ==== Mini-tableau MD par config (en haut de page) ==== */
+.md-summary {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+  border-left: 3px solid #8b5cf6;
+}
+.md-summary-title {
+  font-size: 0.78em;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 8px;
+}
+.md-summary-scroll { overflow-x: auto; }
+.md-summary-table {
+  border-collapse: collapse;
+  font-size: 0.82em;
+  width: 100%;
+  min-width: 480px;
+}
+.md-summary-table th {
+  background: #f6f8fa;
+  padding: 6px 10px;
+  text-align: center;
+  font-size: 0.78em;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.md-summary-table th.row-label {
+  text-align: left;
+  font-family: inherit;
+  font-size: 0.85em;
+  color: var(--text);
+  font-weight: 700;
+  white-space: nowrap;
+  background: var(--surface);
+}
+.md-summary-table td {
+  padding: 8px 10px;
+  text-align: center;
+  border-top: 1px solid #f0f0f0;
+  font-size: 1em;
+  font-weight: 700;
+}
+.md-summary-table .row-plan td    { background: var(--green-bg); color: var(--green); }
+.md-summary-table .row-nonplan td { background: var(--red-bg);   color: var(--red); }
+.md-summary-table .md-summary-count {
+  font-size: 0.7em;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
 /* ==== 3-bucket pills (Verdict simplifie) ==== */
 .bucket-pill-row {
   display: inline-flex;

@@ -65,9 +65,9 @@ def _class_to_bucket(cls):
     return "AUTRES"
 
 
-def _solution_bucket(sol):
-    """Bucket consensus : MR si dispo (plus nuance), sinon MD, sinon planar bool.
-    En presence des 2 methodes : si elles divergent -> AUTRES."""
+def _solution_bucket_3bucket(sol):
+    """Bucket 3-categorie (multi-runs + MD avec AUTRES). Conserve pour
+    usage futur potentiel, NON utilise par le dashboard MD-only courant."""
     runs = sol.get("runs")
     mv = sol.get("md_validation")
     mr = _class_to_bucket(runs["classification"]) if runs and runs.get("classification") else None
@@ -77,11 +77,21 @@ def _solution_bucket(sol):
             return mr
         if mr == "AUTRES" or md == "AUTRES":
             return "AUTRES"
-        return "AUTRES"  # divergence franche
+        return "AUTRES"
     if mr:
         return mr
     if md:
         return md
+    return "PLANE" if sol.get("planar") else "NON_PLANE"
+
+
+def _solution_bucket(sol):
+    """Verdict MD-only (binaire) : PLANE / NON_PLANE.
+    Choix arrete : le dashboard ne parle que de MD. Si pas de bloc
+    md_validation, on retombe sur le booleen sol.planar (single-run)."""
+    mv = sol.get("md_validation")
+    if mv is not None:
+        return "PLANE" if mv.get("planar") else "NON_PLANE"
     return "PLANE" if sol.get("planar") else "NON_PLANE"
 
 
@@ -92,11 +102,14 @@ def compute_stats(data):
     n_sol = 0
     buckets = {"PLANE": 0, "AUTRES": 0, "NON_PLANE": 0}
     n_plan = 0
+    n_md_validated = 0
     for m in molecules.values():
         for s in m["solutions"]:
             n_sol += 1
             if s.get("planar"):
                 n_plan += 1
+            if s.get("md_validation") is not None:
+                n_md_validated += 1
             buckets[_solution_bucket(s)] += 1
     n_non = n_sol - n_plan
     n_orig = sum(1 for m in molecules.values() if m.get("original"))
@@ -109,6 +122,7 @@ def compute_stats(data):
         "planar": n_plan,
         "non_planar": n_non,
         "buckets": buckets,
+        "md_validated": n_md_validated,
         "pct_planar": pct,
         "originals": n_orig,
         "originals_planar": n_orig_plan,
@@ -183,10 +197,12 @@ def generate_bar_chart_svg(stats_by_h):
         lines.append(f'  <text x="{x + bar_w/2:.1f}" y="{mt + ch + 22:.1f}" text-anchor="middle" '
                      f'font-size="13" font-weight="600" fill="#24292e">h{h_num}</text>')
 
-    # Legende
-    lx = w - mr - 240; ly = 6
-    for i, key in enumerate(["PLANE", "AUTRES", "NON_PLANE"]):
-        cx = lx + i * 80
+    # Legende : 2 buckets MD-only (Plans / Non plans). AUTRES, s'il existe
+    # encore dans les donnees, est rendu silencieusement empile mais absent
+    # de la legende -- visuellement il sera jaune si jamais present.
+    lx = w - mr - 200; ly = 6
+    for i, key in enumerate(["PLANE", "NON_PLANE"]):
+        cx = lx + i * 96
         lines.append(f'  <rect x="{cx}" y="{ly}" width="12" height="12" fill="{BUCKET_COLORS[key]}" rx="2"/>')
         lines.append(f'  <text x="{cx+16}" y="{ly+10}" font-size="11" fill="#6a737d">{BUCKET_LABELS[key]}</text>')
 
@@ -684,11 +700,11 @@ def _render_bucket_bar_inline(buckets, width=180):
 
 
 def _render_results_row(h_num, stats):
-    """Ligne tableau dashboard : h | mol | sol | mini-bar 3-bucket | pills | originaux."""
+    """Ligne tableau dashboard MD-only : h | mol | sol | bar | plans | non plans | originaux.
+    Les counts PLANE/NON_PLANE sont MD-based (via _solution_bucket)."""
     bk = stats["buckets"]
     pct = stats["pct_planar"]
     pills = (_bucket_pill("PLANE", bk["PLANE"]) +
-             _bucket_pill("AUTRES", bk["AUTRES"]) +
              _bucket_pill("NON_PLANE", bk["NON_PLANE"]))
     return (
         f'    <tr class="h-row">'
@@ -724,7 +740,6 @@ def _render_mol_mini_row(mol_name, mol):
         f'<td style="font-family:SFMono-Regular,Consolas,monospace;font-weight:600;">{mol_name}</td>'
         f'<td>{n_sol}</td>'
         f'<td style="color:{BUCKET_COLORS["PLANE"]};font-weight:700">{bk["PLANE"]}</td>'
-        f'<td style="color:{BUCKET_COLORS["AUTRES"]};font-weight:700">{bk["AUTRES"]}</td>'
         f'<td style="color:{BUCKET_COLORS["NON_PLANE"]};font-weight:700">{bk["NON_PLANE"]}</td>'
         f'<td class="{o_cls}">{o_txt}</td>'
         f'<td>{o_angle}</td>'
@@ -743,7 +758,7 @@ def _render_detail_row(h_num, mols_dict):
         f'<div class="detail-panel">'
         f'<table class="mini-table"><thead><tr>'
         f'<th>Molecule</th><th>Sol.</th>'
-        f'<th>🟢 Plans</th><th>🟡 Autres</th><th>⚫ Non pl.</th>'
+        f'<th>🟢 Plans</th><th>⚫ Non pl.</th>'
         f'<th>Original</th><th>Angle</th>'
         f'</tr></thead><tbody>\n'
         f'{mol_rows}\n'
@@ -768,7 +783,6 @@ def _render_h_cards(per_h):
     for e in per_h:
         bk = e["stats"]["buckets"]
         sub = (f'<span style="color:{BUCKET_COLORS["PLANE"]}">{bk["PLANE"]} pl.</span> · '
-               f'<span style="color:{BUCKET_COLORS["AUTRES"]}">{bk["AUTRES"]} autres</span> · '
                f'<span style="color:{BUCKET_COLORS["NON_PLANE"]}">{bk["NON_PLANE"]} non pl.</span>')
         out.append(
             f'  <a href="../output/{e["h_name"]}/view.html" target="_blank" class="card blue">'
@@ -780,10 +794,28 @@ def _render_h_cards(per_h):
 
 
 def _render_batch_rows(h_list):
-    """Commandes batch par h (section Commandes)."""
+    """Commandes batch par h (section Commandes -- legacy mono-run)."""
     return "\n".join(
         f'    <tr><td>{h}</td>'
         f'<td><code>python batch_main.py plane/benzdb/{h} --validate</code></td></tr>'
+        for h in h_list
+    )
+
+
+def _render_batch_rows_md(h_list):
+    """Lignes 'Batch MD pour hX' par h (section Commandes, sous-section MD)."""
+    return "\n".join(
+        f'    <tr><td>Batch MD pour {h}</td>'
+        f'<td><code>python batch_all.py plane/benzdb/{h} --method md</code></td></tr>'
+        for h in h_list
+    )
+
+
+def _render_batch_rows_mr(h_list):
+    """Lignes 'Batch multi-runs pour hX' par h."""
+    return "\n".join(
+        f'    <tr><td>Batch multi-runs pour {h}</td>'
+        f'<td><code>python batch_all.py plane/benzdb/{h} --n-runs 10</code></td></tr>'
         for h in h_list
     )
 
@@ -1035,15 +1067,12 @@ def _compute_dashboard_kpis(all_data, totals):
 
 
 def _render_hero(totals, kpis, h_min, h_max, now):
-    """Bandeau dashboard : 4 KPIs hero + meta. Visible en haut, gros chiffres."""
+    """Hero MD-only : 4 KPIs uniformes (BIG = compte absolu, sub = % ou contexte).
+    Plans / Non plans sont basees uniquement sur le verdict MD (md_validation.planar)."""
     bk = totals["buckets"]
-    accord_block = ""
-    if kpis["pct_agree"] is not None:
-        accord_block = (
-            f'<div class="kpi-tile accord"><div class="kpi-value">{kpis["pct_agree"]}%</div>'
-            f'<div class="kpi-label">Accord MR vs MD</div>'
-            f'<div class="kpi-sub">{kpis["n_agree"]}/{kpis["n_pairs"]} solutions</div></div>'
-        )
+    n_sol = totals["solutions"]
+    pct_pl  = round(100 * bk["PLANE"] / n_sol)     if n_sol else 0
+    pct_non = round(100 * bk["NON_PLANE"] / n_sol) if n_sol else 0
     return f"""
 <section class="hero">
   <div class="hero-meta">BenzAI DB &middot; h{h_min} a h{h_max} &middot; mis a jour le {now}</div>
@@ -1051,24 +1080,23 @@ def _render_hero(totals, kpis, h_min, h_max, now):
     <div class="kpi-tile primary">
       <div class="kpi-value">{totals["molecules"]}</div>
       <div class="kpi-label">Molecules</div>
-      <div class="kpi-sub">{totals["solutions"]} solutions CSP</div>
+      <div class="kpi-sub">h{h_min} a h{h_max}</div>
+    </div>
+    <div class="kpi-tile primary">
+      <div class="kpi-value">{n_sol}</div>
+      <div class="kpi-label">Solutions CSP</div>
+      <div class="kpi-sub">toutes configurations</div>
     </div>
     <div class="kpi-tile plane">
-      <div class="kpi-value">{kpis["pct_plane_global"]}%</div>
-      <div class="kpi-label">🟢 Plans</div>
-      <div class="kpi-sub">{bk["PLANE"]} solutions</div>
-    </div>
-    <div class="kpi-tile autres">
-      <div class="kpi-value">{bk["AUTRES"]}</div>
-      <div class="kpi-label">🟡 Autres</div>
-      <div class="kpi-sub">instables / divergences</div>
+      <div class="kpi-value">{bk["PLANE"]}</div>
+      <div class="kpi-label">🟢 Plans (MD)</div>
+      <div class="kpi-sub">{pct_pl}% des solutions</div>
     </div>
     <div class="kpi-tile nonplane">
       <div class="kpi-value">{bk["NON_PLANE"]}</div>
-      <div class="kpi-label">⚫ Non plans</div>
-      <div class="kpi-sub">a investiguer</div>
+      <div class="kpi-label">⚫ Non plans (MD)</div>
+      <div class="kpi-sub">{pct_non}% des solutions</div>
     </div>
-    {accord_block}
   </div>
 </section>
 """
@@ -1127,24 +1155,20 @@ def generate_html(all_data):
 
     kpis = _compute_dashboard_kpis(all_data, totals)
 
-    # Section MD (None si aucun bloc md_validation dans le dataset)
-    md_stats = _compute_md_stats(all_data)
-    md_compare = _collect_method_compare_points(all_data)
-    md_section = _render_md_section(md_stats, md_compare, h_list)
-    md_nav = '  <a href="#validation-md">Validation MD</a>' if md_stats else ""
+    # === Dashboard MD-only ===
+    # Choix : ne plus mentionner les multi-runs dans le resume. Les helpers
+    # _compute_stability / _compute_dashboard_kpis (accord MR/MD) /
+    # _render_alerts (divergences MR vs MD) / _render_md_section (avec
+    # comparaison MR vs MD) / _collect_method_compare_points existent
+    # toujours et restent appelables, mais on ne les rend pas dans la page.
 
-    # Section stabilite : pliable, secondaire dans le dashboard
-    stab = _compute_stability(all_data)
-    if stab:
-        stability_section = (
-            '<details class="collapsible-section" id="stabilite-details">'
-            '<summary><b>Details stabilite multi-runs</b> '
-            '(distribution des classes et scatter angle &mu;&times;&sigma;)</summary>'
-            + _render_stability_section(stab, h_list)
-            + '</details>'
-        )
-    else:
-        stability_section = ""
+    # Section MD masquee : redondante avec le hero et le tableau "Par taille"
+    # qui sont deja MD-only. Helper _render_md_section conserve dans le code.
+    md_section = ""
+    md_nav = ""
+
+    # Sections multi-runs masquees du dashboard (mais pas du code) :
+    stability_section = ""
 
     template = Template(_load_template("report.html"))
     return template.safe_substitute(
@@ -1156,13 +1180,17 @@ def generate_html(all_data):
         total_planar=totals["planar"],
         total_non_planar=totals["non_planar"],
         hero_section=_render_hero(totals, kpis, h_list[0][1:], h_list[-1][1:], now),
-        alerts_section=_render_alerts(kpis),
-        divergences_block=_render_divergences_block(kpis["divergences"]),
+        # Alertes et divergences sont des signaux MR vs MD : retires du
+        # dashboard MD-only mais helpers conserves dans le code.
+        alerts_section="",
+        divergences_block="",
         bar_chart_svg=generate_bar_chart_svg(data["chart_data"]),
         donut_svg=generate_3bucket_donut_svg(totals["buckets"]),
         rows_html=_render_rows_html(per_h, all_data),
         cards_html=_render_h_cards(per_h),
         batch_rows=_render_batch_rows(h_list),
+        batch_rows_md=_render_batch_rows_md(h_list),
+        batch_rows_mr=_render_batch_rows_mr(h_list),
         stability_section=stability_section,
         md_section=md_section,
         md_nav=md_nav,

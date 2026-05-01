@@ -20,6 +20,9 @@ $batch_meta_html
 
 <div class="container">
 
+<!-- Mini-tableau MD : % plans / non plans par config (rempli par renderMDSummaryTable) -->
+<div id="mdSummaryTable"></div>
+
 <div class="config-bar">
   <span class="label">Configuration :</span>
 $config_buttons
@@ -37,7 +40,7 @@ $config_buttons
   <!-- Couverture CSP : partition des solutions planaires entre configs.
        Rempli par renderCSPPartitionSection() au chargement. Ferme par defaut. -->
   <details class="csp-partition">
-    <summary>Couverture CSP : partition des solutions planaires entre les configurations</summary>
+    <summary>Couverture CSP : partition des solutions planes (MD) entre les configurations</summary>
     <div id="cspPartitionContent"></div>
   </details>
 

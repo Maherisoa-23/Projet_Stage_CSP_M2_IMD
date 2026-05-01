@@ -288,29 +288,12 @@
 
   /* ==== Partition CSP : couverture des solutions entre configs ==== */
 
-  /* Critere d'inclusion : on ne compte que les solutions vraiment plates.
-     - Multi-runs : classe always_planar ou mostly_planar.
-     - Single-run (h5 par ex.) : booleen sol.planar. */
+  /* Critere d'inclusion : MD-only (choix arrete : la partition CSP ne parle
+     que de MD desormais, comme le reste du dashboard). Si pas de bloc
+     md_validation (single-run), on retombe sur le booleen sol.planar. */
   function isPlanarSolution(sol) {
-    /* Critere depend de state.activeMethod :
-         "multi-runs" : classe always_planar ou mostly_planar
-         "md"         : md_validation.planar = true
-         "both"       : planaire selon AU MOINS une des methodes (OR)
-       Fallback (aucun bloc enrichi present) : booleen sol.planar. */
-    var meth = state.activeMethod;
-    var ranMR = !!(sol.runs && sol.runs.classification);
-    var ranMD = !!sol.md_validation;
-    if ((meth === 'multi-runs' || meth === 'both') && ranMR) {
-      var c = sol.runs.classification;
-      if (c === 'always_planar' || c === 'mostly_planar') return true;
-      if (meth === 'multi-runs') return false;
-    }
-    if ((meth === 'md' || meth === 'both') && ranMD) {
-      if (sol.md_validation.planar) return true;
-      if (meth === 'md') return false;
-    }
-    if (!ranMR && !ranMD) return !!sol.planar;
-    return false;
+    if (sol.md_validation) return !!sol.md_validation.planar;
+    return !!sol.planar;
   }
 
   /* Calcule la partition des solutions planes entre les configs CSP.
@@ -372,42 +355,40 @@
     };
   }
 
-  /* Donne la cle de classification d'une solution. Multi-runs : champ
-     direct. Single-run (h5 sans bloc 'runs') : map planar/non-planar vers
-     always_planar/always_non_planar (simplification visuelle). */
-  function _classificationKeyForSolution(sol) {
-    if (sol.runs && sol.runs.classification && CLASSIFICATIONS[sol.runs.classification]) {
-      return sol.runs.classification;
-    }
-    return sol.planar ? 'always_planar' : 'always_non_planar';
+  /* Cle MD-only : 'planar' / 'non_planar' a partir de md_validation.planar
+     (fallback sur sol.planar si pas de bloc MD). */
+  function _mdKeyForSolution(sol) {
+    if (sol.md_validation) return sol.md_validation.planar ? 'planar' : 'non_planar';
+    return sol.planar ? 'planar' : 'non_planar';
   }
 
-  /* Pour chaque config, repartition de TOUTES ses solutions (planaires et
-     non-planaires) par classe de stabilite. Utilise par le bar chart
-     "Total par config" pour montrer le profil qualite de chaque solveur. */
+  /* Pour chaque config, repartition MD de toutes ses solutions :
+     2 categories planar / non_planar. Utilise par le bar chart
+     "Total par config" du panneau partition CSP. */
   function computePerConfigBreakdown(allConfigs) {
     var configNames = Object.keys(allConfigs).sort();
-    var classKeys = ['always_planar', 'mostly_planar', 'unstable',
-                     'mostly_non_planar', 'always_non_planar', 'ambiguous'];
+    var classKeys = ['planar', 'non_planar'];
     var perConfig = {};
     configNames.forEach(function (cfgName) {
-      var counts = {};
-      classKeys.forEach(function (k) { counts[k] = 0; });
+      var counts = { planar: 0, non_planar: 0 };
       var total = 0;
       var mols = allConfigs[cfgName].molecules;
       Object.keys(mols).forEach(function (molName) {
         mols[molName].solutions.forEach(function (sol) {
-          var key = _classificationKeyForSolution(sol);
-          if (counts.hasOwnProperty(key)) {
-            counts[key]++;
-            total++;
-          }
+          counts[_mdKeyForSolution(sol)]++;
+          total++;
         });
       });
       perConfig[cfgName] = { total: total, counts: counts };
     });
     return { configNames: configNames, classOrder: classKeys, perConfig: perConfig };
   }
+
+  /* Couleurs et labels MD utilises par le bar chart per-config. */
+  var MD_BREAKDOWN_INFO = {
+    planar:     { color: '#1a7f37', label: '🟢 Plans (MD)' },
+    non_planar: { color: '#cf222e', label: '⚫ Non plans (MD)' },
+  };
 
   /* Liste de sections depliables : 1 <details> par intersection.
      Triees par degre de partage descendant (universelles d'abord, uniques en
@@ -510,7 +491,7 @@
         classOrder.forEach(function (classKey) {
           var c = counts[classKey];
           if (c === 0) return;
-          var info = CLASSIFICATIONS[classKey];
+          var info = MD_BREAKDOWN_INFO[classKey];
           var segW = (c / total) * fullW;
           parts.push('<rect x="' + x.toFixed(1) + '" y="' + (y + 4) + '" '
                    + 'width="' + segW.toFixed(1) + '" height="' + (rowH - 8) + '" '
@@ -542,22 +523,75 @@
 
     container.innerHTML =
       '<div class="csp-summary">' +
-        '<b>' + partition.totalUnique + '</b> solution(s) planaire(s) unique(s) au total, '
+        '<b>' + partition.totalUnique + '</b> solution(s) plane(s) (MD) unique(s) au total, '
       + 'partagee(s) entre <b>' + n + '</b> configurations CSP. '
-      + '<i>(filtre intersection : always_planar + mostly_planar)</i>' +
+      + '<i>(filtre intersection : md_validation.planar = true)</i>' +
       '</div>' +
       '<div class="csp-charts-row">' +
         '<div class="csp-chart-box">' +
-          '<h4>Repartition par config (toutes solutions)</h4>' +
+          '<h4>Repartition par config (verdict MD)</h4>' +
           renderPerConfigBarSVG(breakdown) +
-          '<p class="csp-caption">Total de solutions trouvees par chaque config, segmente par classe de stabilite (memes couleurs que les badges -- voir legende stabilite plus bas).</p>' +
+          '<p class="csp-caption">Total de solutions trouvees par chaque config, segmente par verdict MD (vert = plan, rouge = non plan).</p>' +
         '</div>' +
         '<div class="csp-chart-box wide">' +
           '<h4>Intersections (cliquer pour voir les solutions)</h4>' +
           '<div class="csp-intr-scroll">' + renderIntersectionsList(partition) + '</div>' +
-          '<p class="csp-caption">Triees du plus universel (en haut) au plus unique (en bas). Cliquer un en-tete deplie la liste des solutions de cette intersection.</p>' +
+          '<p class="csp-caption">Triees du plus universel (en haut) au plus unique (en bas). Cliquer un en-tete deplie la liste des solutions plates (MD) de cette intersection.</p>' +
         '</div>' +
       '</div>';
+  }
+
+  /* ---- Mini-tableau recap MD par config (en haut de page) ----
+     2 lignes (plan / non plan) x N colonnes (configs). Cellules : pourcentage
+     + count en petit. Base uniquement sur md_validation.planar.
+     Si aucune solution n'a de bloc MD, le tableau ne s'affiche pas. */
+  function renderMDSummaryTable() {
+    var container = document.getElementById('mdSummaryTable');
+    if (!container) return;
+    var configs = Object.keys(state.ALL_CONFIGS).sort();
+
+    /* Calcul : par config, compter plans/non-plans MD. Skip les solutions
+       sans bloc md_validation (single-run) pour ne pas biaiser. */
+    var stats = {};
+    var anyMD = false;
+    configs.forEach(function (cfg) {
+      var nP = 0, nN = 0;
+      var mols = state.ALL_CONFIGS[cfg].molecules;
+      Object.keys(mols).forEach(function (molName) {
+        mols[molName].solutions.forEach(function (s) {
+          if (!s.md_validation) return;
+          anyMD = true;
+          if (s.md_validation.planar) nP++; else nN++;
+        });
+      });
+      stats[cfg] = { nP: nP, nN: nN, total: nP + nN };
+    });
+
+    if (!anyMD) { container.style.display = 'none'; return; }
+
+    function pct(n, d) { return d > 0 ? Math.round(100 * n / d) : 0; }
+
+    var ths = configs.map(function (c) { return '<th>' + c + '</th>'; }).join('');
+    var rowP = configs.map(function (c) {
+      var s = stats[c];
+      return '<td><b>' + pct(s.nP, s.total) + '%</b><div class="md-summary-count">'
+           + s.nP + '/' + s.total + '</div></td>';
+    }).join('');
+    var rowN = configs.map(function (c) {
+      var s = stats[c];
+      return '<td><b>' + pct(s.nN, s.total) + '%</b><div class="md-summary-count">'
+           + s.nN + '/' + s.total + '</div></td>';
+    }).join('');
+
+    container.innerHTML =
+      '<div class="md-summary">'
+    + '<div class="md-summary-title">Validation MD &mdash; % plans / non plans par configuration</div>'
+    + '<div class="md-summary-scroll"><table class="md-summary-table">'
+    + '<thead><tr><th class="row-label"></th>' + ths + '</tr></thead>'
+    + '<tbody>'
+    + '<tr class="row-plan"><th class="row-label">🟢 Plans</th>' + rowP + '</tr>'
+    + '<tr class="row-nonplan"><th class="row-label">⚫ Non plans</th>' + rowN + '</tr>'
+    + '</tbody></table></div></div>';
   }
 
   /* ---- Config selection ---- */
@@ -1085,6 +1119,9 @@
     state.activeMethod = 'both';  /* affiche tout par defaut quand on a les 2 */
   }
   renderMethodToggle();
+  /* Mini-tableau MD recap par config, en haut de page. */
+  renderMDSummaryTable();
+
   /* Partition CSP : 1 calcul + 1 rendu, ne depend pas de la config courante. */
   renderCSPPartitionSection();
   /* Charge la premiere config par defaut (declenche render() pour cards + table). */

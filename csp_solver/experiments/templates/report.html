@@ -39,15 +39,14 @@ $alerts_section
 <h2><span class="section-num">1</span> Vue d'ensemble</h2>
 
 <p>
-  Synthese globale des solutions trouvees par le solveur CSP, validees par xTB.
-  Les <b>3 verdicts</b> (🟢 plan / 🟡 autres / ⚫ non plan) consolident les classes de stabilite
-  multi-runs et les verdicts MD : si les deux methodes sont d'accord, le verdict reflete cet accord ;
-  en cas de divergence ou d'instabilite, la solution tombe dans <b>Autres</b>.
+  Synthese globale des solutions trouvees par le solveur CSP, validees par MD
+  (xtb --md court a 298 K, suivi de --opt tight). Le verdict <b>plan / non plan</b>
+  est issu du test ACP applique a la geometrie finale (seuil 10&deg;).
 </p>
 
 <div class="charts-row">
   <div class="chart-box wide">
-    <h3 style="margin-top:0">Solutions par taille (3 buckets)</h3>
+    <h3 style="margin-top:0">Solutions par taille (verdict MD)</h3>
     $bar_chart_svg
   </div>
   <div class="chart-box">
@@ -102,7 +101,15 @@ $stability_section
 
 <!-- =========================================================== -->
 <details class="collapsible-section" id="methodologie">
-<summary><b>Methodologie</b> (pipeline, xTB, test de planarite)</summary>
+<summary><b>Methodologie</b> (pipeline MD, parametres xTB, test de planarite)</summary>
+
+<p>
+  Methode de validation arretee pour ce dashboard : <b>MD courte + optimisation finale</b>,
+  selon le protocole recommande par les chimistes (Yannick Carissan).
+  La dynamique moleculaire courte permet de casser une planarite parasite
+  imposee par la reconstruction 2D avant l'optimisation, et de tester si la
+  vraie geometrie minimum reste plate.
+</p>
 
 <h3>Pipeline</h3>
 <div class="pipeline">
@@ -112,66 +119,139 @@ $stability_section
   <span class="arrow">&rarr;</span>
   <span class="step">Reconstruction 3D</span>
   <span class="arrow">&rarr;</span>
-  <span class="step">xTB (GFN2-xTB)</span>
+  <span class="step">xtb --md (1 ps, 298 K)</span>
+  <span class="arrow">&rarr;</span>
+  <span class="step">xtb --opt tight (frame finale)</span>
   <span class="arrow">&rarr;</span>
   <span class="step">Test planarite (ACP)</span>
 </div>
 
-<h3>Configuration xTB</h3>
+<h3>Etape 1 : Solveur CSP</h3>
 <div class="config">
   <table>
-    <tr><td>Methode</td><td>GFN2-xTB (semi-empirique, tight-binding etendu)</td></tr>
-    <tr><td>Niveau d'optimisation</td><td><code>--opt tight</code></td></tr>
-    <tr><td>Multi-runs</td><td>N=10 perturbations &plusmn;0.1 &Aring; en z, classification 3-bucket</td></tr>
-    <tr><td>MD</td><td>1 ps a 298 K (xtb --md), suivi de --opt tight final</td></tr>
-    <tr><td>Timeout</td><td>300 secondes par molecule</td></tr>
+    <tr><td>Solveur</td><td>PyCSP3 + ACE (backend Java)</td></tr>
+    <tr><td>Variables</td><td>Une par cycle (taille &isin; {5, 6, 7})</td></tr>
+    <tr><td>Contraintes</td><td>Conservation des atomes, somme des cycles, optionnel : freeze des cycles imposes, table d'adjacence, regle 5/7</td></tr>
+    <tr><td>Configurations testees</td><td>2&sup3; = 8 combinaisons (--no-freeze, --no-table, --adj-57)</td></tr>
   </table>
 </div>
 
-<h3>Test de planarite</h3>
+<h3>Etape 2 : Reconstruction 3D</h3>
 <div class="config">
   <table>
-    <tr><td>Methode</td><td>Analyse en Composantes Principales (ACP) sur les coordonnees atomiques</td></tr>
-    <tr><td>Metrique</td><td>Angle maximal de deviation par rapport au plan moyen</td></tr>
-    <tr><td>Seuil</td><td><strong>10&deg;</strong> &mdash; en dessous = plan, au dessus = non plan</td></tr>
+    <tr><td>Principe</td><td>Placement geometrique des atomes a partir de la decomposition en cycles</td></tr>
+    <tr><td>Sortie</td><td><code>source.xyz</code> dans <code>solutions/sol_X/</code> (geometrie 2D plane par construction)</td></tr>
   </table>
 </div>
 
-<h3>Verdicts (3 buckets)</h3>
+<h3>Etape 3 : MD courte (xtb --md)</h3>
 <div class="config">
   <table>
-    <tr><td>🟢 Plan</td><td>always_planar (100% plans, &mu;&lt;5&deg;) ou mostly_planar (&ge;70% plans, &sigma;&lt;3&deg;)</td></tr>
-    <tr><td>🟡 Autres</td><td>unstable (30-70% plans ou &sigma;&gt;5&deg;), ambigu, ou desaccord MR vs MD</td></tr>
-    <tr><td>⚫ Non plan</td><td>mostly_non_planar (&lt;30% plans) ou always_non_planar (0%)</td></tr>
+    <tr><td>Methode quantique</td><td>GFN2-xTB (semi-empirique tight-binding etendu)</td></tr>
+    <tr><td>Ensemble</td><td>NVT, thermostat de Berendsen</td></tr>
+    <tr><td>Temperature</td><td>298.15 K</td></tr>
+    <tr><td>Duree</td><td>1 ps</td></tr>
+    <tr><td>Pas d'integration</td><td>4 fs (avec hmass=4 pour permettre ce pas)</td></tr>
+    <tr><td>Frequence de dump</td><td>50 fs (~20 frames sur la trajectoire)</td></tr>
+    <tr><td>Velocites initiales</td><td>generees par xTB (graine basee sur l'horloge -- voir note)</td></tr>
+    <tr><td>Determinisme</td><td><code>OMP_NUM_THREADS=1</code> + <code>MKL_NUM_THREADS=1</code> &rarr; variance sub-seuil (~0.01&deg;)</td></tr>
+    <tr><td>Sortie</td><td><code>md_traj.xyz</code> (trajectoire), <code>md_geom.xyz</code> (input)</td></tr>
   </table>
+</div>
+
+<h3>Etape 4 : Optimisation finale (xtb --opt)</h3>
+<div class="config">
+  <table>
+    <tr><td>Input</td><td>Derniere frame de <code>md_traj.xyz</code></td></tr>
+    <tr><td>Niveau d'optimisation</td><td><code>--opt tight</code> (convergence serree)</td></tr>
+    <tr><td>Sortie</td><td><code>md_final_opt.xyz</code> -- c'est cette geometrie qui passe le test ACP</td></tr>
+    <tr><td>Timeout</td><td>300 secondes par solution</td></tr>
+  </table>
+</div>
+
+<h3>Etape 5 : Test de planarite (ACP)</h3>
+<div class="config">
+  <table>
+    <tr><td>Methode</td><td>Analyse en Composantes Principales sur les coordonnees atomiques (carbones uniquement)</td></tr>
+    <tr><td>Metrique</td><td>Angle maximal de deviation par rapport au plan moyen (3<sup>e</sup> CP)</td></tr>
+    <tr><td>Seuil</td><td><strong>10&deg;</strong> &mdash; angle &lt; seuil &rarr; plan, sinon non plan</td></tr>
+  </table>
+</div>
+
+<h3>Verdict (binaire MD)</h3>
+<div class="config">
+  <table>
+    <tr><td>🟢 Plan</td><td>angle ACP final &lt; 10&deg; sur <code>md_final_opt.xyz</code></td></tr>
+    <tr><td>⚫ Non plan</td><td>angle ACP final &ge; 10&deg;</td></tr>
+  </table>
+</div>
+
+<div class="note" style="margin-top:14px">
+  <b>Note non-determinisme :</b> xTB seede ses velocites initiales sur l'horloge ;
+  deux executions identiques peuvent donner des trajectoires legerement differentes.
+  Avec <code>OMP_NUM_THREADS=1</code> + <code>MKL_NUM_THREADS=1</code> (active par defaut
+  via <code>--method md</code>), la variance des angles finaux reste sub-seuil
+  (typiquement &lt; 0.01&deg;), donc les verdicts plan / non plan sont stables.
 </div>
 </details>
 
 <!-- =========================================================== -->
 <details class="collapsible-section" id="commandes">
-<summary><b>Commandes</b> (lancer les tests, regenerer les rapports)</summary>
+<summary><b>Commandes</b> (MD, multi-runs, regeneration des rapports)</summary>
 
-<p>Toutes les commandes se lancent depuis <code>csp_solver/experiments/</code>.</p>
+<p>
+  Toutes les commandes se lancent depuis <code>csp_solver/experiments/</code>.
+  Pour un seul fichier <code>.graph</code>, on est dans <code>csp_solver/</code>.
+</p>
 
-<h3>Lancer les tests sur un dossier</h3>
+<h3>1. Validation MD &mdash; methode actuelle (recommandee)</h3>
 <div class="config">
   <table>
-$batch_rows
+    <tr><td>Batch MD complet (8 configs)</td><td><code>python batch_all.py plane/benzdb/h3 --method md</code></td></tr>
+    <tr><td>Une seule config + MD</td><td><code>python batch_main.py plane/benzdb/h3 --validate --method md</code></td></tr>
+    <tr><td>Une seule config + MD + flags</td><td><code>python batch_main.py plane/benzdb/h3 --validate --method md --no-freeze --adj-57</code></td></tr>
+    <tr><td>Un seul fichier (depuis <code>csp_solver/</code>)</td><td><code>python main.py data/fichier.graph --validate --method md</code></td></tr>
+    <tr><td>Desactiver le determinisme MD</td><td><code>--md-no-deterministic</code> (ajoute aux commandes ci-dessus)</td></tr>
+$batch_rows_md
   </table>
 </div>
 
-<h3>Validation MD (independant des multi-runs)</h3>
+<h3>2. Validation multi-runs (N=10 perturbations)</h3>
 <div class="config">
   <table>
-    <tr><td>MD seul</td><td><code>python batch_all.py plane/benzdb/h3 --method md</code></td></tr>
+    <tr><td>Batch multi-runs (8 configs)</td><td><code>python batch_all.py plane/benzdb/h3 --n-runs 10</code></td></tr>
+    <tr><td>Une seule config + multi-runs</td><td><code>python batch_main.py plane/benzdb/h3 --validate --n-runs 10</code></td></tr>
+    <tr><td>Un seul fichier multi-runs</td><td><code>python main.py data/fichier.graph --validate --n-runs 10</code></td></tr>
+$batch_rows_mr
   </table>
 </div>
 
-<h3>Regenerer les rapports</h3>
+<h3>3. Validation simple (1 run, retrocompat)</h3>
 <div class="config">
   <table>
-    <tr><td>Un viewer</td><td><code>python view.py output/h4 --aggregate</code></td></tr>
+    <tr><td>Batch simple</td><td><code>python batch_all.py plane/benzdb/h3</code></td></tr>
+    <tr><td>Une seule config</td><td><code>python batch_main.py plane/benzdb/h3 --validate</code></td></tr>
+    <tr><td>Test des originaux seuls</td><td><code>python batch_test.py plane/benzdb/h3</code></td></tr>
+  </table>
+</div>
+
+<h3>4. Regenerer les rapports (sans relancer xTB)</h3>
+<div class="config">
+  <table>
+    <tr><td>Un viewer (page <code>hX/view.html</code>)</td><td><code>python view.py output/h4 --aggregate</code></td></tr>
+    <tr><td>Recalculer les agregats multi-runs</td><td><code>python aggregate_runs.py output/h4/default</code></td></tr>
+    <tr><td>Recalculer les agregats MD</td><td><code>python aggregate_md.py output/h4/default</code></td></tr>
     <tr><td>Dashboard global</td><td><code>python update_report.py</code></td></tr>
+  </table>
+</div>
+
+<h3>5. Combinaisons de flags CSP (8 configs)</h3>
+<div class="config">
+  <table>
+    <tr><td>Defaut</td><td>aucune option : freeze + table + cycles regles standard</td></tr>
+    <tr><td><code>--no-freeze</code></td><td>desactive le freeze des cycles imposes par BenzAI</td></tr>
+    <tr><td><code>--no-table</code></td><td>desactive la table d'adjacence comme contrainte</td></tr>
+    <tr><td><code>--adj-57</code></td><td>active la regle d'adjacence 5/7 (les pentagones et heptagones ne se touchent pas)</td></tr>
   </table>
 </div>
 </details>
