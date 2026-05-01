@@ -93,6 +93,13 @@
 \newcommand{\GD}{G_{\!D}}
 \newcommand{\Tn}{\mathcal{T}(n)}
 
+% ---- marqueurs verdicts (substituts aux emojis Unicode hors-BMP qui ne
+%      passent pas avec inputenc utf8 selon le compilateur) ----
+\definecolor{verdictplane}{RGB}{26,127,55}
+\definecolor{verdictnonplane}{RGB}{34,34,34}
+\newcommand{\bucketplane}{\tikz[baseline=-0.5ex]\filldraw[verdictplane] (0,0) circle (0.45ex);}
+\newcommand{\bucketnonplane}{\tikz[baseline=-0.5ex]\filldraw[verdictnonplane] (0,0) circle (0.45ex);}
+
 % ---- marqueur de date pour suivre l'evolution du document ----
 \newcommand{\dateblock}[1]{%
   \par\medskip
@@ -1400,8 +1407,8 @@ mélange chiffres absolus / pourcentages dans la même rangée.
   \midrule
   Molécules     & 25  & h3 à h5 \\
   Solutions CSP & 53  & toutes configurations \\
-  🟢 Plans (MD) & 39  & 74\% des solutions \\
-  ⚫ Non plans (MD) & 14  & 26\% des solutions \\
+  \bucketplane{} Plans (MD) & 39  & 74\% des solutions \\
+  \bucketnonplane{} Non plans (MD) & 14  & 26\% des solutions \\
   \bottomrule
 \end{tabular}
 \end{center}
@@ -1446,8 +1453,8 @@ et non-plans par configuration :
   \toprule
                      & default       & no-freeze     & adj-57       & \ldots \\
   \midrule
-  🟢 Plans (MD)    & 100\% (5/5) & 100\% (5/5) & 100\% (5/5) & \ldots \\
-  ⚫ Non plans (MD) & 0\% (0/5)   & 0\% (0/5)   & 0\% (0/5)   & \ldots \\
+  \bucketplane{} Plans (MD)    & 100\% (5/5) & 100\% (5/5) & 100\% (5/5) & \ldots \\
+  \bucketnonplane{} Non plans (MD) & 0\% (0/5)   & 0\% (0/5)   & 0\% (0/5)   & \ldots \\
   \bottomrule
 \end{tabular}
 \end{center}
