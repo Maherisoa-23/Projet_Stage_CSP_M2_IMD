@@ -1,0 +1,39 @@
+% ============================================================
+%  journal.tex — Journal des evolutions
+%
+%  Resume chronologique des ajouts au document. Pour ajouter une
+%  nouvelle ligne : copier-coller la derniere entree, mettre a jour
+%  la date et le contenu, puis poser un \dateblock{...} en debut de
+%  la sous-section concernee dans sections/...
+% ============================================================
+\section*{Journal des evolutions}
+\addcontentsline{toc}{section}{Journal des evolutions}
+
+Ce document evolue avec le projet. Pour faciliter le suivi, les blocs
+\fcolorbox{primary}{blue!5}{\color{primary}\footnotesize\bfseries\textsc{Ajout du AAAA-MM-JJ}}
+marquent dans le texte les contenus ajoutes a chaque etape.
+
+\begin{center}
+\begin{tabular}{lp{11cm}}
+  \toprule
+  Date & Contenu ajoute \\
+  \midrule
+  Avril 2026 &
+    Version initiale : modele CSP (PyCSP3 + ACE), reconstruction 3D, validation
+    xTB en single-run, infrastructure de batch (\texttt{batch\_main}, \texttt{batch\_all}),
+    viewer HTML par taille et rapport global. \\
+  Avril 2026 (mi-mois) &
+    Validation multi-runs (\texttt{-{}-n-runs N}), classification de stabilite
+    (6 classes), \texttt{aggregate\_runs.py}, viewer enrichi (badges, barre de
+    dispersion SVG), section ``Couverture CSP'' (partition entre les 8 configs). \\
+  1\textsuperscript{er} mai 2026 &
+    Validation par \textbf{dynamique moleculaire courte} (xtb -{}-md + opt) selon le
+    protocole des chimistes. Pattern \emph{Strategy} pour decoupler les methodes de
+    validation. \texttt{aggregate\_md.py} additif. Refonte du dashboard en
+    \textbf{MD-only}, KPIs uniformes, mini-tableau MD par config en haut de chaque
+    \texttt{view.html}, section ``Couverture CSP'' alignee sur le verdict MD. \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\newpage

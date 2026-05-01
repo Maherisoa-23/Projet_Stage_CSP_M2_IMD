@@ -51,7 +51,8 @@ def cmd_generate(output_dir: Path):
 
 def cmd_optimize(output_dir: Path, threshold: float, opt_level: str):
     """Optimise les XYZ avec xTB, teste la planarite, genere le rapport."""
-    from core.optimizer import optimize_xtb, read_optimized_coords, verify_distances
+    from core.optimizer import read_optimized_coords, verify_distances
+    from core.optimizer_md import md_then_optimize
     from utils.planarity import compute_planarity, is_planar
     from utils.report import generate_report
     import shutil
@@ -79,7 +80,7 @@ def cmd_optimize(output_dir: Path, threshold: float, opt_level: str):
         print("Aucun fichier XYZ trouve. Lancez d'abord : python main.py generate")
         sys.exit(1)
 
-    print(f"Optimisation xTB (GFN2-xTB, --opt {opt_level}) de {len(xyz_files)} structures")
+    print(f"Validation MD (xtb --md 1ps a 298K + --opt {opt_level}) de {len(xyz_files)} structures")
     print(f"Seuil planarite : {threshold} deg")
     print()
 
@@ -112,14 +113,26 @@ def cmd_optimize(output_dir: Path, threshold: float, opt_level: str):
                 if part.startswith('n_C='):
                     result['n_carbons'] = int(part.split('=')[1])
 
-        # Optimisation xTB
-        success, msg = optimize_xtb(
-            str(xyz_path), str(opt_path), opt_level=opt_level
+        # Validation MD : xtb --md 1ps a 298K -> derniere frame -> --opt tight.
+        # Le protocole casse les minima plats parasites avant l'opt finale,
+        # contrairement a optimize_xtb (--opt direct + perturbation z) qui
+        # peut rester piege sur une geometrie 2D plate par construction.
+        # Les artefacts MD (md.inp, md_traj.xyz, md_geom.xyz, md_final_opt.xyz)
+        # sont sauves dans <seq>_md/ a cote du source ; on copie ensuite
+        # md_final_opt.xyz vers opt_path pour que la suite du pipeline
+        # (test ACP, rapport) reste inchangee.
+        md_output_dir = xyz_path.parent / f"{seq_str}_md"
+        success, final_xyz, info = md_then_optimize(
+            str(xyz_path), str(md_output_dir),
+            opt_level=opt_level, deterministic=True
         )
+        if success and final_xyz:
+            shutil.copy2(str(final_xyz), str(opt_path))
+        msg = info.get("message") or ("OK" if success else "MD echec")
         result['opt_message'] = msg
 
         if not success:
-            print(f"  [{i}/{len(xyz_files)}] {seq_str} — ECHEC xTB : {msg}")
+            print(f"  [{i}/{len(xyz_files)}] {seq_str} — ECHEC MD/opt : {msg}")
             all_results.append(result)
             continue
 

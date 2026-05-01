@@ -4,8 +4,13 @@ Ces dataclasses remplacent les dict heteroclites utilises auparavant
 et permettent de tracer proprement les metadonnees (index, variant,
 run_id, seed, etc.) qui seront necessaires pour les multi-runs xTB.
 
+NB : ce module s'appelle csp_types.py (et non types.py) pour ne pas
+masquer le module standard `types`. Sinon, lancer un script depuis
+csp_solver/utils/ casse l'import de la stdlib (le _weakrefset interne
+fait un `from types import GenericAlias` qui retombe sur ce fichier).
+
 Utilisation :
-    from utils.types import CSPSolution, ValidationResult
+    from utils.csp_types import CSPSolution, ValidationResult
 
     sol = CSPSolution(hex_assignments={0: 6, 1: 5, 2: 7}, index=1)
     print(sol.sizes_str)  # "6_5_7"

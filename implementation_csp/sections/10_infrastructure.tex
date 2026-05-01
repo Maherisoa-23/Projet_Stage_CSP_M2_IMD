@@ -1,0 +1,111 @@
+% ============================================================
+%  10_infrastructure.tex — Section 10 : Infrastructure d'experimentation
+% ============================================================
+\section{Infrastructure d'expérimentation systématique}
+
+L'exploration des contraintes CSP nécessite de tester systématiquement les combinaisons de
+flags sur un même dataset (par exemple tous les benzénoïdes \texttt{h3}, \texttt{h4},
+\texttt{h5} de BenzAI~DB). Trois scripts de batch ont été ajoutés dans
+\texttt{csp\_solver/experiments/}.
+
+\subsection{\texttt{batch\_main.py} — un dossier, une config}
+
+Lance \texttt{main.py --validate} sur tous les fichiers \texttt{.graph} d'un dossier avec un
+ensemble de drapeaux donnés. Génère le \texttt{data.json} de la config et régénère
+\texttt{view.html} agrégé en fin d'exécution.
+
+\begin{lstlisting}[style=benzai]
+python batch_main.py plane/benzdb/h4 --validate --n-runs 10
+python batch_main.py plane/benzdb/h4 --validate --no-freeze --n-runs 10
+\end{lstlisting}
+
+\subsection{\texttt{batch\_all.py} — les 8 configurations CSP}
+
+Lance \texttt{batch\_main.py} pour chacune des $2^3 = 8$ combinaisons des trois flags
+\texttt{--no-freeze}, \texttt{--no-table}, \texttt{--adj-57}.
+
+\begin{center}
+\begin{tabular}{ll}
+  \toprule
+  Configuration & Flags \\
+  \midrule
+  \texttt{default}                       & (aucun) \\
+  \texttt{no-freeze}                     & \texttt{--no-freeze} \\
+  \texttt{no-table}                      & \texttt{--no-table} \\
+  \texttt{adj-57}                        & \texttt{--adj-57} \\
+  \texttt{no-freeze\_no-table}           & \texttt{--no-freeze --no-table} \\
+  \texttt{adj-57\_no-freeze}             & \texttt{--adj-57 --no-freeze} \\
+  \texttt{adj-57\_no-table}              & \texttt{--adj-57 --no-table} \\
+  \texttt{adj-57\_no-freeze\_no-table}   & \texttt{--adj-57 --no-freeze --no-table} \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+À la fin de l'exécution, \texttt{batch\_all.py} écrit un fichier \texttt{batch\_meta.json}
+au niveau \texttt{output/hX/} qui contient les statistiques globales du dernier run (durée
+totale, nombre d'instances, nombre de solutions trouvées, options propagées). Le viewer
+agrégé affiche ce méta-fichier sous forme de bandeau si présent.
+
+\begin{lstlisting}[style=benzai]
+python batch_all.py plane/benzdb/h4 --n-runs 10
+\end{lstlisting}
+
+\subsection{Structure de sortie complète}
+
+\begin{lstlisting}[style=benzai]
+csp_solver/experiments/output/
+  hX/
+    batch_meta.json                 # Stats du dernier batch_all
+    view.html                       # Viewer agrege (genere par view.py)
+    config_name/
+      data.json                     # Resultats agreges de cette config
+      mol_name/
+        mol_name_original.xyz       # Original (avant xTB)
+        mol_name_original_opt.xyz   # Original (apres xTB)
+        solutions/
+          sol_K_X_Y_Z_.../          # 1 dossier par solution CSP
+            source.xyz
+            run_01_opt.xyz
+            ...
+            run_N_opt.xyz
+\end{lstlisting}
+
+\subsection{Format \texttt{data.json}}
+
+Chaque \texttt{data.json} suit un schéma stable consommé par tous les scripts de
+visualisation. Une solution typique :
+
+\begin{lstlisting}[style=benzai]
+{
+  "source": "h4", "config": "default",
+  "generated": "2026-04-23T15:30:00",
+  "threshold_deg": 10.0, "n_runs": 10,
+  "molecules": {
+    "0-5-6-11": {
+      "name": "0-5-6-11",
+      "original": { "planar": true, "angle_deg": 0.07, "rmsd": ..., "height": ... },
+      "solutions": [
+        {
+          "sizes": "v0=5 v1=7 v2=7 v3=5",
+          "file": "sol_1_5_7_7_5/run_10_opt.xyz",
+          "planar": true, "angle_deg": 0.15,    /* dernier run, retrocompat */
+          "runs": {                              /* multi-runs (optionnel) */
+            "n": 10, "planar_count": 9, "non_planar_count": 1,
+            "planar_pct": 90, "angle_mean": 4.2, "angle_std": 1.8,
+            "angle_min": 0.8, "angle_max": 18.1,
+            "angles": [0.8, 1.1, ...],
+            "classification": "mostly_planar"
+          }
+        }
+      ]
+    }
+  }
+}
+\end{lstlisting}
+
+\begin{remarque}
+  Le bloc \texttt{runs} est \textbf{additif} : si absent (cas single-run), l'affichage
+  retombe sur les champs classiques \texttt{planar} / \texttt{angle\_deg}. Cela garantit la
+  rétrocompatibilité avec les anciens \texttt{data.json} et permet de mélanger dans le même
+  rapport des tailles testées en single-run et en multi-runs.
+\end{remarque}

@@ -1,0 +1,223 @@
+% ============================================================
+%  11_visualisation.tex — Section 11 : Visualisation et reporting
+% ============================================================
+\section{Visualisation et reporting interactif}
+
+L'analyse manuelle des \texttt{data.json} étant fastidieuse, trois scripts produisent des
+pages HTML statiques (autonomes, ouvrables en \texttt{file://} dans Chrome) qui permettent
+d'explorer les résultats interactivement sans serveur web ni dépendance externe.
+
+\subsection{\texttt{view.py} — viewer par taille}
+
+Deux modes :
+\begin{itemize}
+  \item \textbf{Mode config} : \texttt{python view.py output/hX/config\_name} scanne le
+    dossier et produit le \texttt{data.json} de cette config.
+  \item \textbf{Mode agrégé} : \texttt{python view.py output/hX -{}-aggregate} consomme tous
+    les \texttt{data.json} des sous-dossiers et produit \texttt{output/hX/view.html}
+    embarquant les 8 configs (aucun \texttt{fetch}, aucune dépendance CDN).
+\end{itemize}
+
+Le viewer agrégé propose :
+\begin{itemize}
+  \item \textbf{Sélection de config} en haut (8 boutons), avec mode \textbf{comparaison}
+    multi-sélection (panneaux côte-à-côte avec diff-highlight des molécules dont la
+    classification diffère entre configs).
+  \item \textbf{Cards de stats} : Molécules / Originaux plans / Solutions CSP / Solutions
+    stables planes / Instables / Stables non planes (basculées selon présence du bloc
+    \texttt{runs}).
+  \item \textbf{Toolbar} : recherche par nom, filtres (Originaux, Solutions, Stabilité),
+    expand all / collapse all.
+  \item \textbf{Légende stabilité} repliable, expliquant les 6 classes et leurs critères.
+  \item \textbf{Tableau des molécules} cliquables-dépliables. Pour chaque solution
+    multi-runs : badge classification (couleur), \texttt{planar\_count/n}, $\mu \pm \sigma$,
+    \textbf{barre de dispersion SVG} (échelle fixe 0--30°, ligne pointillée au seuil 10°,
+    ticks pour chaque run individuel, marqueur $\mu$), valeurs \texttt{min--max}.
+  \item \textbf{Section ``Couverture CSP''} repliable : analyse de la partition des solutions
+    planaires entre les 8 configs (cf. ci-dessous).
+  \item \textbf{Bandeau \texttt{batch\_meta}} : si \texttt{output/hX/batch\_meta.json}
+    existe, affiche en haut les stats du dernier run \texttt{batch\_all} (durée, nombre
+    d'instances, options).
+\end{itemize}
+
+\subsection{Section ``Couverture CSP''}
+
+Permet de répondre à la question : \emph{quelles solutions chaque config trouve, lesquelles
+sont communes, lesquelles sont uniques à un sous-ensemble} ? Deux visualisations côte-à-côte :
+
+\begin{itemize}
+  \item \textbf{Répartition par config (toutes solutions)} : un bar chart horizontal, une
+    ligne par config, segmenté par classe de stabilité (mêmes couleurs que les badges).
+    Permet de voir d'un coup d'\oe{}il quelle config trouve combien de solutions et leur
+    profil qualité.
+  \item \textbf{Liste d'intersections} (filtrée aux solutions \texttt{always\_planar} +
+    \texttt{mostly\_planar}) : 1 section dépliable par sous-ensemble de configs, triée du
+    plus universel (toutes les 8 configs) au plus unique (1 seule config). Cliquer dévoile
+    la liste des couples \texttt{(molécule, sizes)} de cette intersection.
+\end{itemize}
+
+Identité d'une solution : couple \texttt{(mol\_name, sizes)}, indépendant de la config qui
+l'a trouvée. Une solution est dite \emph{universelle} si elle apparaît dans les 8 configs,
+\emph{unique} si elle n'apparaît que dans une seule.
+
+\subsection{\texttt{update\_report.py} — rapport global}
+
+Génère \texttt{csp\_solver/experiments/report/index.html}, un rapport unique couvrant toutes
+les tailles \texttt{hX} testées. Contenu :
+
+\begin{itemize}
+  \item Navigation sticky avec \texttt{IntersectionObserver} pour le suivi de section active.
+  \item Sections numérotées : Introduction, Méthodologie (pipeline + xTB + ACP), Résultats,
+    Stabilité inter-runs, Observations, Détails, Commandes.
+  \item \textbf{Charts SVG} générés en Python pur (pas de dépendance D3/Plotly) :
+    \begin{itemize}
+      \item Bar chart empilé : solutions planes vs non-planes par taille
+      \item Donut chart : pourcentage global de solutions planes
+      \item Pie chart : répartition des classes de stabilité
+      \item Scatter plot $\mu \times \sigma$ : 1 point par solution, couleur par classe,
+        tooltips avec $h$/config/molécule, ligne verticale au seuil 10°
+    \end{itemize}
+  \item \textbf{Tableau résultats par h} : nombre de molécules, solutions, planes, non
+    planes, \% plan (avec barre de progression colorée), originaux plans.
+  \item \textbf{Tableau stabilité par h} : 6 colonnes (1 par classe), affiché seulement si
+    au moins une donnée multi-runs est disponible.
+  \item Lignes dépliables : cliquer une ligne du tableau résultats déplie une mini-table par
+    molécule.
+\end{itemize}
+
+\subsection{\texttt{bundle.py} — archive portable}
+
+Crée \texttt{experiments\_bundle.zip}, archive autonome contenant :
+\begin{itemize}
+  \item \texttt{report/index.html} (rapport global)
+  \item \texttt{output/hX/view.html} (viewer par taille)
+  \item Les fichiers \texttt{*\_opt.xyz} référencés par les liens HTML (anciens single-run et
+    nouveaux multi-runs, captés par 3 patrons de glob distincts)
+  \item \texttt{README.txt} avec instructions d'ouverture
+\end{itemize}
+
+L'archive est destinée à être envoyée à un collaborateur. Le destinataire l'extrait et ouvre
+\texttt{report/index.html} dans Chrome — toutes les visualisations fonctionnent en
+\texttt{file://}, sans serveur ni installation.
+
+\subsection{Refonte du dashboard : passage en MD-only}
+
+\dateblock{1\textsuperscript{er} mai 2026}
+
+Le dashboard \texttt{report/index.html} a été \textbf{repensé en true dashboard} :
+information cruciale visible immédiatement, sections secondaires repliées par défaut.
+Suite à la convergence MR/MD à 98\%, le choix a été fait de \textbf{ne plus mentionner
+les multi-runs dans le résumé} et de présenter uniquement le verdict MD.
+
+\textbf{Hero KPIs (4 tuiles uniformes en haut de page).} Format régulier :
+chiffre absolu en gros (BIG), pourcentage ou contexte en petit (SUB). Plus de
+mélange chiffres absolus / pourcentages dans la même rangée.
+
+\begin{center}
+\begin{tabular}{lll}
+  \toprule
+  Tuile & BIG (compte) & SUB (\%/contexte) \\
+  \midrule
+  Molécules     & 25  & h3 à h5 \\
+  Solutions CSP & 53  & toutes configurations \\
+  \bucketplane{} Plans (MD) & 39  & 74\% des solutions \\
+  \bucketnonplane{} Non plans (MD) & 14  & 26\% des solutions \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Sections masquées du dashboard (mais conservées dans le code).}
+Les helpers Python (\texttt{\_compute\_stability}, \texttt{\_render\_alerts},
+\texttt{\_render\_divergences\_block}, \texttt{\_render\_md\_section},
+\texttt{\_compute\_dashboard\_kpis}) restent appelables, mais
+\texttt{generate\_html} ne les rend plus pour le moment :
+
+\begin{itemize}
+  \item Section ``Stabilité multi-runs'' (pie + scatter $\mu \times \sigma$) : retirée.
+  \item Strip d'alertes (divergences MR/MD) : retiré.
+  \item Bloc tableau divergences franches : retiré.
+  \item Section ``Validation MD'' redondante avec le hero : retirée.
+\end{itemize}
+
+\textbf{Bar chart et tableau ``Par taille''.} Refondus pour afficher 2 segments
+(plan/non plan MD) au lieu de 6 classes de stabilité multi-runs. La fonction interne
+\texttt{generate\_bar\_chart\_svg} accepte toujours un dict \texttt{\{PLANE, AUTRES, NON\_PLANE\}},
+mais \texttt{AUTRES} est forcé à 0 par \texttt{\_solution\_bucket} qui retourne
+uniquement \texttt{PLANE} ou \texttt{NON\_PLANE} basé sur \texttt{md\_validation.planar}.
+La logique 3-bucket préexistante reste accessible via \texttt{\_solution\_bucket\_3bucket}
+si on veut la réactiver.
+
+\textbf{Méthodologie et Commandes.} Repliées par défaut (\texttt{<details>}). La section
+\textit{Méthodologie} a été enrichie d'un détail étape par étape (Étapes 1 à 5, du
+\texttt{.graph} à l'ACP) avec les paramètres MD complets. La section \textit{Commandes}
+classe les commandes en 5 sous-sections, MD en premier (recommandé), puis multi-runs,
+puis 1-run, puis régénération des rapports, puis explication des combinaisons de flags CSP.
+
+\subsection{Mini-tableau MD par config dans \texttt{view.html}}
+
+\dateblock{1\textsuperscript{er} mai 2026}
+
+En haut de chaque page \texttt{output/hX/view.html}, juste avant la barre de sélection de
+config, un \textbf{petit tableau récap MD} donne d'un coup d'\oe{}il les pourcentages plans
+et non-plans par configuration :
+
+\begin{center}
+\begin{tabular}{lcccc}
+  \toprule
+                     & default       & no-freeze     & adj-57       & \ldots \\
+  \midrule
+  \bucketplane{} Plans (MD)    & 100\% (5/5) & 100\% (5/5) & 100\% (5/5) & \ldots \\
+  \bucketnonplane{} Non plans (MD) & 0\% (0/5)   & 0\% (0/5)   & 0\% (0/5)   & \ldots \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+Lignes colorées (vert pour plan, rouge pour non plan) avec valeur principale en pourcentage
+et compte exact \texttt{n/total} en petit dessous. Calculé en JS dans \texttt{view.js}
+(fonction \texttt{renderMDSummaryTable}), affiché uniquement si au moins une solution a un
+bloc \texttt{md\_validation}.
+
+\subsection{Section ``Couverture CSP'' alignée sur MD}
+
+\dateblock{1\textsuperscript{er} mai 2026}
+
+Le critère d'inclusion d'une solution dans la partition CSP était auparavant :
+\textit{always\_planar + mostly\_planar} (multi-runs) avec fallback \texttt{sol.planar}.
+Il devient simplement : \texttt{md\_validation.planar = true} (fallback \texttt{sol.planar}).
+
+\textbf{Conséquence sur le bar chart ``Répartition par config''} : il n'affiche plus 6 classes
+de stabilité mais 2 segments par ligne (vert plan / rouge non-plan), cohérent avec le
+verdict MD. Les fonctions \texttt{computePerConfigBreakdown} et \texttt{renderPerConfigBarSVG}
+ont été simplifiées en conséquence.
+
+\subsection{Architecture des templates}
+
+Les templates HTML/CSS/JS sont externalisés dans \texttt{templates/} pour bénéficier de la
+coloration syntaxique de l'IDE et permettre l'édition propre. La substitution est faite côté
+Python avec \texttt{string.Template} (syntaxe \texttt{\$variable}).
+
+\begin{lstlisting}[style=benzai]
+csp_solver/experiments/templates/
+  common.css        # Palette + classes partagees (cards, planar/non-planar)
+  view.html         # Template du viewer (substitution $h_name, $configs_json, ...)
+  view.css          # Styles specifiques au viewer
+  view.js           # Logique JS du viewer (IIFE avec etat prive,
+                    # fonctions onclick exposees sur window pour le HTML inline)
+  report.html       # Template du rapport global
+  report.css        # Styles specifiques au rapport
+  report.js         # Smooth scroll + IntersectionObserver
+\end{lstlisting}
+
+\textbf{Décisions architecturales} :
+\begin{itemize}
+  \item Le HTML est statique : toutes les données sont injectées au moment de la
+    génération via \texttt{<script>window.\_\_DATA\_\_ = \{\ldots\};</script>}. Aucun fetch,
+    aucune dépendance CDN, aucun build step.
+  \item Le calcul interactif (filtres, tri, partition CSP, classification) est intégralement
+    fait \textbf{côté JS} (à l'exception des charts du rapport global, générés en Python).
+    Cela évite d'élargir le payload \texttt{data.json}.
+  \item Les helpers SVG côté Python (\texttt{generate\_bar\_chart\_svg},
+    \texttt{generate\_donut\_svg}, \texttt{generate\_pie\_svg},
+    \texttt{generate\_scatter\_svg}) sont des fonctions pures retournant une chaîne
+    \texttt{<svg>...</svg>}, faciles à tester et à réutiliser.
+\end{itemize}

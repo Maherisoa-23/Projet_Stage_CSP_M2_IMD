@@ -1,0 +1,124 @@
+% ============================================================
+%  04_pretraitement.tex — Section 4 : Pre-traitement
+% ============================================================
+\section{Pré-traitement et réduction du domaine}
+
+Le pré-traitement exploite la structure du graphe dual \textit{avant} la résolution pour
+réduire l'espace de recherche. L'idée centrale est que la table de voisinage complète (1203
+entrées) est un catalogue \textit{générique}. Une fois le graphe dual du benzénoïde d'entrée
+connu, il est possible de ne conserver que le \textbf{sous-ensemble pertinent} de la table pour
+chaque hexagone, en fonction de son motif $\sigma(v)$ et de son degré dans le dual. Ce filtrage
+réduit considérablement le nombre de combinaisons que le solveur doit explorer.
+
+\subsection{Calcul des domaines et hexagones gelés}
+
+Chaque variable $x_v$ représente la taille du cycle à la position $v$. Le domaine est réduit
+selon la nature de l'hexagone. Deux règles de gel distinctes sont appliquées :
+
+\begin{enumerate}
+  \item \textbf{Règle deg=6} (toujours active) : si un hexagone est entouré de 6 voisins,
+    il ne peut pas changer de taille. Son domaine est fixé à $\{6\}$.
+  \item \textbf{Règle $b(v) \geq 2$} (désactivable) : si les arêtes partagées découpent le
+    bord de l'hexagone en deux blocs ou plus d'arêtes libres, la substitution est impossible
+    car elle déformerait un seul bloc sans affecter les autres. Le domaine est fixé à $\{6\}$.
+\end{enumerate}
+
+\begin{lstlisting}
+def compute_domains(graph, freeze_b2=True):
+    domains = {}
+    for v in range(graph.h):
+        if graph.is_fully_surrounded(v):     # deg = 6
+            domains[v] = {6}
+        elif freeze_b2 and graph.has_separated_free_edges(v):  # b(v) >= 2
+            domains[v] = {6}
+        else:
+            domains[v] = {5, 6, 7}
+    return domains
+\end{lstlisting}
+
+La séparation en deux règles permet de tester l'impact de la contrainte $b(v) \geq 2$ sur
+le nombre de solutions. Le drapeau \texttt{--no-freeze} désactive cette seconde règle tout
+en conservant la première :
+
+\begin{lstlisting}[style=benzai]
+python main.py data/5.graph              # les deux regles actives
+python main.py data/5.graph --no-freeze  # seul deg=6 est gele
+\end{lstlisting}
+
+\begin{remarque}
+  Désactiver la règle $b(v) \geq 2$ augmente le nombre de variables libres et donc l'espace
+  de recherche, mais permet d'explorer des solutions qui seraient autrement interdites. Cette
+  option est utile pour évaluer si la contrainte est trop restrictive.
+\end{remarque}
+
+\subsection{Filtrage de la table de voisinage}
+
+La table de voisinage $\mathcal{T}$ contient 1209 entrées réparties en :
+$\mathcal{T}(5)$ = 92 entrées, $\mathcal{T}(6)$ = 418 entrées, $\mathcal{T}(7)$ = 699 entrées.
+
+\begin{remarque}
+  La table $\mathcal{T}(6)$ inclut 6 entrées purement benzenoïdes (hexagone central avec
+  uniquement des voisins hexagonaux). Ces entrées sont nécessaires pour que le solveur CSP
+  considère le benzénoïde d'origine (toutes les tailles à 6) comme une solution valide —
+  un benzénoïde peut lui-même être non planaire pour les structures suffisamment grandes.
+\end{remarque}
+
+Pour chaque hexagone libre $v$ de degré $\geq 2$, on filtre la table pour ne garder que les
+entrées \textbf{compatibles} avec le patron $\sigma(v)$ :
+
+\begin{lstlisting}
+def filter_table_for_vertex(graph, v, full_table):
+    pattern = graph.patterns[v]
+    deg = graph.degree(v)
+    shared_positions = [i for i, p in enumerate(pattern) if p == 1]
+
+    compatible = []
+    for n in (5, 6, 7):
+        for seq in full_table[n]:
+            seq_shared = [i for i, s in enumerate(seq) if s != 0]
+            # Le nombre de voisins doit correspondre
+            if len(seq_shared) != deg:
+                continue
+            # Les positions non-nulles doivent former un bloc consecutif
+            if not _is_consecutive_block(seq_shared, n):
+                continue
+            # Construire le tuple pour la contrainte extensionnelle
+            neighbor_sizes = [seq[i] for i in seq_shared]
+            compatible.append((n,) + tuple(neighbor_sizes))
+
+    return compatible
+\end{lstlisting}
+
+Le filtrage vérifie deux conditions :
+\begin{enumerate}
+  \item Le nombre de voisins non nuls dans la séquence correspond au degré de $v$ dans le dual.
+  \item Les positions non nulles forment un \textbf{bloc consécutif} (cyclique) — condition
+    nécessaire puisque $b(v) = 1$ pour les hexagones libres.
+\end{enumerate}
+
+\begin{remarque}
+  Les hexagones de degré 1 (un seul voisin) ne nécessitent pas de contrainte de table :
+  un cycle avec un unique voisin est toujours géométriquement admissible, quelle que soit
+  sa taille.
+\end{remarque}
+
+\subsection{Calcul des automorphismes}
+
+Les \textbf{automorphismes} du graphe dual sont utilisés pour la brisure de symétrie
+(contrainte C4). Un automorphisme est une permutation des sommets qui préserve la structure
+d'adjacence.
+
+\begin{lstlisting}
+def compute_automorphisms(graph):
+    G = graph.dual
+    matcher = nx.algorithms.isomorphism.GraphMatcher(G, G)
+    # Collecter tous les automorphismes (sauf l'identite)
+    all_auts = [iso for iso in matcher.isomorphisms_iter()
+                if any(iso[v] != v for v in iso)]
+    # Extraire un ensemble minimal de generateurs
+    return _extract_generators(all_auts, list(G.nodes()))
+\end{lstlisting}
+
+L'extraction des générateurs utilise une approche gloutonne : on ajoute un automorphisme au
+jeu de générateurs s'il produit de nouvelles permutations par composition avec les générateurs
+existants. On s'arrête quand la fermeture du sous-groupe couvre tous les automorphismes.

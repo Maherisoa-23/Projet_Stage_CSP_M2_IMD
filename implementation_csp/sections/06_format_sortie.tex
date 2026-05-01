@@ -1,0 +1,63 @@
+% ============================================================
+%  06_format_sortie.tex — Section 6 : Format de sortie et resultats
+% ============================================================
+\section{Format de sortie et résultats}
+
+\subsection{Structure d'une solution}
+
+Chaque solution est un dictionnaire \texttt{\{hexagone\_id: taille\}} où la taille est 5
+(pentagone), 6 (hexagone inchangé) ou 7 (heptagone). Par exemple, pour \texttt{first.graph}
+(3 hexagones) :
+
+\begin{lstlisting}[style=benzai]
+solution 1: v0=5 v1=6 v2=7
+solution 2: v0=7 v1=6 v2=5
+\end{lstlisting}
+
+Cela signifie : l'hexagone 0 devient un pentagone, l'hexagone 1 reste un hexagone,
+l'hexagone 2 devient un heptagone (et vice versa pour la solution 2).
+
+\subsection{Résultats expérimentaux}
+
+\subsubsection{\texttt{first.graph} — 3 hexagones linéaires}
+
+\begin{center}
+\begin{tabular}{lr}
+  \toprule
+  Caractéristique & Valeur \\
+  \midrule
+  Hexagones & 3 \\
+  Carbones & 14 \\
+  Arêtes du dual & 2 \\
+  Hexagones gelés & 0 \\
+  Hexagones libres & 3 \\
+  Générateurs Aut($\GD$) & 1 (réflexion) \\
+  \textbf{Solutions distinctes} & \textbf{2} \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+Les 2 solutions : $v_0 = 5, v_1 = 6, v_2 = 7$ et $v_0 = 7, v_1 = 6, v_2 = 5$.
+La contrainte C1 impose $n_5 = n_7$, donc le central reste à 6.
+
+\subsubsection{\texttt{second.graph} — 16 hexagones}
+
+\begin{center}
+\begin{tabular}{lr}
+  \toprule
+  Caractéristique & Valeur \\
+  \midrule
+  Hexagones & 16 \\
+  Carbones & 60 \\
+  Arêtes du dual & 19 \\
+  Hexagones gelés & 5 \\
+  Hexagones libres & 11 \\
+  Générateurs Aut($\GD$) & 1 \\
+  \textbf{Solutions distinctes} & \textbf{41} \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+Les 41 solutions ont été énumérées en moins d'une seconde par ACE. La répartition des
+tailles sur l'ensemble des solutions montre que la majorité des hexagones restent à 6, avec
+des substitutions ponctuelles en pentagones et heptagones.

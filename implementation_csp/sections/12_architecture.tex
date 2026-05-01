@@ -1,0 +1,112 @@
+% ============================================================
+%  12_architecture.tex — Section 12 : Architecture du code
+% ============================================================
+\section{Architecture du code}
+
+\begin{lstlisting}[style=benzai]
+csp_solver/
+  main.py                    # Point d'entree CSP, orchestration
+                             # Drapeaux : --validate, --n-runs, --method (md|multi-runs)
+  test.py                    # Test sur l'original (toutes tailles a 6)
+  utils/
+    parser.py                # Lecture Benzai (.graph) -> graphe dual
+    table.py                 # Chargement table voisinage (JSON, 1209 entrees)
+    preprocessing.py         # Domaines, filtrage tables, automorphismes
+    model.py                 # Modele PyCSP3 + appel ACE
+    validate.py              # xTB + planarite (test ACP, single-run et multi-runs)
+    validation/              # Strategy Pattern (mai 2026)
+      base.py                # ABC ValidationStrategy
+      multi_runs.py          # MultiRunsStrategy (delegue aux helpers existants)
+      md.py                  # MDStrategy (xtb --md + opt + ACP)
+      __init__.py            # Registry get_strategy(name, **kwargs)
+  reconstruction/
+    topology.py              # Phase A : modifications topologiques
+    placement.py             # Phase B : placement geometrique BFS
+    assembler.py             # Phase C : MolecularGraph + export XYZ
+    pipeline.py              # Orchestration reconstruction + validation
+                             # Dispatch via get_strategy(method, ...)
+  data/
+    table_voisinage.json     # Table T(5)=92, T(6)=412, T(7)=699
+    first.graph              # Test : 3 hexagones lineaires
+    second.graph             # Test : 16 hexagones
+  experiments/
+    batch_main.py            # Lance main.py sur un dossier .graph (1 config)
+    batch_all.py             # Lance batch_main.py pour les 8 combinaisons
+    batch_test.py            # Test rapide sur les originaux
+    aggregate_runs.py        # Agrege les runs multi-N en stats + classification
+    aggregate_md.py          # Agrege les runs MD (additif sur data.json)  [mai 2026]
+    view.py                  # Generation des output/hX/view.html
+    update_report.py         # Generation du rapport global (dashboard MD-only)
+    bundle.py                # Creation de l'archive portable .zip
+    templates/               # HTML/CSS/JS externalises (cf. section 9)
+    plane/benzdb/            # Datasets BenzAI DB d'entree (h3, h4, h5, ...)
+    output/                  # Resultats des batchs (cf. section 8)
+    report/index.html        # Rapport global genere
+
+non_benzenoid_generator/core/
+  optimizer.py               # Wrapper xtb --opt (single-run, multi-runs)
+  optimizer_md.py            # Wrapper xtb --md + --opt (mai 2026)
+                             # OMP/MKL=1 par defaut pour reduire la variance
+\end{lstlisting}
+
+\textbf{Flux de données :}
+
+\begin{enumerate}
+  \item \texttt{parser.py} lit le \texttt{.graph} $\to$ \texttt{BenzenoidGraph} (dual + patrons)
+  \item \texttt{preprocessing.py} calcule domaines, filtre tables, extrait automorphismes
+  \item \texttt{model.py} construit le CSP (PyCSP3), compile en XCSP3, appelle ACE
+  \item ACE énumère les solutions $\to$ parsing de la sortie XML
+  \item \texttt{reconstruction/} reconstruit chaque solution en molécule 3D (XYZ)
+  \item \texttt{validate.py} optimise (xTB) et teste la planarité (ACP, seuil 10°)
+\end{enumerate}
+
+\textbf{Commandes et drapeaux :}
+
+\begin{center}
+\begin{tabular}{lp{9cm}}
+  \toprule
+  Drapeau & Effet \\
+  \midrule
+  \texttt{--no-freeze} & Désactive C2 ($b(v) \geq 2$). Les hexagones avec arêtes libres
+    séparées deviennent libres (domaine $\{5, 6, 7\}$). \\
+  \texttt{--no-table} & Désactive C3 (table de voisinage). Seules C1 et C4 restreignent
+    les solutions. \\
+  \texttt{--adj-57} & Active C5 (adjacence 5--7). Chaque 5 doit avoir un voisin 7 et
+    inversement. \\
+  \texttt{--validate} & Reconstruit chaque solution en 3D, optimise avec xTB, et teste
+    la planarité. \\
+  \texttt{--n-runs N} & Lance \texttt{N} optimisations xTB par solution (N=1 par défaut,
+    N=10 recommandé pour la classification de stabilité). Active automatiquement
+    l'agrégation via \texttt{aggregate\_runs.py}. \\
+  \texttt{--method M} & \emph{[mai 2026]} Sélectionne la stratégie de validation :
+    \texttt{multi-runs} (par défaut) ou \texttt{md}. Active automatiquement
+    \texttt{aggregate\_md.py} en sortie de batch quand M = \texttt{md}. \\
+  \texttt{--md-no-deterministic} & \emph{[mai 2026]} Désactive le forçage
+    \texttt{OMP\_NUM\_THREADS=1} + \texttt{MKL\_NUM\_THREADS=1} (pour récupérer
+    le parallélisme au prix d'une variance accrue, sub-seuil mais visible). \\
+  \texttt{--count} & Affiche seulement le nombre de solutions. \\
+  \bottomrule
+\end{tabular}
+\end{center}
+
+\begin{lstlisting}[style=benzai]
+# Solveur seul
+python main.py data/fichier.graph                          # Defaut (C1+C2+C3+C4)
+python main.py data/fichier.graph --no-freeze              # Sans C2 (b>=2)
+python main.py data/fichier.graph --no-table               # Sans C3 (table)
+python main.py data/fichier.graph --adj-57                 # Avec C5 (adj 5-7)
+python main.py data/fichier.graph --validate               # + reconstruction + xTB
+python main.py data/fichier.graph --validate --n-runs 10   # multi-runs (stabilite)
+python main.py data/fichier.graph --validate --method md   # MD courte + opt [mai 2026]
+
+# Batch sur un dossier (depuis csp_solver/experiments/)
+python batch_main.py plane/benzdb/h4 --validate --n-runs 10
+python batch_main.py plane/benzdb/h4 --validate --method md  # [mai 2026]
+python batch_all.py  plane/benzdb/h4 --n-runs 10             # multi-runs sur 8 configs
+python batch_all.py  plane/benzdb/h4 --method md             # MD sur 8 configs [mai 2026]
+
+# Generation des rapports HTML
+python view.py output/h4 --aggregate                       # viewer h4
+python update_report.py                                    # rapport global (dashboard MD)
+python bundle.py                                           # archive .zip portable
+\end{lstlisting}

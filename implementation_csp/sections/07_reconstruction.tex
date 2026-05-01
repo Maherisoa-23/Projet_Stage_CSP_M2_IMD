@@ -1,0 +1,92 @@
+% ============================================================
+%  07_reconstruction.tex — Section 7 : Reconstruction 3D + validation
+% ============================================================
+\section{Reconstruction 3D et validation (résumé)}
+
+\subsection{Pipeline de reconstruction}
+
+Chaque solution CSP (assignation de tailles) est reconstruite en une molécule 3D selon
+trois phases :
+
+\begin{enumerate}
+  \item \textbf{Phase A — Modifications topologiques} : pour chaque hexagone dont la taille
+    assignée diffère de 6, le cycle est modifié (un sommet retiré pour un pentagone, un sommet
+    ajouté pour un heptagone). Seuls les côtés libres ($\sigma_i = 0$) sont touchés.
+
+  \item \textbf{Phase B — Placement géométrique} : un parcours BFS sur le graphe dual place
+    les cycles comme des polygones réguliers fusionnés. L'hexagone de plus haut degré est
+    choisi comme racine, puis chaque cycle enfant est placé par rapport au parent via l'arête
+    partagée.
+
+  \item \textbf{Phase C — Assemblage moléculaire} : les coordonnées sont injectées dans un
+    \texttt{MolecularGraph}, les doubles liaisons sont placées par couplage maximum (Blossom),
+    les hydrogènes sont ajoutés, et le tout est exporté en XYZ.
+\end{enumerate}
+
+Le détail de chaque phase est documenté dans \textit{validation\_reconstruction\_csp.tex}.
+
+\subsection{Validation xTB + planarité}
+
+Chaque XYZ reconstruit est :
+\begin{enumerate}
+  \item Optimisé par xTB (GFN2-xTB, \texttt{--opt tight})
+  \item Testé en planarité par ACP (angle maximal $\leq 10°$)
+\end{enumerate}
+
+\subsubsection{Perturbation des coordonnées initiales}
+
+La reconstruction place tous les atomes dans le plan $z = 0$ (géométrie de polygones
+réguliers). Or, xTB utilise un algorithme de descente de gradient pour minimiser l'énergie :
+si la géométrie initiale est parfaitement plane, les forces perpendiculaires au plan sont
+nulles par symétrie, et xTB \textbf{reste piégé dans le minimum local plat}.
+
+Ce problème a été mis en évidence en comparant deux approches pour tester la planarité d'un
+même benzénoïde à 5 hexagones :
+\begin{itemize}
+  \item Placement par coordonnées du réseau hexagonal $\to$ xTB $\to$ \textbf{non plan} (58.6°)
+  \item Placement par BFS polygones réguliers $\to$ xTB $\to$ \textbf{plan} (0.0°)
+\end{itemize}
+
+Les deux géométries initiales étaient planes ($z = 0$), mais les légères différences de
+coordonnées faisaient que xTB convergeait vers des minima différents. La solution adoptée
+est d'ajouter une \textbf{perturbation aléatoire} de $\pm 0.1$~\AA{} sur les coordonnées $z$
+de chaque atome avant l'optimisation :
+
+\begin{lstlisting}
+def _write_perturbed_xyz(input_path, output_path, amplitude=0.1):
+    atoms = _read_atoms_from_xyz(input_path)
+    with open(output_path, 'w') as f:
+        f.write(f"{len(atoms)}\n")
+        f.write("perturbed for xTB optimization\n")
+        for elem, x, y, z in atoms:
+            z_perturbed = z + random.uniform(-amplitude, amplitude)
+            f.write(f"{elem} {x:.6f} {y:.6f} {z_perturbed:.6f}\n")
+\end{lstlisting}
+
+Si la molécule est réellement plane, xTB la ramène à $z \approx 0$ malgré la perturbation.
+Si elle ne l'est pas, xTB trouve le vrai minimum non plan. C'est l'équivalent numérique de la
+procédure manuelle suggérée par le chimiste : \textit{``déplacer un atome pendant l'optimisation
+pour vérifier s'il revient à sa place''}.
+
+\subsubsection{Inclusion du benzénoïde comme solution}
+
+Le benzénoïde d'origine (toutes les tailles à 6) est désormais inclus dans les solutions du
+CSP. Il passe par le même pipeline de reconstruction et de validation xTB que les solutions
+non hexagonales. Cela permet de vérifier si le benzénoïde lui-même est planaire — ce qui n'est
+pas garanti pour les grandes structures.
+
+\subsubsection{Résultats}
+
+\textbf{Résultats :}
+\begin{itemize}
+  \item \texttt{first.graph} : \textbf{2/2 solutions planes} (dont le benzénoïde)
+  \item \texttt{second.graph} : \textbf{0/41 solutions planes}
+\end{itemize}
+
+\begin{remarque}
+  Le fait que les 41 solutions de \texttt{second.graph} soient toutes non planes suggère que
+  les contraintes locales (table de voisinage) ne suffisent pas pour les grands benzénoïdes.
+  Un déficit angulaire cumulatif se crée lorsque trop de pentagones et heptagones sont présents
+  dans une structure étendue. La question de contraintes globales (courbure de Gauss discrète,
+  contraintes de planéité) reste ouverte et sera discutée avec le chimiste et le tuteur.
+\end{remarque}
