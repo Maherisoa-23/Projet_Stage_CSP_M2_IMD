@@ -192,12 +192,15 @@ def aggregate_config(config_dir):
 
     n_added = 0
     n_skipped = 0
+    n_dropped_stale = 0    # entrees du data.json dont le sol_dir n'existe plus
+    on_disk_mols = set()   # molecules effectivement presentes sur disque
 
     # Scanner les molecules du dossier de config
     for mol_dir in sorted(config_dir.iterdir()):
         if not mol_dir.is_dir():
             continue
         mol_name = mol_dir.name
+        on_disk_mols.add(mol_name)
         sol_root = mol_dir / "solutions"
         if not sol_root.is_dir():
             continue
@@ -209,18 +212,54 @@ def aggregate_config(config_dir):
             "solutions": [],
         })
 
-        # Index des solutions existantes par sizes (pour fusion)
+        # === Reconciliation : determiner les sizes presents sur disque ===
+        # Une solution sur disque est un sous-dossier sol_<idx>_<sizes>/ avec
+        # un source.xyz dont le commentaire donne le 'sizes'. Si source.xyz
+        # est absent, on retombe sur le nom du dossier.
+        on_disk_sizes = set()
+        sol_dirs_by_sizes = {}
+        for sol_dir in sorted(sol_root.iterdir()):
+            if not sol_dir.is_dir():
+                continue
+            src = sol_dir / "source.xyz"
+            if src.exists():
+                sz = parse_solution_comment(read_xyz_comment(str(src)))
+            else:
+                sz = sol_dir.name
+            if sz:
+                on_disk_sizes.add(sz)
+                sol_dirs_by_sizes[sz] = sol_dir
+
+        # === Drop des entrees obsoletes ===
+        # Une entree de data.json est consideree obsolete si son 'sizes' n'a
+        # plus de sol_dir correspondant. Cas typique : un ancien run incluait
+        # la solution tout-hexagones, le solveur ne la genere plus avec le
+        # nouveau defaut (--count-hexagon absent), le sol_dir est absent, on
+        # retire l'entree de data.json.
+        before = len(mol_data.get("solutions", []))
+        kept = []
+        for s in mol_data.get("solutions", []):
+            key = s.get("sizes") or s.get("file", "")
+            if key in on_disk_sizes:
+                kept.append(s)
+            else:
+                n_dropped_stale += 1
+        mol_data["solutions"] = kept
+        if before != len(kept):
+            print(f"  [{mol_name}] {before - len(kept)} solution(s) obsolete(s) retiree(s)")
+
+        # Index des solutions existantes par sizes (pour fusion additive)
         sol_index = {}
         for s in mol_data.get("solutions", []):
             key = s.get("sizes") or s.get("file", "")
             sol_index[key] = s
 
-        for sol_dir in sorted(sol_root.iterdir()):
-            if not sol_dir.is_dir():
-                continue
-            sizes, md_block = aggregate_solution_md(sol_dir)
+        # === Ajout/maj des blocs md_validation pour les solutions presentes ===
+        for sizes, sol_dir in sol_dirs_by_sizes.items():
+            mb_sizes, md_block = aggregate_solution_md(sol_dir)
             if md_block is None:
                 continue
+            # mb_sizes peut differer si source.xyz absent ; on garde celui calcule plus haut
             existing = sol_index.get(sizes)
             if existing is not None:
                 # ADDITIF : ajouter md_validation, ne PAS toucher aux autres champs
@@ -243,6 +282,15 @@ def aggregate_config(config_dir):
                 sol_index[sizes] = new_sol
                 n_added += 1
 
+    # === Drop des molecules entieres qui n'existent plus sur disque ===
+    # Cas extreme : un dossier mol_X/ a ete supprime entre 2 runs. On retire
+    # son entree de data.json pour eviter d'afficher des fantomes.
+    stale_mols = [m for m in list(data["molecules"].keys()) if m not in on_disk_mols]
+    for m in stale_mols:
+        del data["molecules"][m]
+    if stale_mols:
+        print(f"  {len(stale_mols)} molecule(s) obsolete(s) retiree(s) : {', '.join(stale_mols)}")
+
     # Mise a jour timestamp
     data["generated"] = datetime.now().isoformat(timespec="seconds")
 
@@ -251,6 +299,8 @@ def aggregate_config(config_dir):
 
     print(f"  data.json -> {data_path}")
     print(f"  {n_added} bloc(s) md_validation ajoute(s)/mis-a-jour")
+    if n_dropped_stale:
+        print(f"  {n_dropped_stale} solution(s) obsolete(s) totale(s) retiree(s) du data.json")
     if n_skipped:
         print(f"  {n_skipped} solution(s) sautee(s) (pas de md_validation/)")
 

@@ -232,6 +232,42 @@ def scan_config(config_dir):
 
 
 def write_data_json(config_dir, molecules, n_runs):
+    """Ecrit data.json. Reconciliation et preservation :
+    - Le scan disk (molecules) est la source de verite pour la liste des sol.
+    - Si data.json existe deja, on PRESERVE les blocs 'md_validation'
+      pre-existants pour les solutions toujours presentes (matching par sizes).
+      Les blocs md_validation orphelins (sol disparue) sont droppes naturellement.
+    """
+    out = config_dir / "data.json"
+
+    # Charger l'existant pour recuperer les blocs md_validation
+    existing_md = {}   # {(mol_name, sizes): md_validation_block}
+    existing_md_orig = {}   # {mol_name: md_validation pour l'original}
+    if out.exists():
+        try:
+            with open(out, encoding="utf-8") as f:
+                old = json.load(f)
+            for mol_name, mol in old.get("molecules", {}).items():
+                if mol.get("original") and mol["original"].get("md_validation"):
+                    existing_md_orig[mol_name] = mol["original"]["md_validation"]
+                for s in mol.get("solutions", []):
+                    if "md_validation" in s:
+                        key = (mol_name, s.get("sizes") or s.get("file", ""))
+                        existing_md[key] = s["md_validation"]
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    # Re-injecter les blocs md_validation conserves
+    n_preserved = 0
+    for mol_name, mol in molecules.items():
+        if mol.get("original") and mol_name in existing_md_orig:
+            mol["original"]["md_validation"] = existing_md_orig[mol_name]
+        for s in mol.get("solutions", []):
+            key = (mol_name, s.get("sizes") or s.get("file", ""))
+            if key in existing_md:
+                s["md_validation"] = existing_md[key]
+                n_preserved += 1
+
     data = {
         "source": config_dir.parent.name,
         "config": config_dir.name,
@@ -240,10 +276,11 @@ def write_data_json(config_dir, molecules, n_runs):
         "n_runs": n_runs if n_runs > 0 else 1,
         "molecules": molecules,
     }
-    out = config_dir / "data.json"
     with open(out, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
     print(f"  data.json -> {out}")
+    if n_preserved:
+        print(f"  {n_preserved} bloc(s) md_validation preserve(s) du data.json existant")
 
 
 def main():
