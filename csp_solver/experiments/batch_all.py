@@ -9,6 +9,7 @@ Exemple:
     python batch_all.py plane/benzdb/h3 --n-runs 10
 """
 
+import os
 import sys
 import json
 import subprocess
@@ -16,6 +17,14 @@ import time
 from datetime import datetime
 from itertools import combinations
 from pathlib import Path
+
+# Force le single-thread pour toutes les libs scientifiques (xTB, BLAS, MKL...).
+# Indispensable en cluster ou chaque coeur execute un job xTB independant.
+# setdefault : si l'utilisateur a deja fixe une valeur, on la respecte.
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 
 CSP_FLAGS = ["--no-freeze", "--no-table", "--adj-57"]
 
@@ -53,8 +62,12 @@ def main():
     elapsed = time.time() - t0
 
     # Collecte des stats depuis les data.json produits
+    # Dossier de sortie : configurable via OUTPUT_ROOT (cluster-friendly).
+    # Defaut : csp_solver/experiments/output/ (comportement historique).
     h_name = Path(dossier).name
-    h_dir = Path(__file__).parent / "output" / h_name
+    output_base = Path(os.environ.get("OUTPUT_ROOT",
+                                      str(Path(__file__).parent / "output")))
+    h_dir = output_base / h_name
     n_instances = 0
     n_solutions = 0
     for data_file in sorted(h_dir.glob("*/data.json")):

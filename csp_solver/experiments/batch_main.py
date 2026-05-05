@@ -10,10 +10,19 @@ Exemple:
     python batch_main.py plane/benzdb/h4 --validate --no-freeze --adj-57
 """
 
+import os
 import sys
 import subprocess
 import shutil
 from pathlib import Path
+
+# Force le single-thread pour toutes les libs scientifiques (xTB, BLAS, MKL...).
+# Indispensable en cluster ou chaque coeur execute un job xTB independant.
+# setdefault : si l'utilisateur a deja fixe une valeur, on la respecte.
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+os.environ.setdefault("MKL_NUM_THREADS", "1")
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
 
 # Flags CSP qui definissent une configuration (ordre alphabetique)
 CSP_FLAGS = sorted(["--no-freeze", "--no-table", "--adj-57"])
@@ -34,7 +43,11 @@ def main():
     extra_args = sys.argv[2:]
     main_py = Path(__file__).parent.parent / "main.py"
     test_py = Path(__file__).parent.parent / "test.py"
-    output_base = Path(__file__).parent / "output"
+    # Dossier de sortie : configurable via la variable d'environnement
+    # OUTPUT_ROOT (utile en cluster pour pointer vers un scratch local).
+    # Defaut : csp_solver/experiments/output/ (comportement historique).
+    output_base = Path(os.environ.get("OUTPUT_ROOT",
+                                      str(Path(__file__).parent / "output")))
     view_py = Path(__file__).parent / "view.py"
     aggregate_runs_py = Path(__file__).parent / "aggregate_runs.py"
     aggregate_md_py = Path(__file__).parent / "aggregate_md.py"
