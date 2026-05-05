@@ -105,6 +105,15 @@ def main():
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=2, ensure_ascii=False)
 
+    # Regenerer view.html APRES l'ecriture de batch_meta.json. Sans cette
+    # etape, le bandeau "Dernier batch complet" du viewer reste fige sur
+    # le batch precedent : chaque batch_main.py de la boucle a deja
+    # regenere view.html en lisant l'ANCIEN batch_meta.json (qui est ecrit
+    # tout a la fin de batch_all.py, ici).
+    view_py = Path(__file__).parent / "view.py"
+    if view_py.exists():
+        subprocess.run([sys.executable, str(view_py), str(h_dir), "--aggregate"])
+
     print(f"=== Termine : {len(combos)} configurations traitees ===")
     print(f"Duree totale      : {duration} ({elapsed:.1f}s)")
     print(f"Instances totales : {n_instances}  (molecules x configs)")
