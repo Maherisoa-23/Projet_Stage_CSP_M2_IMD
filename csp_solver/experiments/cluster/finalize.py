@@ -34,6 +34,10 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 
+# Local import : meme dossier
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from atomic_io import write_atomic_json
+
 
 # Localisation des scripts existants (1 niveau au-dessus de cluster/)
 _HERE = Path(__file__).resolve().parent
@@ -298,8 +302,7 @@ def main():
         "failed_job_ids": stats['failed_job_ids'],
     }
     meta_path = h_dir / "cluster_meta.json"
-    with open(meta_path, "w", encoding="utf-8") as f:
-        json.dump(cluster_meta, f, indent=2, ensure_ascii=False)
+    write_atomic_json(meta_path, cluster_meta)
     print(f"\n  cluster_meta.json -> {meta_path}", flush=True)
 
     print(f"\n=== finalize termine ({round(time.time()-t0,1)}s) ===", flush=True)

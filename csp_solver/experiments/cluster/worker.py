@@ -45,6 +45,7 @@ import errno
 import json
 import os
 import random
+import shutil
 import socket
 import subprocess
 import sys
@@ -52,6 +53,10 @@ import time
 from concurrent.futures import ProcessPoolExecutor, FIRST_COMPLETED, wait
 from datetime import datetime
 from pathlib import Path
+
+# Prefixe utilise par run_one_job.py pour nommer ses scratch dirs.
+# Sert ici pour le menage des scratch orphelins.
+SCRATCH_PREFIX = "coala_"
 
 # Force le single-thread (heritera dans tous les sous-processus xTB).
 os.environ.setdefault("OMP_NUM_THREADS", "1")
@@ -108,6 +113,39 @@ def try_claim(lock_path):
         # Autre erreur (permission, disque plein...) : on signale
         print(f"ATTENTION: erreur OS sur claim {lock_path}: {e}", file=sys.stderr)
         return False
+
+
+def cleanup_orphan_scratch(scratch_root, max_age_min=60):
+    """Supprime les scratch dirs orphelins (worker precedent crashe).
+
+    Cible : <scratch_root>/<SCRATCH_PREFIX>* dont le mtime est > max_age_min.
+    Ne touche pas aux scratch recents (peuvent etre des jobs en cours d'un
+    autre worker tournant en parallele sur la meme machine).
+
+    Best-effort : log les erreurs mais ne plante jamais le worker.
+
+    Args:
+        scratch_root  : Path racine du scratch (typ. /tmp)
+        max_age_min   : age minimum pour qu'un scratch soit considere orphelin
+    """
+    scratch_root = Path(scratch_root)
+    if not scratch_root.is_dir():
+        return
+    now = time.time()
+    cutoff = now - max_age_min * 60
+    n_freed = 0
+    for d in scratch_root.glob(f"{SCRATCH_PREFIX}*"):
+        if not d.is_dir():
+            continue
+        try:
+            if d.stat().st_mtime < cutoff:
+                shutil.rmtree(d, ignore_errors=True)
+                n_freed += 1
+        except OSError as e:
+            print(f"  ATTENTION: cleanup orphan {d.name}: {e}", file=sys.stderr)
+    if n_freed:
+        print(f"  cleanup_orphan_scratch : {n_freed} dossier(s) supprime(s)",
+              flush=True)
 
 
 def is_done(entry, output_root):
@@ -187,6 +225,11 @@ def worker_main():
 
     claims_dir.mkdir(parents=True, exist_ok=True)
     output_root.mkdir(parents=True, exist_ok=True)
+    scratch_root.mkdir(parents=True, exist_ok=True)
+
+    # Menage des scratch orphelins d'un worker precedent qui aurait crashe.
+    # Important sur COALA : /tmp = NVMe local 9 Go partage entre utilisateurs.
+    cleanup_orphan_scratch(scratch_root, max_age_min=60)
 
     host = socket.gethostname()
     pid = os.getpid()

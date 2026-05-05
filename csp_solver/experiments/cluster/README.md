@@ -111,6 +111,29 @@ single-thread pour empecher les sur-souscriptions de coeurs) :
 Sur Precision 7920 (20 coeurs physiques + 20 SMT) :
 - `--concurrency 20` recommande (1 job xTB par coeur physique)
 - 16 machines x 20 = **320 jobs xTB en parallele** sur le cluster
+- **Ne PAS pousser a 40** : SMT introduit des micro-variations selon la
+  pression cache, casserait la reproductibilite.
+
+## Ressources COALA (audite sur lis-cluster-coala-49)
+
+| Ressource | Valeur | Note |
+|-----------|--------|------|
+| CPU | 2x Xeon Gold 5218R, 20 coeurs physiques | 40 logiques (SMT). On utilise les 20 physiques. |
+| RAM | 187 Gi | xTB ~500 MB/job pic, 0 risque OOM a 20 jobs |
+| `/tmp` | NVMe local, **9 Go libre**, 1777 | scratch local (non NFS). Surveiller `df -h /tmp` si jobs intensifs. |
+| `/scratch` | **n'existe pas** | -> on utilise `/tmp` |
+| `/dev/shm` | tmpfs RAM ~95 Gi | option si I/O `/tmp` sature (overkill pour MD 1 ps) |
+| `/home/COALA/...` | NFSv4 partage | output final ; ecriture atomique requise (cf atomic_io.py) |
+| `$TMPDIR` | non defini | tempfile.gettempdir() retombe sur `/tmp` automatiquement |
+| xTB | 6.7.1 | OK pour `--md`, `--opt`, GFN2-xTB |
+| Python | 3.14.4 (env conda `nonbenz`) | aligne PC local |
+
+**Nettoyage scratch** : worker.py au demarrage scanne `/tmp/coala_*` et supprime
+ceux dont mtime > 60 min. Garde les autres (job en cours d'autres workers).
+
+**Atomicite NFS** : `cluster/atomic_io.py::write_atomic_json()` est utilise par
+`run_one_job.py` (job_status.json) et `finalize.py` (cluster_meta.json). Pattern
+write tmp + os.replace, atomique sur NFSv4 sans flock.
 
 ## Format manifest (JSONL)
 

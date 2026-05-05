@@ -53,6 +53,11 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+# Ecriture atomique pour job_status.json (fichier sur NFS partage en cluster).
+# Evite la corruption si le worker est tue au milieu d'un open(path,'w').
+sys.path.insert(0, str(Path(__file__).resolve().parent / "cluster"))
+from atomic_io import write_atomic_json
+
 # Force le single-thread pour toutes les libs scientifiques (xTB, BLAS, MKL...).
 # Indispensable en cluster ou chaque coeur execute un job xTB independant.
 os.environ.setdefault("OMP_NUM_THREADS", "1")
@@ -82,6 +87,12 @@ def config_name_to_flags(config_name):
             )
         flags.append(f"--{part}")
     return flags
+
+
+# Prefixe stable des dossiers de scratch crees par run_one_job.
+# Permet a worker.py de nettoyer les scratch orphelins (worker precedent
+# crashe) sans risquer de virer des fichiers tiers presents dans /tmp.
+SCRATCH_PREFIX = "coala_"
 
 
 def make_job_id(graph_path, config_name):
@@ -116,13 +127,14 @@ def count_results(mol_dir):
 def write_job_status(mol_dir, status):
     """Ecrit job_status.json (signal de fin sur le NFS).
 
+    Ecriture atomique : un lecteur concurrent ne verra JAMAIS un fichier
+    partiel. C'est important sur NFS ou les writes ne sont pas atomiques
+    et ou flock n'est pas fiable.
+
     L'existence de ce fichier = job termine (succes ou echec).
     Son absence = job a refaire (jamais lance, ou crashe avant la fin).
     """
-    mol_dir.mkdir(parents=True, exist_ok=True)
-    status_path = mol_dir / "job_status.json"
-    with open(status_path, "w", encoding="utf-8") as f:
-        json.dump(status, f, indent=2, ensure_ascii=False)
+    write_atomic_json(mol_dir / "job_status.json", status)
 
 
 def run_subprocess(cmd, timeout, log_prefix="", cwd=None):
@@ -188,8 +200,11 @@ def run_one_job(graph_path, config_name, output_root, scratch_root,
     if not main_py.is_file():
         raise FileNotFoundError(f"main.py introuvable : {main_py}")
 
-    # Scratch local : sera detruit a la fin (succes OU echec)
-    scratch = scratch_root / job_id
+    # Scratch local : sera detruit a la fin (succes OU echec).
+    # Prefixe stable SCRATCH_PREFIX pour que worker.py puisse identifier
+    # et nettoyer les scratch orphelins sans risquer de toucher d'autres
+    # fichiers /tmp partages avec d'autres utilisateurs.
+    scratch = scratch_root / f"{SCRATCH_PREFIX}{job_id}"
     scratch.mkdir(parents=True, exist_ok=True)
 
     # Status accumule au fur et a mesure
