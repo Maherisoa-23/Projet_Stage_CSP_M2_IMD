@@ -2,8 +2,7 @@
 
 Ce document retrace, dans l'ordre, les étapes que j'ai suivies pour passer du
 projet tournant en local (Windows, mon PC) à un projet exploité sur le cluster
-COALA du LIS. Il sert à la fois de mémo personnel et de support si on me
-demande "comment tu as fait".
+COALA du LIS. Il sert à la fois de mémo personnel et de support.
 
 ---
 
@@ -318,18 +317,164 @@ l'ancien état).
 rm /home/COALA/ramaherisoa/projet/_h6_run/state/dispatcher_state.json
 ```
 
-## 12. Où on en est
+## 12. Finalisation et récupération des résultats h6
 
-**État actuel** : la relance des 50 jobs en timeout est en cours sur les
-16 machines avec `--timeout 1200`. À surveiller via `dispatcher.py status`,
-puis lancer `finalize.py` pour produire le `cluster_meta.json` final et le
-`view.html` agrégé.
+Une fois `Done = 352/352` avec 0 timeout (après recover éventuel), on agrège :
+
+```bash
+python cluster/finalize.py /home/COALA/ramaherisoa/projet/_h6_run/output/h6 \
+  --manifest /home/COALA/ramaherisoa/projet/_h6_run/manifest.jsonl
+```
+
+Cela produit dans `_h6_run/output/h6/` :
+- `<config>/data.json` pour chaque config
+- `cluster_meta.json` (résumé global du run)
+- `view.html` (rapport agrégé)
+
+**Récupération sur le PC Windows** (depuis Git Bash, dans le dossier du
+projet ; on crée d'abord `cluster_results/` qui accueillera tous les niveaux) :
+
+```bash
+cd "/e/Stage AMU CSP IMD M2/Generation des molecules pour la table de voisinage/second try with scipt and CSP"
+mkdir -p cluster_results
+cd cluster_results
+
+ssh 192.168.200.58 \
+  "tar -czf - -C /home/COALA/ramaherisoa/projet/_h6_run/output h6" \
+  | tar -xzf -
+```
+
+Logique : `tar | ssh` inverse du transfert d'aller. La machine distante crée
+l'archive, l'envoie sur stdout, le PC l'extrait à la volée dans le cwd
+(`cluster_results/`).
+
+Ensuite `cluster_results/h6/view.html` ouvre le rapport dans un navigateur.
+
+## 13. Lancer h7 / h8 / h9
+
+### Sessions persistantes avec `tmux`
+
+Avant de lancer un long run, on entre dans une session tmux côté cluster.
+Si la connexion SSH du PC tombe, le dispatcher continue à tourner.
+
+```bash
+ssh 192.168.200.58
+tmux new -s runs
+
+# dans tmux :
+eval "$(/home/COALA/ramaherisoa/miniforge3/bin/conda shell.bash hook)"
+conda activate nonbenz
+cd /home/COALA/ramaherisoa/projet/csp_solver/experiments
+```
+
+Détacher : `Ctrl+B` puis `D`. Reprendre plus tard : `tmux attach -t runs`.
+
+### h7 (1 008 jobs)
+
+```bash
+mkdir -p /home/COALA/ramaherisoa/projet/_h7_run/{output,claims,state}
+
+python cluster/build_manifest.py plane/benzdb/h7 --configs all \
+  --output /home/COALA/ramaherisoa/projet/_h7_run/manifest.jsonl
+
+HOSTS=$(seq 49 64 | sed 's/^/lis-cluster-coala-/' | paste -sd,)
+
+python cluster/dispatcher.py start --mode ssh \
+  --hosts "$HOSTS" \
+  --remote-cwd /home/COALA/ramaherisoa/projet/csp_solver/experiments \
+  --conda-activate "/home/COALA/ramaherisoa/miniforge3/bin/conda shell.bash hook" \
+  --conda-env nonbenz \
+  --manifest /home/COALA/ramaherisoa/projet/_h7_run/manifest.jsonl \
+  --output-root /home/COALA/ramaherisoa/projet/_h7_run/output \
+  --claims-dir /home/COALA/ramaherisoa/projet/_h7_run/claims \
+  --scratch-root /tmp \
+  --concurrency 4 --timeout 1800 \
+  --state-dir /home/COALA/ramaherisoa/projet/_h7_run/state
+```
+
+### h8 (3 008 jobs) et h9 (19 344 jobs)
+
+Strictement le même pattern que h7, en remplaçant les chemins `_h7_run` par
+`_h8_run` / `_h9_run`, le dossier source `plane/benzdb/h7` par `plane/benzdb/
+h8` ou `h9`, et en augmentant `--timeout` :
+- h8 : `--timeout 3600` (1 h)
+- h9 : `--timeout 7200` (2 h) — molécules à 9 hexagones, MD plus longue.
+  À lancer le soir, sera là le lendemain matin.
+
+Avant h9 : vérifier l'espace NFS avec `df -h /home/COALA`. Compresser et
+libérer les outputs des niveaux précédents si nécessaire :
+
+```bash
+tar -czf _h6_run.tar.gz _h6_run/output && rm -rf _h6_run/output
+```
+
+### Récupération de chaque niveau
+
+Même schéma que h6 :
+
+```bash
+ssh 192.168.200.58 \
+  "tar -czf - -C /home/COALA/ramaherisoa/projet/_h7_run/output h7" \
+  | tar -xzf -
+```
+
+(idem pour h8, h9 — pense à `cd cluster_results/` avant)
+
+## 14. Piège important : "TIMEOUT host non joignable" est cosmétique
+
+Au démarrage du dispatcher, on voit parfois cette erreur sur certaines (ou
+toutes) les lignes `[ssh#X] -> ...`. C'est trompeur : le worker a souvent
+bien démarré via `nohup` côté distant, mais le dispatcher n'a pas reçu la
+confirmation du PID dans son délai imparti.
+
+**Procédure de vérification AVANT de relancer** (sinon on duplique les
+workers) :
+
+```bash
+# Y a-t-il déjà des workers actifs ?
+for i in $(seq 49 64); do
+  ssh -o BatchMode=yes -o ConnectTimeout=5 lis-cluster-coala-$i \
+    'pgrep -af worker.py | grep -v "bash -c" | head -1'
+done
+```
+
+- Si la sortie liste des `python cluster/worker.py ...` → **NE PAS relancer**.
+  Les workers tournent. Suivre avec `dispatcher.py status`.
+- Si la sortie est vide → relance possible :
+  ```bash
+  rm -f /home/COALA/ramaherisoa/projet/_hN_run/state/dispatcher_state.json
+  python cluster/dispatcher.py start --mode ssh ...   # même commande
+  ```
+
+## 15. Gestion des timeouts en cours de run (générique)
+
+Si à la fin d'un run on a des `Timeout : X`, on relance ciblé :
+
+```bash
+python cluster/recover.py \
+  --manifest /home/COALA/ramaherisoa/projet/_hN_run/manifest.jsonl \
+  --output-root /home/COALA/ramaherisoa/projet/_hN_run/output \
+  --claims-dir /home/COALA/ramaherisoa/projet/_hN_run/claims \
+  --status timeout --reset
+# → manifest_retry.jsonl (X jobs)
+
+rm -f /home/COALA/ramaherisoa/projet/_hN_run/state/dispatcher_state.json
+
+python cluster/dispatcher.py start --mode ssh \
+  --hosts "$HOSTS" \
+  ... \
+  --manifest /home/COALA/ramaherisoa/projet/_hN_run/manifest_retry.jsonl \
+  --timeout <doublé>    # ex. 1200 → 2400 → 3600
+```
+
+## 16. Où on en est
+
+**État actuel** : h6 finalisé (352/352 OK en deux passes), h7 lancé en tmux.
 
 **Reste à faire** :
-1. Récupérer les résultats h6 sur le PC local (commande `tar | ssh` inverse).
-2. Lancer h7 (126 × 8 = 1008 jobs), h8 (376 × 8 = 3008), h9 (2418 × 8 = 19344).
-3. Pour h9 : prévoir un timeout encore plus large pour `no-table` et surveiller
-   le quota disque NFS (les outputs MD prennent de la place).
+1. Attendre la fin de h7, finalize, télécharger.
+2. Lancer h8.
+3. Lancer h9 (le soir, surveiller le disque NFS).
 
 ## Annexe — Commandes utiles à mémoriser
 
