@@ -42,15 +42,25 @@ def build_molecular_graph(topo: CycleTopology, placer: CyclePlacer) -> Molecular
     # Mapping label -> vertex id dans le MolecularGraph
     label_to_id: dict[str, int] = {}
 
-    # Ajouter tous les carbones
-    for label in topo.vertex_set:
+    # Ajouter tous les carbones dans un ordre CANONIQUE (sorted) pour garantir
+    # que la geometrie 3D produite ne depend que de (graph, solution) et pas
+    # de l'ordre d'iteration sur le set. Sans tri, Python randomise le hash
+    # des strings entre processus (PYTHONHASHSEED), donc 2 lancements
+    # successifs de main.py donnent des ordres d'atomes differents -> meme
+    # geometrie modulo permutation, mais xTB MD est sensible a l'ordre des
+    # atomes (vitesses initiales + accumulation des forces) et converge vers
+    # des minima differents. Bug observe sur h6 avec ecart d'angle > 11 deg
+    # entre runs cense identiques.
+    for label in sorted(topo.vertex_set):
         x, y = placer.coords[label]
         vid = mol.add_vertex("C", x, y, 0.0)
         label_to_id[label] = vid
 
-    # Ajouter toutes les liaisons C-C
-    for bond in topo.bond_set:
-        labels = list(bond)
+    # Ajouter toutes les liaisons C-C dans un ordre canonique aussi (les bonds
+    # sont des frozenset donc indeterministes a l'iteration ; on les serialise
+    # comme tuples tries pour avoir un ordre stable).
+    for bond in sorted(topo.bond_set, key=lambda b: tuple(sorted(b))):
+        labels = sorted(bond)
         a, b = labels[0], labels[1]
         if a in label_to_id and b in label_to_id:
             mol.add_bond(label_to_id[a], label_to_id[b], order=1)
