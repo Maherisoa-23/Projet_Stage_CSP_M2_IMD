@@ -125,15 +125,23 @@ def write_job_status(mol_dir, status):
         json.dump(status, f, indent=2, ensure_ascii=False)
 
 
-def run_subprocess(cmd, timeout, log_prefix=""):
+def run_subprocess(cmd, timeout, log_prefix="", cwd=None):
     """Lance une commande, propage stdout/stderr en streaming, retourne
     (returncode, duration_sec). Leve TimeoutExpired si la commande depasse.
+
+    Args:
+        cwd : repertoire de travail du sous-process. CRITIQUE pour le
+              parallelisme : pycsp3 ecrit son model.xml dans cwd. Si plusieurs
+              jobs tournent dans le meme cwd, ils ecrasent mutuellement
+              model.xml -> ACE recoit un XML corrompu -> 'Problem when parsing
+              the instance'. Toujours passer cwd=scratch en cluster.
     """
     print(f"{log_prefix}$ {' '.join(str(c) for c in cmd)}", flush=True)
     t0 = time.time()
     try:
         result = subprocess.run(
             cmd, timeout=timeout,
+            cwd=str(cwd) if cwd else None,
             encoding="utf-8", errors="replace",
         )
     except subprocess.TimeoutExpired:
@@ -217,10 +225,11 @@ def run_one_job(graph_path, config_name, output_root, scratch_root,
         local_mol_dir.mkdir(parents=True, exist_ok=True)
 
         # 3. test.py (original tout-6 via --opt, comme convenu)
+        # cwd=scratch : isole pycsp3/model.xml et autres artefacts du cwd parent
         rc_test, dur_test = run_subprocess(
             [sys.executable, str(test_py), str(graph_local),
              "--output-dir", str(local_mol_dir)],
-            timeout=timeout_sec, log_prefix="  [test] ",
+            timeout=timeout_sec, log_prefix="  [test] ", cwd=scratch,
         )
         status["test_returncode"] = rc_test
         status["test_duration_sec"] = dur_test
@@ -232,8 +241,10 @@ def run_one_job(graph_path, config_name, output_root, scratch_root,
         sol_dir.mkdir(parents=True, exist_ok=True)
         cmd_main = [sys.executable, str(main_py), str(graph_local),
                     "--validate", "--output-dir", str(sol_dir)] + flags
+        # cwd=scratch : pycsp3 ecrit model.xml ici, ACE le lit ici.
+        # Indispensable en parallele pour eviter les collisions.
         rc_main, dur_main = run_subprocess(
-            cmd_main, timeout=timeout_sec, log_prefix="  [main] ",
+            cmd_main, timeout=timeout_sec, log_prefix="  [main] ", cwd=scratch,
         )
         status["main_returncode"] = rc_main
         status["main_duration_sec"] = dur_main
