@@ -63,6 +63,9 @@ os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+# Hash seed fige : herite par les subprocess run_one_job.py et leurs
+# subprocess test.py / main.py. Cf. note dans run_one_job.py.
+os.environ.setdefault("PYTHONHASHSEED", "0")
 
 
 # Localisation de run_one_job.py (1 niveau au-dessus de cluster/)

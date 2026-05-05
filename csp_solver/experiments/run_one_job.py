@@ -64,6 +64,10 @@ os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+# Hash seed fige : herite par les subprocess test.py / main.py de ce job.
+# Garantit l'ordre des iterations sur set/dict entre lancements -- defense
+# en profondeur, le fix principal est sorted() dans assembler.py.
+os.environ.setdefault("PYTHONHASHSEED", "0")
 
 # Flags CSP valides (sans le prefixe --). Doit rester synchronise avec
 # CSP_FLAGS de batch_main.py / batch_all.py.

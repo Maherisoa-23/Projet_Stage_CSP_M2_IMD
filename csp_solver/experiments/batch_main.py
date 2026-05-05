@@ -23,6 +23,10 @@ os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+# Hash seed fige pour les sub-process : garantit l'ordre d'iteration sur les
+# set/dict entre processus (defense en profondeur ; le fix principal est
+# l'ajout de sorted() dans reconstruction/assembler.py).
+os.environ.setdefault("PYTHONHASHSEED", "0")
 
 # Flags CSP qui definissent une configuration (ordre alphabetique)
 CSP_FLAGS = sorted(["--no-freeze", "--no-table", "--adj-57"])

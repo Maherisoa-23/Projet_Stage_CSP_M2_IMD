@@ -107,6 +107,11 @@ single-thread pour empecher les sur-souscriptions de coeurs) :
 - `MKL_NUM_THREADS=1`
 - `OPENBLAS_NUM_THREADS=1`
 - `NUMEXPR_NUM_THREADS=1`
+- `PYTHONHASHSEED=0` : fige l'ordre d'iteration sur les set/dict entre
+  process. Defense en profondeur ; le fix principal est l'usage de
+  `sorted()` dans `reconstruction/assembler.py` (sans quoi les positions
+  initiales des atomes variaient entre lancements et xTB MD divergeait
+  jusqu'a 11.5° d'angle ACP).
 
 Sur Precision 7920 (20 coeurs physiques + 20 SMT) :
 - `--concurrency 20` recommande (1 job xTB par coeur physique)

@@ -25,6 +25,8 @@ os.environ.setdefault("OMP_NUM_THREADS", "1")
 os.environ.setdefault("MKL_NUM_THREADS", "1")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
+# Hash seed fige pour les sub-process (cf. batch_main.py)
+os.environ.setdefault("PYTHONHASHSEED", "0")
 
 CSP_FLAGS = ["--no-freeze", "--no-table", "--adj-57"]
 
