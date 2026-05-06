@@ -11,3 +11,6 @@ csp_solver/experiments/experiments_bundle.zip
 csp_solver/experiments/model.xml
 generate_hep_v3.py
 cluster_results/
+**/__pycache__/
+__pycache__/
+*.pyc
