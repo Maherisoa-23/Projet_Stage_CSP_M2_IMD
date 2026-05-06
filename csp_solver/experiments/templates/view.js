@@ -623,60 +623,58 @@
     + '</tbody></table></div></div>';
   }
 
-  /* Duree minimale d'affichage du voile (ms). En dessous, l'humain ne voit
-     qu'un flash et croit a un bug. Au-dela, le voile reste tant que le
-     re-render n'est pas peint, meme s'il prend plus longtemps. */
-  var SOFT_LOADER_MIN_MS = 350;
+  /* Delai fixe entre l'affichage du voile et l'execution du task lourd.
+     Garantit que le navigateur a le temps de peindre PLUSIEURS frames du
+     spinner anime avant que le thread JS ne se fige sur le re-render.
+     500 ms = ~30 frames a 60 Hz : le spinner tourne visiblement, l'humain
+     percoit "ca charge" et non "c'est plante". Sans ce delai, double rAF
+     ne suffit pas toujours (le browser peut planifier le frame APRES le
+     callback rAF et fusionner avec le frame post-task -> on voit le
+     voile clignoter ~0.3s comme symptome). */
+  var SOFT_LOADER_PRE_DELAY_MS = 100;
+  /* Delai minimum apres task avant de cacher le voile, pour que la
+     nouvelle DOM ait le temps d'etre peinte sans flash. */
+  var SOFT_LOADER_POST_DELAY_MS = 60;
 
-  /* Affiche le loader en mode "soft" (voile transparent, on voit encore les
-     chiffres/cards changer en dessous), execute `task` apres avoir GARANTI
-     que le voile est peint, attend que la nouvelle DOM soit peinte, puis
-     cache le voile. Sequence :
-       1. add classes        -> loader visible (style applique)
-       2. force reflow       -> styles materialises immediatement
-       3. double rAF #1      -> au moins 1 paint complet : voile visible
-       4. task()             -> re-render synchrone (lourd)
-       5. double rAF #2      -> au moins 1 paint complet de la nouvelle DOM
-       6. respect du minimum -> attend si task() etait trop rapide
-       7. add 'hidden'       -> fade-out CSS
-     Sans 5 + 6, le navigateur peut "fusionner" les paints et masquer le
-     voile avant que la nouvelle DOM ne soit visible -- c'est le bug du
-     "0.3s puis s'efface". */
+  /* Affiche le voile semi-transparent, attend SOFT_LOADER_PRE_DELAY_MS
+     pour que l'animation soit pleinement visible, execute le task, puis
+     cache le voile une fois la nouvelle DOM peinte.
+
+     Sequence :
+       1. add classes + force reflow    -> voile visible immediatement
+       2. setTimeout(PRE_DELAY)         -> N frames du spinner peints
+       3. task()                        -> re-render synchrone (lourd)
+       4. double rAF + POST_DELAY       -> nouvelle DOM peinte
+       5. add 'hidden'                  -> fade-out CSS (250ms)
+       6. retire 'soft' apres fade      -> etat propre pour prochain affichage */
   function withSoftLoader(task) {
     var loader = document.getElementById('appLoader');
     if (!loader) { task(); return; }
     loader.classList.add('app-loader-soft');
     loader.classList.remove('app-loader-hidden');
-    /* Force le browser a appliquer le style avant le rAF (sinon il peut
-       les batcher avec le rAF callback et ne pas peindre le voile). */
+    /* Force le browser a appliquer le style avant le setTimeout (sinon il
+       peut differer le reflow jusqu'au prochain frame, ce qui retarde le
+       1er paint du voile). */
     void loader.offsetHeight;
 
-    var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-
-    requestAnimationFrame(function () {
-      requestAnimationFrame(function () {
-        /* A ce point, le voile a ete peint au moins une fois. */
-        try { task(); }
-        finally {
+    setTimeout(function () {
+      try { task(); }
+      finally {
+        /* Double rAF apres task : laisse le browser peindre la nouvelle
+           DOM avant de fermer le voile, sinon on voit un flash du tableau
+           a moitie peint pendant le fondu. */
+        requestAnimationFrame(function () {
           requestAnimationFrame(function () {
-            requestAnimationFrame(function () {
-              /* La nouvelle DOM a ete peinte. On peut maintenant cacher
-                 le voile sans flash de page incomplete. */
-              var now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-              var elapsed = now - t0;
-              var wait = Math.max(0, SOFT_LOADER_MIN_MS - elapsed);
+            setTimeout(function () {
+              loader.classList.add('app-loader-hidden');
               setTimeout(function () {
-                loader.classList.add('app-loader-hidden');
-                /* Retire le modificateur 'soft' apres la transition CSS
-                   (250ms) pour que le prochain affichage parte d'un etat
-                   propre. */
-                setTimeout(function () { loader.classList.remove('app-loader-soft'); }, 280);
-              }, wait);
-            });
+                loader.classList.remove('app-loader-soft');
+              }, 280);
+            }, SOFT_LOADER_POST_DELAY_MS);
           });
-        }
-      });
-    });
+        });
+      }
+    }, SOFT_LOADER_PRE_DELAY_MS);
   }
 
   /* ---- Config selection ---- */
@@ -786,6 +784,10 @@
      ============================================================ */
 
   function buildMolRowHTML(r) {
+    /* Colonne Original desactivee (decision UI 2026-05-06). Pour la
+       reactiver : decommenter origCell + son <td> + restaurer le colspan
+       a 5 dans buildDetailRowHTML + decommenter le <th> dans view.html. */
+    /*
     var m = r.mol;
     var origCell;
     if (m.original) {
@@ -795,6 +797,7 @@
     } else {
       origCell = '<span class="na">-</span>';
     }
+    */
     var solCell = r.numSol === 0
       ? '<span class="no-sol-tag">0</span>'
       : r.numSol + ' solution' + (r.numSol > 1 ? 's' : '');
@@ -813,7 +816,7 @@
     var noSolCls = r.numSol === 0 ? ' no-sol-row' : '';
     return '<tr class="mol-row' + noSolCls + '" data-mol="' + r.name + '" onclick="toggleDetails(\'' + r.name + '\')">' +
       '<td class="mol-name"><span class="expand-icon">&#9654;</span> ' + r.name + '</td>' +
-      '<td>' + origCell + '</td>' +
+      /* '<td>' + origCell + '</td>' +  -- colonne Original desactivee */
       '<td>' + solCell + '</td>' +
       '<td>' + planCell + '</td>' +
       '<td>' + angleCell + '</td>' +
@@ -824,13 +827,16 @@
     var detailHTML = renderSolutionDetail(sol, hrefBase);
     var rowInner;
     if (detailHTML !== null) {
-      rowInner = '<td colspan="5" class="solution-multirun">' + detailHTML + '</td>';
+      /* colspan=4 : Mol / Sol / Verdict / Angle. Si on reactive Original,
+         repasser a 5. */
+      rowInner = '<td colspan="4" class="solution-multirun">' + detailHTML + '</td>';
     } else {
-      /* Single-run (retrocompat, aucun bloc enrichi). */
+      /* Single-run (retrocompat). 4 cellules (un <td></td> d'alignement
+         sous Molecule, puis sizes/badge/angle). */
       var scls = sol.planar ? 'planar' : 'non-planar';
       var stxt = sol.planar ? 'PLAN' : 'NON PLAN';
       var href = hrefBase + '/' + sol.file;
-      rowInner = '<td></td><td></td>' +
+      rowInner = '<td></td>' +
         '<td class="sizes"><a href="' + href + '" target="_blank">' + (sol.sizes || sol.file) + '</a></td>' +
         '<td><span class="' + scls + '">' + stxt + '</span></td>' +
         '<td>' + sol.angle_deg + '&deg;</td>';
@@ -1125,8 +1131,12 @@
       var f = b.dataset.filter;
       if (f && f.indexOf(group + '-') === 0) b.classList.toggle('active', f === group + '-' + value);
     });
-    if (state.compareMode) withSoftLoader(function () { renderComparison(); });
-    else applyFiltersToDOM();
+    /* Voile soft systematique : feedback visuel meme si applyFiltersToDOM
+       est rapide. SOFT_LOADER_PRE_DELAY_MS donne le tempo de l'animation. */
+    var task = state.compareMode
+      ? function () { renderComparison(); }
+      : applyFiltersToDOM;
+    withSoftLoader(task);
   }
 
   function setCompareFilter(value) {
@@ -1145,8 +1155,10 @@
     document.querySelectorAll('[data-filter-strict]').forEach(function (b) {
       b.classList.toggle('active', state.filterSolStrict);
     });
-    if (state.compareMode) withSoftLoader(function () { renderComparison(); });
-    else applyFiltersToDOM();
+    var task = state.compareMode
+      ? function () { renderComparison(); }
+      : applyFiltersToDOM;
+    withSoftLoader(task);
   }
 
   /* Predicat : faut-il afficher cette solution dans la liste depliee ?
@@ -1169,39 +1181,43 @@
     return true;
   }
 
-  /* Lit le contenu de l'input recherche puis met a jour le DOM. La
-     recherche est debouncee (SEARCH_DEBOUNCE_MS) car appelee a chaque
-     keystroke -- sans debounce, parcourir 50k <tr> a chaque touche est
-     visible. Les autres handlers (boutons filtres) NE passent PAS par
-     applyFilters : ils appellent setFilter qui touche directement
-     applyFiltersToDOM (immediat, pas de debounce souhaite la). */
+  /* Recherche debouncee : on attend SEARCH_DEBOUNCE_MS apres la derniere
+     frappe avant de declencher le voile + applyFiltersToDOM. Sequence :
+       1. utilisateur frappe -> on enregistre la nouvelle query, on
+          (re)arme un timer 200ms et on retourne immediatement.
+       2. nouvelle frappe avant 200ms -> on annule le timer precedent et
+          on en repart (debounce strict).
+       3. silence 200ms -> le timer se declenche, on lance withSoftLoader
+          qui affiche le voile pendant SOFT_LOADER_PRE_DELAY_MS puis
+          execute le filtrage.
+     Resultat : feedback visuel coherent avec les boutons filtres, mais
+     sans clignotement a chaque touche. */
   function applyFilters() {
     var inputId = state.compareMode ? 'compareSearchInput' : 'searchInput';
     var newQuery = document.getElementById(inputId).value;
     var queryChanged = newQuery !== state.searchQuery;
     state.searchQuery = newQuery;
 
-    /* Annule un debounce en cours (frappe rapide -> on garde le dernier). */
+    /* Annule un debounce en cours -- frappe rapide => on ne garde que la
+       derniere intention. */
     if (state.searchDebounceTimer) {
       clearTimeout(state.searchDebounceTimer);
       state.searchDebounceTimer = null;
     }
 
-    var run = state.compareMode
+    var task = state.compareMode
       ? function () { renderComparison(); }
       : applyFiltersToDOM;
 
     if (queryChanged) {
       state.searchDebounceTimer = setTimeout(function () {
         state.searchDebounceTimer = null;
-        if (state.compareMode) withSoftLoader(run);
-        else run();
+        withSoftLoader(task);
       }, SEARCH_DEBOUNCE_MS);
     } else {
-      /* Pas de changement detecte (ex: input.value relu sans avoir change) :
-         on applique immediatement. */
-      if (state.compareMode) withSoftLoader(run);
-      else run();
+      /* Pas de changement (ex: input relu sans modification) : applique
+         immediatement avec voile, pour rester coherent UX. */
+      withSoftLoader(task);
     }
   }
 
@@ -1306,15 +1322,18 @@
     function thClass(col) {
       return 'sortable' + (state.sortCol === col ? (state.sortAsc ? ' sort-asc' : ' sort-desc') : '');
     }
+    /* Colonne "Orig." desactivee dans le panel-table (cohorent avec la
+       vue normale). Pour reactiver : decommenter le <th> + restaurer la
+       cellule origCell dans la mol-row + repasser colspan a 4. */
     html += '<table class="panel-table"><thead><tr>' +
       '<th class="' + thClass('name')      + '" data-sort="name"      onclick="sortTable(\'name\')">Molecule</th>' +
-      '<th class="' + thClass('original')  + '" data-sort="original"  onclick="sortTable(\'original\')">Orig.</th>' +
+      /* '<th class="' + thClass('original')  + '" data-sort="original"  onclick="sortTable(\'original\')">Orig.</th>' + */
       '<th class="' + thClass('solutions') + '" data-sort="solutions" onclick="sortTable(\'solutions\')">Sol.</th>' +
       '<th class="' + thClass('angle')     + '" data-sort="angle"     onclick="sortTable(\'angle\')">Angle</th>' +
       '</tr></thead><tbody>';
 
     if (rows.length === 0) {
-      html += '<tr class="na-row"><td colspan="4">Aucune molecule</td></tr>';
+      html += '<tr class="na-row"><td colspan="3">Aucune molecule</td></tr>';
     }
 
     rows.forEach(function (r) {
@@ -1323,6 +1342,9 @@
       var expCls = state.expandedMols[r.name] ? ' expanded' : '';
       var diffBadge = diffMols[r.name] ? '<span class="diff-badge">diff</span>' : '';
 
+      /* Cellule Original desactivee. Code conserve commente pour
+         reactivation eventuelle. */
+      /*
       var origCell;
       if (m.original) {
         var cls = m.original.planar ? 'planar' : 'non-planar';
@@ -1331,6 +1353,7 @@
       } else {
         origCell = '<span class="na">-</span>';
       }
+      */
 
       var solCell;
       if (r.numSol === 0) {
@@ -1348,7 +1371,7 @@
 
       html += '<tr class="mol-row' + expCls + diffCls + noSolCls + '" data-mol="' + r.name + '" onclick="toggleDetails(\'' + r.name + '\')">' +
         '<td class="mol-name"><span class="expand-icon">&#9654;</span> ' + r.name + diffBadge + '</td>' +
-        '<td>' + origCell + '</td>' +
+        /* '<td>' + origCell + '</td>' +  -- desactive */
         '<td>' + solCell + '</td>' +
         '<td>' + angleCell + '</td>' +
         '</tr>';
@@ -1362,13 +1385,15 @@
         var detailHTML = renderSolutionDetail(s, hrefBase);
         var rowInner;
         if (detailHTML !== null) {
-          rowInner = '<td colspan="4" class="solution-multirun">' + detailHTML + '</td>';
+          /* colspan=3 (panel-table : Mol / Sol / Angle apres retrait
+             d'Orig.). Repasser a 4 si on reactive Original. */
+          rowInner = '<td colspan="3" class="solution-multirun">' + detailHTML + '</td>';
         } else {
           var scls = s.planar ? 'planar' : 'non-planar';
           var stxt = s.planar ? 'PLAN' : 'NON';
           var href = hrefBase + '/' + s.file;
           rowInner = '<td class="sizes"><a href="' + href + '" target="_blank">' + (s.sizes || s.file) + '</a></td>' +
-            '<td colspan="2"><span class="' + scls + '">' + stxt + '</span></td>' +
+            '<td><span class="' + scls + '">' + stxt + '</span></td>' +
             '<td>' + s.angle_deg + '&deg;</td>';
         }
         html += '<tr class="detail-row' + collapsedCls + '" data-parent="' + r.name + '">' +

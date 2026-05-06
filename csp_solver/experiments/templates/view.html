@@ -59,12 +59,18 @@ $config_buttons
   <div class="toolbar">
     <input type="text" class="search-input" id="searchInput"
            placeholder="Rechercher une molecule..." oninput="applyFilters()">
+    <!-- Filtre Originaux desactive (decision UI 2026-05-06). Le state JS
+         filterOrig reste 'all' par defaut donc inactif. Pour reactiver :
+         decommenter ce bloc + le <th> Original du tableau (plus bas) +
+         restaurer la cellule origCell dans buildMolRowHTML (view.js). -->
+    <!--
     <div class="filter-group">
       <span class="flabel">Originaux :</span>
       <button class="filter-btn active" data-filter="orig-all" onclick="setFilter('orig','all')">Tous</button>
       <button class="filter-btn" data-filter="orig-planar" onclick="setFilter('orig','planar')">Plans</button>
       <button class="filter-btn" data-filter="orig-nonplanar" onclick="setFilter('orig','nonplanar')">Non plans</button>
     </div>
+    -->
     <div class="filter-group">
       <span class="flabel">Solutions :</span>
       <button class="filter-btn active" data-filter="sol-all" onclick="setFilter('sol','all')">Toutes</button>
@@ -109,7 +115,11 @@ $config_buttons
     <thead>
       <tr>
         <th class="sortable sort-asc" data-sort="name" onclick="sortTable('name')">Molecule <span class="th-count" id="thCountMol"></span></th>
-        <th class="sortable" data-sort="original" onclick="sortTable('original')">Original</th>
+        <!-- Colonne Original desactivee (decision UI 2026-05-06). Pour la
+             reactiver : decommenter ce <th>, restaurer la cellule origCell
+             dans buildMolRowHTML / buildPanel (view.js), et passer le
+             colspan des detail-row a 5 (vue normale) / 4 (vue compare). -->
+        <!-- <th class="sortable" data-sort="original" onclick="sortTable('original')">Original</th> -->
         <th class="sortable" data-sort="solutions" onclick="sortTable('solutions')">Solutions <span class="th-count" id="thCountSol"></span></th>
         <th class="sortable" data-sort="planar" onclick="sortTable('planar')">Verdict</th>
         <th class="sortable" data-sort="angle" onclick="sortTable('angle')">Angle max</th>
@@ -125,12 +135,15 @@ $config_buttons
   <div class="toolbar">
     <input type="text" class="search-input" id="compareSearchInput"
            placeholder="Rechercher une molecule..." oninput="applyFilters()">
+    <!-- Filtre Originaux desactive (cf. note dans la toolbar normale). -->
+    <!--
     <div class="filter-group">
       <span class="flabel">Originaux :</span>
       <button class="filter-btn active" data-filter="orig-all" onclick="setFilter('orig','all')">Tous</button>
       <button class="filter-btn" data-filter="orig-planar" onclick="setFilter('orig','planar')">Plans</button>
       <button class="filter-btn" data-filter="orig-nonplanar" onclick="setFilter('orig','nonplanar')">Non plans</button>
     </div>
+    -->
     <div class="filter-group">
       <span class="flabel">Solutions :</span>
       <button class="filter-btn active" data-filter="sol-all" onclick="setFilter('sol','all')">Toutes</button>
