@@ -45,6 +45,21 @@ marquent dans le texte les contenus ajoutes a chaque etape.
     gelees. \texttt{utils/types.py} renomme \texttt{csp\_types.py} (fix shadowing
     stdlib). \textbf{Documentation modulaire} : ce document est splitte en
     \texttt{implementation\_csp/} (preamble + sections + bibliographie). \\
+  6 mai 2026 &
+    \textbf{Determinisme byte-pour-byte du test de planarite}. Deux sources de
+    non-determinisme corrigees : (1) iteration sur \texttt{set[str]} dans
+    \texttt{reconstruction/assembler.py} -- l'ordre des atomes variait entre
+    processus via \texttt{PYTHONHASHSEED}, donc xTB voyait des inputs
+    permutes ; fixe par \texttt{sorted()}. (2) xTB MD seede les vitesses
+    initiales sur l'horloge systeme (option \texttt{seed} ignoree dans le
+    bloc \texttt{\$md}), comportement chaotique sur structures tendues ;
+    abandon de la phase MD au profit d'une \textbf{perturbation z structuree
+    deterministe} \(z_i' = z_i + 0{,}05\sin(2\pi i / N + 0{,}5)\) suivie de
+    \texttt{xtb -{}-opt tight}. Avec \texttt{OMP\_NUM\_THREADS=1} +
+    \texttt{MKL\_NUM\_THREADS=1}, le pipeline est byte-deterministe : md5 identique
+    sur 5 runs (verifie sur 4 cas borderline h6). Trade-off accepte : on perd
+    l'exploration thermique mais on gagne la reproductibilite -- alignement
+    avec la demande des chimistes (pas d'analyse statistique). \\
   \bottomrule
 \end{tabular}
 \end{center}

@@ -5,6 +5,35 @@
 
 \dateblock{1\textsuperscript{er} mai 2026}
 
+\begin{attention}
+\textbf{Mise à jour du 6 mai 2026 — bascule vers un protocole déterministe.}
+La phase MD elle-même a révélé un non-déterminisme inacceptable : xTB seede
+les vitesses initiales sur l'horloge système (option \texttt{seed} dans le
+bloc \texttt{\$md} ignorée), donc deux runs identiques produisaient des
+trajectoires différentes — verdicts qui basculaient entre PLAN et NON PLAN
+sur structures tendues (cas h6 alternés 5/7).
+
+Décision arrêtée avec l'utilisateur : la priorité est la \textbf{reproductibilité
+byte-pour-byte} (même \texttt{(graph, sizes)} $\to$ même \texttt{md\_final\_opt.xyz}),
+quitte à perdre l'exploration thermique. La phase MD est remplacée par une
+\textbf{perturbation z structurée déterministe} suivie de \texttt{xtb -{}-opt} :
+\[
+  z'_i = z_i + 0{,}05 \cdot \sin\!\left(\frac{2\pi i}{N} + 0{,}5\right)
+\]
+où $i$ est l'index canonique de l'atome (garanti par \texttt{sorted(vertex\_set)}
+dans la reconstruction). Aucun RNG, aucune dépendance temporelle. Avec
+\texttt{OMP\_NUM\_THREADS=1} + \texttt{MKL\_NUM\_THREADS=1}, md5 identique
+sur N runs successifs. Vérifié sur 4 cas borderline h6 $\times$ 5 runs.
+
+L'API publique \texttt{md\_then\_optimize(...)} et les noms de fichiers
+de sortie (\texttt{md\_geom.xyz}, \texttt{md\_traj.xyz}, \texttt{md\_final\_opt.xyz})
+sont conservés pour rétro-compat. Le bloc \texttt{md.inp} émis mentionne
+désormais \texttt{method=det-opt} au lieu des anciens paramètres MD.
+
+Le reste de cette section décrit le protocole MD historique
+(avant 6 mai 2026), conservé pour traçabilité de la conception.
+\end{attention}
+
 \subsection{Motivation : protocole recommandé par les chimistes}
 
 Après réunion avec Yannick Carissan (LS2N) et discussion sur les cas marginaux du

@@ -478,6 +478,8 @@ python cluster/dispatcher.py start --mode ssh \
 
 ## Annexe — Commandes utiles à mémoriser
 
+### Activation et infos cluster
+
 ```bash
 # Activer l'environnement conda dans une nouvelle session
 eval "$(/home/COALA/ramaherisoa/miniforge3/bin/conda shell.bash hook)"
@@ -487,11 +489,35 @@ conda activate nonbenz
 cfree
 cw
 cwho
+```
 
+### Suivre l'avancement d'un run (dispatcher status)
+
+```bash
+# Remplacer hN par h6, h7, h8 ou h9
+python cluster/dispatcher.py status \
+  --output-root /home/COALA/ramaherisoa/projet/_hN_run/output \
+  --manifest /home/COALA/ramaherisoa/projet/_hN_run/manifest.jsonl \
+  --claims-dir /home/COALA/ramaherisoa/projet/_hN_run/claims \
+  --concurrency 4
+```
+
+À relancer toutes les ~20-60 s pour voir l'avancement (Done X/Y).
+
+### Diagnostiquer l'état des machines
+
+```bash
 # Lister les workers actifs sur les 16 machines
 for i in $(seq 49 64); do
   echo -n "coala-$i: "
   ssh -o BatchMode=yes lis-cluster-coala-$i 'pgrep -af worker.py | head -1'
+done
+
+# Vue plus large (worker + main.py + run_one_job + xtb)
+for i in $(seq 49 64); do
+  echo -n "coala-$i: "
+  ssh -o BatchMode=yes lis-cluster-coala-$i \
+    'pgrep -af "csp_solver|run_one_job|worker.py|xtb" | grep -v "bash -c" | head -1'
 done
 
 # Vérifier le scratch local des 16 machines
@@ -499,3 +525,59 @@ for i in $(seq 49 64); do
   ssh -o BatchMode=yes lis-cluster-coala-$i 'ls /tmp/coala_* 2>&1 | head -1'
 done
 ```
+
+### Arrêt d'urgence (stop tout sur les 16 machines)
+
+À utiliser quand on veut couper net un run pour pousser une nouvelle version
+du code. **Important :** tuer dans l'ordre worker → run_one_job → main.py →
+xtb. Les enfants peuvent survivre à un parent tué (ils deviennent orphelins
+de init), donc il faut explicitement tous les viser. Souvent une seule passe
+ne suffit pas car des nouveaux enfants peuvent spawner pendant le kill — on
+boucle 3 fois.
+
+```bash
+for n in 1 2 3; do
+  for i in $(seq 49 64); do
+    ssh -o BatchMode=yes -o ConnectTimeout=5 lis-cluster-coala-$i \
+      'pkill -9 -f "cluster/worker.py"; \
+       pkill -9 -f "run_one_job.py"; \
+       pkill -9 -f "csp_solver/main.py"; \
+       pkill -9 -f "csp_solver/test.py"; \
+       pkill -9 -f xtb' 2>/dev/null
+  done
+  sleep 5
+done
+
+# Cleanup scratch
+for i in $(seq 49 64); do
+  ssh -o BatchMode=yes lis-cluster-coala-$i 'rm -rf /tmp/coala_* 2>/dev/null'
+done
+```
+
+### Push incrémental d'une poignée de fichiers (depuis Git Bash)
+
+Pratique quand on a juste quelques fichiers modifiés à propager (vs un retransfert
+complet du projet).
+
+```bash
+cd "/e/Stage AMU CSP IMD M2/Generation des molecules pour la table de voisinage/second try with scipt and CSP"
+
+tar -czf - \
+  csp_solver/reconstruction/assembler.py \
+  csp_solver/experiments/cluster/worker.py \
+  # ... autres fichiers ...
+  | ssh 192.168.200.58 "tar -xzf - -C /home/COALA/ramaherisoa/projet"
+```
+
+### Choisir la concurrency
+
+Chaque machine a 20 cœurs physiques (Xeon Gold 5218R) et 192 Go RAM. Avec
+`OMP_NUM_THREADS=1`, 1 job xTB = 1 cœur.
+
+- `--concurrency 4` : utilisation conservatrice (~20 % CPU), bon pour debug.
+- `--concurrency 16` : recommandé en production. Marge OS, déterministe.
+- `--concurrency 20` : saturation des cœurs physiques. Maximum sain.
+- `--concurrency 40` : utilise le SMT/HT — **à éviter**, risque de divergence
+  bit-à-bit à cause de la pression cache hyperthreadée.
+
+Total slots = 16 machines × concurrency. À 20 → 320 slots simultanés.
