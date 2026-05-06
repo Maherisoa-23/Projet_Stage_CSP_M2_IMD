@@ -22,6 +22,12 @@
     sortAsc: true,
     filterOrig: 'all',     // 'all' | 'planar' | 'nonplanar'
     filterSol: 'all',
+    /* Mode strict : si true ET filterSol n'est pas 'all', le filtre s'applique
+       AUSSI aux solutions individuelles dans la liste depliee (pas seulement
+       a la selection des molecules). Une molecule "7 plans / 3 non plans"
+       reste visible quand on filtre 'planar' (comme avant), mais ses
+       detail-rows non-planes sont alors masquees. */
+    filterSolStrict: false,
     filterVerdict: 'all',  // 'all' | 'plane' | 'autres' | 'nonplane' (3 buckets unifies)
     searchQuery: '',
     /* expandedMols est partage entre la vue simple et la vue comparaison :
@@ -34,6 +40,10 @@
        par defaut quand les 2 sont disponibles. */
     activeMethod: 'multi-runs',
     availableMethods: [],  // ['multi-runs'] | ['md'] | ['multi-runs', 'md']
+    /* Flag : true apres le 1er render reussi. Tant que false, selectConfig
+       reste synchrone (le loader plein ecran couvre deja la page) ; au-dela,
+       il passe par le loader soft pour signaler le re-render. */
+    initDone: false,
   };
 
   /* Detecte les methodes disponibles globalement (presence d'au moins une
@@ -594,6 +604,62 @@
     + '</tbody></table></div></div>';
   }
 
+  /* Duree minimale d'affichage du voile (ms). En dessous, l'humain ne voit
+     qu'un flash et croit a un bug. Au-dela, le voile reste tant que le
+     re-render n'est pas peint, meme s'il prend plus longtemps. */
+  var SOFT_LOADER_MIN_MS = 350;
+
+  /* Affiche le loader en mode "soft" (voile transparent, on voit encore les
+     chiffres/cards changer en dessous), execute `task` apres avoir GARANTI
+     que le voile est peint, attend que la nouvelle DOM soit peinte, puis
+     cache le voile. Sequence :
+       1. add classes        -> loader visible (style applique)
+       2. force reflow       -> styles materialises immediatement
+       3. double rAF #1      -> au moins 1 paint complet : voile visible
+       4. task()             -> re-render synchrone (lourd)
+       5. double rAF #2      -> au moins 1 paint complet de la nouvelle DOM
+       6. respect du minimum -> attend si task() etait trop rapide
+       7. add 'hidden'       -> fade-out CSS
+     Sans 5 + 6, le navigateur peut "fusionner" les paints et masquer le
+     voile avant que la nouvelle DOM ne soit visible -- c'est le bug du
+     "0.3s puis s'efface". */
+  function withSoftLoader(task) {
+    var loader = document.getElementById('appLoader');
+    if (!loader) { task(); return; }
+    loader.classList.add('app-loader-soft');
+    loader.classList.remove('app-loader-hidden');
+    /* Force le browser a appliquer le style avant le rAF (sinon il peut
+       les batcher avec le rAF callback et ne pas peindre le voile). */
+    void loader.offsetHeight;
+
+    var t0 = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        /* A ce point, le voile a ete peint au moins une fois. */
+        try { task(); }
+        finally {
+          requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+              /* La nouvelle DOM a ete peinte. On peut maintenant cacher
+                 le voile sans flash de page incomplete. */
+              var now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+              var elapsed = now - t0;
+              var wait = Math.max(0, SOFT_LOADER_MIN_MS - elapsed);
+              setTimeout(function () {
+                loader.classList.add('app-loader-hidden');
+                /* Retire le modificateur 'soft' apres la transition CSS
+                   (250ms) pour que le prochain affichage parte d'un etat
+                   propre. */
+                setTimeout(function () { loader.classList.remove('app-loader-soft'); }, 280);
+              }, wait);
+            });
+          });
+        }
+      });
+    });
+  }
+
   /* ---- Config selection ---- */
   function selectConfig(name) {
     if (state.compareMode) {
@@ -603,14 +669,16 @@
       document.querySelectorAll('.cfg-btn').forEach(function (b) {
         b.classList.toggle('active', state.selectedConfigs.indexOf(b.dataset.cfg) >= 0);
       });
-      renderComparison();
+      if (state.initDone) withSoftLoader(function () { renderComparison(); });
+      else renderComparison();
     } else {
       state.currentConfig = name;
       state.selectedConfigs = [name];
       document.querySelectorAll('.cfg-btn').forEach(function (b) {
         b.classList.toggle('active', b.dataset.cfg === name);
       });
-      render(state.ALL_CONFIGS[name]);
+      if (state.initDone) withSoftLoader(function () { render(state.ALL_CONFIGS[name]); });
+      else render(state.ALL_CONFIGS[name]);
     }
   }
 
@@ -732,6 +800,21 @@
       '<div class="card red"><div class="value">' + nNonPlane + '</div><div class="label">\u26AB Non plans</div></div>';
     document.getElementById('cards').innerHTML = cardsHtml;
 
+    /* Compteurs dynamiques pour les <th> Molecule et Solutions :
+       - molecules : nombre de rows visibles apres filtrage (rows.length).
+       - solutions : nombre de solutions individuelles effectivement affichees,
+         qui depend du mode strict (cf. passesSolDetailFilter). */
+    var nSolDisplayed = 0;
+    rows.forEach(function (r) {
+      r.mol.solutions.forEach(function (s) {
+        if (passesSolDetailFilter(s)) nSolDisplayed++;
+      });
+    });
+    var thCountMol = document.getElementById('thCountMol');
+    if (thCountMol) thCountMol.textContent = '(' + rows.length + ')';
+    var thCountSol = document.getElementById('thCountSol');
+    if (thCountSol) thCountSol.textContent = '(' + nSolDisplayed + ')';
+
     var html = '';
     rows.forEach(function (r) {
       var m = r.mol;
@@ -774,6 +857,7 @@
 
       var hrefBase = cfg + '/' + r.name + '/solutions';
       m.solutions.forEach(function (s) {
+        if (!passesSolDetailFilter(s)) return;
         var disp = state.expandedMols[r.name] ? 'table-row' : 'none';
         var detailHTML = renderSolutionDetail(s, hrefBase);
         var rowInner;
@@ -859,6 +943,37 @@
       b.classList.toggle('active', b.dataset.filter === 'diff-' + value);
     });
     renderComparison();
+  }
+
+  /* Toggle "Strict" : modifie le comportement du filtre Solutions.
+     Sans effet seul -- doit etre combine avec un filtre Solutions != 'all'.
+     Toggle simple, etat synchronise sur les 2 toolbars (normal + compare). */
+  function setFilterStrict() {
+    state.filterSolStrict = !state.filterSolStrict;
+    document.querySelectorAll('[data-filter-strict]').forEach(function (b) {
+      b.classList.toggle('active', state.filterSolStrict);
+    });
+    applyFilters();
+  }
+
+  /* Predicat : faut-il afficher cette solution dans la liste depliee ?
+     Si strict OFF, toujours oui (les filtres n'agissent que sur les molecules,
+     comportement historique).
+     Si strict ON, on applique a la solution individuelle :
+       - le filtre Solutions (binaire sur sol.planar)
+       - ET le filtre Verdict (3 buckets MD-only via solutionBucket).
+     L'utilisateur attend que verdict=Non plans cache les solutions plans
+     dans la liste, pas seulement filtre les molecules : c'est le sens de
+     "Strict" dans cette UI. */
+  function passesSolDetailFilter(sol) {
+    if (!state.filterSolStrict) return true;
+    if (state.filterSol === 'planar'    && !sol.planar) return false;
+    if (state.filterSol === 'nonplanar' &&  sol.planar) return false;
+    if (state.filterVerdict !== 'all') {
+      var expected = FILTER_TO_BUCKET[state.filterVerdict];
+      if (solutionBucket(sol) !== expected) return false;
+    }
+    return true;
   }
 
   function applyFilters() {
@@ -1019,6 +1134,7 @@
       var disp = state.expandedMols[r.name] ? 'table-row' : 'none';
       var hrefBase = cfgName + '/' + r.name + '/solutions';
       m.solutions.forEach(function (s) {
+        if (!passesSolDetailFilter(s)) return;
         var detailHTML = renderSolutionDetail(s, hrefBase);
         var rowInner;
         if (detailHTML !== null) {
@@ -1069,6 +1185,7 @@
   window.toggleCompareMode = toggleCompareMode;
   window.sortTable         = sortTable;
   window.setFilter         = setFilter;
+  window.setFilterStrict   = setFilterStrict;
   window.setCompareFilter  = setCompareFilter;
   window.applyFilters      = applyFilters;
   window.expandAll         = expandAll;
@@ -1117,25 +1234,54 @@
     container.innerHTML = html;
   }
 
-  /* ---- Init ---- */
-  /* Detection des methodes disponibles dans les data.json embarques. */
-  state.availableMethods = detectAvailableMethods(state.ALL_CONFIGS);
-  /* Choix de la methode active par defaut : multi-runs si dispo, sinon md. */
-  if (state.availableMethods.length === 1) {
-    state.activeMethod = state.availableMethods[0];
-  } else if (state.availableMethods.length >= 2) {
-    state.activeMethod = 'both';  /* affiche tout par defaut quand on a les 2 */
-  }
-  renderMethodToggle();
-  /* Mini-tableau MD recap par config, en haut de page. */
-  renderMDSummaryTable();
+  /* ---- Init ----
+     L'init est differe via requestAnimationFrame + setTimeout(0) pour laisser
+     le navigateur peindre l'overlay de chargement AVANT d'attaquer le 1er
+     render() qui peut etre lourd (>= h8 : plusieurs milliers de lignes).
+     Sans ce yield, le loader serait masque par le travail synchrone JS et
+     l'utilisateur verrait une page blanche figee. */
+  function initApp() {
+    /* Detection des methodes disponibles dans les data.json embarques. */
+    state.availableMethods = detectAvailableMethods(state.ALL_CONFIGS);
+    /* Choix de la methode active par defaut : multi-runs si dispo, sinon md. */
+    if (state.availableMethods.length === 1) {
+      state.activeMethod = state.availableMethods[0];
+    } else if (state.availableMethods.length >= 2) {
+      state.activeMethod = 'both';  /* affiche tout par defaut quand on a les 2 */
+    }
+    renderMethodToggle();
+    /* Mini-tableau MD recap par config, en haut de page. */
+    renderMDSummaryTable();
 
-  /* Partition CSP : 1 calcul + 1 rendu, ne depend pas de la config courante. */
-  renderCSPPartitionSection();
-  /* Charge la premiere config par defaut (declenche render() pour cards + table). */
-  var firstConfig = Object.keys(state.ALL_CONFIGS).sort()[0];
-  if (firstConfig) selectConfig(firstConfig);
+    /* Partition CSP : 1 calcul + 1 rendu, ne depend pas de la config courante. */
+    renderCSPPartitionSection();
+    /* Charge la premiere config par defaut (declenche render() pour cards + table). */
+    var firstConfig = Object.keys(state.ALL_CONFIGS).sort()[0];
+    if (firstConfig) selectConfig(firstConfig);
+
+    /* Cache le loader. La transition CSS de 0.25s donne un fondu propre.
+       Marque l'init comme finie : a partir de la, selectConfig passe par
+       le loader soft. */
+    state.initDone = true;
+    var loader = document.getElementById('appLoader');
+    if (loader) loader.classList.add('app-loader-hidden');
+  }
 
   /* Expose les handlers onclick (le HTML les appelle inline) */
   window.setMethod = setMethod;
+
+  /* Schedule l'init apres le 1er paint. Double yield (rAF + setTimeout) :
+     rAF garantit qu'on est avant le prochain frame ; setTimeout(0) laisse le
+     navigateur faire ce frame (donc peindre le loader) avant qu'on bloque
+     le thread avec le rendu lourd. */
+  function scheduleInit() {
+    requestAnimationFrame(function () {
+      setTimeout(initApp, 0);
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', scheduleInit);
+  } else {
+    scheduleInit();
+  }
 })();

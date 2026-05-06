@@ -10,6 +10,18 @@ $view_css
 </head>
 <body>
 
+<!-- Overlay de chargement plein ecran : visible par defaut (CSS), cache par
+     view.js apres le 1er render. Pour les gros datasets (>= h8), la
+     construction du tableau peut prendre 1-3 secondes -- le loader evite
+     une page blanche figee pendant ce temps. -->
+<div id="appLoader" class="app-loader" role="status" aria-live="polite">
+  <div class="app-loader-box">
+    <div class="loader-spinner" aria-hidden="true"></div>
+    <p class="loader-text">Chargement des resultats&hellip;</p>
+    <p class="loader-sub">Construction du tableau, patientez quelques instants</p>
+  </div>
+</div>
+
 <header class="page-header">
   <h1>Resultats : $h_name</h1>
   <p class="meta">Mis a jour le $now &mdash; Seuil de planarite : $threshold_deg&deg;</p>
@@ -58,6 +70,9 @@ $config_buttons
       <button class="filter-btn active" data-filter="sol-all" onclick="setFilter('sol','all')">Toutes</button>
       <button class="filter-btn" data-filter="sol-planar" onclick="setFilter('sol','planar')">Planes</button>
       <button class="filter-btn" data-filter="sol-nonplanar" onclick="setFilter('sol','nonplanar')">Non planes</button>
+      <button class="filter-btn filter-strict" data-filter-strict
+              title="Strict : applique le filtre Solutions ET Verdict aussi aux solutions individuelles dans la liste depliee, pas seulement aux molecules."
+              onclick="setFilterStrict()">Strict</button>
     </div>
     <div class="filter-group" data-filter-group="verdict">
       <span class="flabel">Verdict :</span>
@@ -93,9 +108,9 @@ $config_buttons
     <table>
     <thead>
       <tr>
-        <th class="sortable sort-asc" data-sort="name" onclick="sortTable('name')">Molecule</th>
+        <th class="sortable sort-asc" data-sort="name" onclick="sortTable('name')">Molecule <span class="th-count" id="thCountMol"></span></th>
         <th class="sortable" data-sort="original" onclick="sortTable('original')">Original</th>
-        <th class="sortable" data-sort="solutions" onclick="sortTable('solutions')">Solutions</th>
+        <th class="sortable" data-sort="solutions" onclick="sortTable('solutions')">Solutions <span class="th-count" id="thCountSol"></span></th>
         <th class="sortable" data-sort="planar" onclick="sortTable('planar')">Verdict</th>
         <th class="sortable" data-sort="angle" onclick="sortTable('angle')">Angle max</th>
       </tr>
@@ -121,6 +136,9 @@ $config_buttons
       <button class="filter-btn active" data-filter="sol-all" onclick="setFilter('sol','all')">Toutes</button>
       <button class="filter-btn" data-filter="sol-planar" onclick="setFilter('sol','planar')">Planes</button>
       <button class="filter-btn" data-filter="sol-nonplanar" onclick="setFilter('sol','nonplanar')">Non planes</button>
+      <button class="filter-btn filter-strict" data-filter-strict
+              title="Strict : applique le filtre Solutions ET Verdict aussi aux solutions individuelles dans la liste depliee, pas seulement aux molecules."
+              onclick="setFilterStrict()">Strict</button>
     </div>
     <div class="filter-group" data-filter-group="verdict">
       <span class="flabel">Verdict :</span>

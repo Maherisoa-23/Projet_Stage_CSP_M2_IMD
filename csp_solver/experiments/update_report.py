@@ -11,11 +11,17 @@ Python pur puis sont injectes dans le template.
 
 import json
 import math
+import re
 from pathlib import Path
 from datetime import datetime
 from string import Template
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
+
+# Ne garder que les dossiers nommes "h<chiffres>" (h3, h7, ...). Les autres
+# (ex: "to compare h6", "h" sans suffixe) ont parfois des data.json mais ne
+# sont pas des tailles de benzenoide -- les inclure casse le tri par int(x[1:]).
+_H_NAME_RE = re.compile(r"^h\d+$")
 
 
 # =====================================================================
@@ -29,12 +35,16 @@ def load_all_data(output_dir):
     for data_file in sorted(output_dir.glob("*/*/data.json")):
         config_name = data_file.parent.name
         h_name = data_file.parent.parent.name
+        if not _H_NAME_RE.match(h_name):
+            continue
         if h_name not in results or config_name == "default":
             with open(data_file, "r", encoding="utf-8") as f:
                 results[h_name] = json.load(f)
     # Pass 2 : ancien format (output/hX/data.json direct)
     for data_file in sorted(output_dir.glob("*/data.json")):
         h_name = data_file.parent.name
+        if not _H_NAME_RE.match(h_name):
+            continue
         if h_name not in results:
             with open(data_file, "r", encoding="utf-8") as f:
                 results[h_name] = json.load(f)
@@ -307,6 +317,8 @@ def _walk_all_solutions(all_data):
     for data_file in sorted(output_dir.glob("*/*/data.json")):
         cfg_name = data_file.parent.name
         h_name = data_file.parent.parent.name
+        if not _H_NAME_RE.match(h_name):
+            continue
         try:
             with open(data_file, "r", encoding="utf-8") as f:
                 d = json.load(f)
