@@ -157,6 +157,17 @@ def aggregate_solution_md(sol_dir):
     md_inp = md_dir / "md.inp"
     params = read_md_params(md_inp)
 
+    # Metadata du run (retries, frames, attempts) -- ecrit par _run_md dans
+    # pipeline.py. Si absent (ancien run, ou agregation manuelle d'un dossier
+    # importe), on degrade silencieusement : block ne contient pas ces cles.
+    md_meta = {}
+    meta_path = md_dir / "md_meta.json"
+    if meta_path.exists():
+        try:
+            md_meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            md_meta = {}
+
     # Chemins relatifs au dossier mol/solutions/<sol_X>
     block = {
         "method": "md",
@@ -165,6 +176,13 @@ def aggregate_solution_md(sol_dir):
         "trajectory_file": "md_validation/md_traj.xyz",
         "final_opt_file": "md_validation/md_final_opt.xyz",
     }
+    # Surface des champs de meta utiles pour l'analyse (presents seulement si
+    # md_meta.json existe). Garder les noms en cle plate, pas un sous-dict, pour
+    # rester compatible avec le viewer qui peut les afficher en survol.
+    for key in ("n_attempts", "attempts", "n_frames", "expected_frames",
+                "ejection_threshold", "converged", "deterministic"):
+        if key in md_meta and md_meta[key] is not None:
+            block[key] = md_meta[key]
     return sizes, block
 
 

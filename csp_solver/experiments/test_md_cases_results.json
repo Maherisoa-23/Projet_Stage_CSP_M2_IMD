@@ -1,0 +1,346 @@
+[
+  {
+    "case": {
+      "h": "h6",
+      "mol": "0-7-8-14-15-16",
+      "sizes": {
+        "0": 7,
+        "1": 5,
+        "2": 5,
+        "3": 7,
+        "4": 5,
+        "5": 7
+      }
+    },
+    "runs": [
+      {
+        "run_id": 1,
+        "success": true,
+        "n_attempts": 1,
+        "attempts": [],
+        "method": "det-opt",
+        "converged": true,
+        "message": "OK (converge)",
+        "md5_final": "a71dc7a59f3519952ca3329004096c4b",
+        "md5_perturbed": "ad2db583d78448dee897abbfcc26c392",
+        "planar": true,
+        "angle_deg": 0.03836037107482433,
+        "rmsd": 0.0009417906118422777
+      },
+      {
+        "run_id": 2,
+        "success": true,
+        "n_attempts": 1,
+        "attempts": [],
+        "method": "det-opt",
+        "converged": true,
+        "message": "OK (converge)",
+        "md5_final": "a71dc7a59f3519952ca3329004096c4b",
+        "md5_perturbed": "ad2db583d78448dee897abbfcc26c392",
+        "planar": true,
+        "angle_deg": 0.03836037107482433,
+        "rmsd": 0.0009417906118422777
+      },
+      {
+        "run_id": 3,
+        "success": true,
+        "n_attempts": 1,
+        "attempts": [],
+        "method": "det-opt",
+        "converged": true,
+        "message": "OK (converge)",
+        "md5_final": "a71dc7a59f3519952ca3329004096c4b",
+        "md5_perturbed": "ad2db583d78448dee897abbfcc26c392",
+        "planar": true,
+        "angle_deg": 0.03836037107482433,
+        "rmsd": 0.0009417906118422777
+      },
+      {
+        "run_id": 4,
+        "success": true,
+        "n_attempts": 1,
+        "attempts": [],
+        "method": "det-opt",
+        "converged": true,
+        "message": "OK (converge)",
+        "md5_final": "a71dc7a59f3519952ca3329004096c4b",
+        "md5_perturbed": "ad2db583d78448dee897abbfcc26c392",
+        "planar": true,
+        "angle_deg": 0.03836037107482433,
+        "rmsd": 0.0009417906118422777
+      },
+      {
+        "run_id": 5,
+        "success": true,
+        "n_attempts": 1,
+        "attempts": [],
+        "method": "det-opt",
+        "converged": true,
+        "message": "OK (converge)",
+        "md5_final": "a71dc7a59f3519952ca3329004096c4b",
+        "md5_perturbed": "ad2db583d78448dee897abbfcc26c392",
+        "planar": true,
+        "angle_deg": 0.03836037107482433,
+        "rmsd": 0.0009417906118422777
+      }
+    ]
+  },
+  {
+    "case": {
+      "h": "h6",
+      "mol": "2-7-8-9-10-16",
+      "sizes": {
+        "0": 6,
+        "1": 6,
+        "2": 7,
+        "3": 5,
+        "4": 5,
+        "5": 7
+      }
+    },
+    "runs": [
+      {
+        "run_id": 1,
+        "success": true,
+        "n_attempts": 1,
+        "attempts": [],
+        "method": "det-opt",
+        "converged": true,
+        "message": "OK (converge)",
+        "md5_final": "248c1bf7caedbf434aed6a9385c9f0c9",
+        "md5_perturbed": "1c59f001ed445dee1242010493de7609",
+        "planar": true,
+        "angle_deg": 0.16631752750449777,
+        "rmsd": 0.0037133593012531516
+      },
+      {
+        "run_id": 2,
+        "success": true,
+        "n_attempts": 1,
+        "attempts": [],
+        "method": "det-opt",
+        "converged": true,
+        "message": "OK (converge)",
+        "md5_final": "248c1bf7caedbf434aed6a9385c9f0c9",
+        "md5_perturbed": "1c59f001ed445dee1242010493de7609",
+        "planar": true,
+        "angle_deg": 0.16631752750449777,
+        "rmsd": 0.0037133593012531516
+      },
+      {
+        "run_id": 3,
+        "success": true,
+        "n_attempts": 1,
+        "attempts": [],
+        "method": "det-opt",
+        "converged": true,
+        "message": "OK (converge)",
+        "md5_final": "248c1bf7caedbf434aed6a9385c9f0c9",
+        "md5_perturbed": "1c59f001ed445dee1242010493de7609",
+        "planar": true,
+        "angle_deg": 0.16631752750449777,
+        "rmsd": 0.0037133593012531516
+      },
+      {
+        "run_id": 4,
+        "success": true,
+        "n_attempts": 1,
+        "attempts": [],
+        "method": "det-opt",
+        "converged": true,
+        "message": "OK (converge)",
+        "md5_final": "248c1bf7caedbf434aed6a9385c9f0c9",
+        "md5_perturbed": "1c59f001ed445dee1242010493de7609",
+        "planar": true,
+        "angle_deg": 0.16631752750449777,
+        "rmsd": 0.0037133593012531516
+      },
+      {
+        "run_id": 5,
+        "success": true,
+        "n_attempts": 1,
+        "attempts": [],
+        "method": "det-opt",
+        "converged": true,
+        "message": "OK (converge)",
+        "md5_final": "248c1bf7caedbf434aed6a9385c9f0c9",
+        "md5_perturbed": "1c59f001ed445dee1242010493de7609",
+        "planar": true,
+        "angle_deg": 0.16631752750449777,
+        "rmsd": 0.0037133593012531516
+      }
+    ]
+  },
+  {
+    "case": {
+      "h": "h6",
+      "mol": "2-7-8-9-15-16",
+      "sizes": {
+        "0": 7,
+        "1": 5,
+        "2": 5,
+        "3": 7,
+        "4": 7,
+        "5": 5
+      }
+    },
+    "runs": [
+      {
+        "run_id": 1,
+        "success": true,
+        "n_attempts": 1,
+        "attempts": [],
+        "method": "det-opt",
+        "converged": true,
+        "message": "OK (converge)",
+        "md5_final": "e2b643b17b15435075447b8906d49976",
+        "md5_perturbed": "1e8e3c7ea4d1c17520d47c435b3c8d6d",
+        "planar": true,
+        "angle_deg": 0.3835905865294312,
+        "rmsd": 0.007758311179787888
+      },
+      {
+        "run_id": 2,
+        "success": true,
+        "n_attempts": 1,
+        "attempts": [],
+        "method": "det-opt",
+        "converged": true,
+        "message": "OK (converge)",
+        "md5_final": "e2b643b17b15435075447b8906d49976",
+        "md5_perturbed": "1e8e3c7ea4d1c17520d47c435b3c8d6d",
+        "planar": true,
+        "angle_deg": 0.3835905865294312,
+        "rmsd": 0.007758311179787888
+      },
+      {
+        "run_id": 3,
+        "success": true,
+        "n_attempts": 1,
+        "attempts": [],
+        "method": "det-opt",
+        "converged": true,
+        "message": "OK (converge)",
+        "md5_final": "e2b643b17b15435075447b8906d49976",
+        "md5_perturbed": "1e8e3c7ea4d1c17520d47c435b3c8d6d",
+        "planar": true,
+        "angle_deg": 0.3835905865294312,
+        "rmsd": 0.007758311179787888
+      },
+      {
+        "run_id": 4,
+        "success": true,
+        "n_attempts": 1,
+        "attempts": [],
+        "method": "det-opt",
+        "converged": true,
+        "message": "OK (converge)",
+        "md5_final": "e2b643b17b15435075447b8906d49976",
+        "md5_perturbed": "1e8e3c7ea4d1c17520d47c435b3c8d6d",
+        "planar": true,
+        "angle_deg": 0.3835905865294312,
+        "rmsd": 0.007758311179787888
+      },
+      {
+        "run_id": 5,
+        "success": true,
+        "n_attempts": 1,
+        "attempts": [],
+        "method": "det-opt",
+        "converged": true,
+        "message": "OK (converge)",
+        "md5_final": "e2b643b17b15435075447b8906d49976",
+        "md5_perturbed": "1e8e3c7ea4d1c17520d47c435b3c8d6d",
+        "planar": true,
+        "angle_deg": 0.3835905865294312,
+        "rmsd": 0.007758311179787888
+      }
+    ]
+  },
+  {
+    "case": {
+      "h": "h6",
+      "mol": "2-8-9-14-15-16",
+      "sizes": {
+        "0": 5,
+        "1": 7,
+        "2": 6,
+        "3": 6,
+        "4": 6,
+        "5": 6
+      }
+    },
+    "runs": [
+      {
+        "run_id": 1,
+        "success": true,
+        "n_attempts": 1,
+        "attempts": [],
+        "method": "det-opt",
+        "converged": true,
+        "message": "OK (converge)",
+        "md5_final": "9abac86e75908ebb0dc803b06909fe0b",
+        "md5_perturbed": "8de4ddda01147cfde3af04fe4e1c6859",
+        "planar": true,
+        "angle_deg": 0.20612336324644978,
+        "rmsd": 0.004347868424268364
+      },
+      {
+        "run_id": 2,
+        "success": true,
+        "n_attempts": 1,
+        "attempts": [],
+        "method": "det-opt",
+        "converged": true,
+        "message": "OK (converge)",
+        "md5_final": "9abac86e75908ebb0dc803b06909fe0b",
+        "md5_perturbed": "8de4ddda01147cfde3af04fe4e1c6859",
+        "planar": true,
+        "angle_deg": 0.20612336324644978,
+        "rmsd": 0.004347868424268364
+      },
+      {
+        "run_id": 3,
+        "success": true,
+        "n_attempts": 1,
+        "attempts": [],
+        "method": "det-opt",
+        "converged": true,
+        "message": "OK (converge)",
+        "md5_final": "9abac86e75908ebb0dc803b06909fe0b",
+        "md5_perturbed": "8de4ddda01147cfde3af04fe4e1c6859",
+        "planar": true,
+        "angle_deg": 0.20612336324644978,
+        "rmsd": 0.004347868424268364
+      },
+      {
+        "run_id": 4,
+        "success": true,
+        "n_attempts": 1,
+        "attempts": [],
+        "method": "det-opt",
+        "converged": true,
+        "message": "OK (converge)",
+        "md5_final": "9abac86e75908ebb0dc803b06909fe0b",
+        "md5_perturbed": "8de4ddda01147cfde3af04fe4e1c6859",
+        "planar": true,
+        "angle_deg": 0.20612336324644978,
+        "rmsd": 0.004347868424268364
+      },
+      {
+        "run_id": 5,
+        "success": true,
+        "n_attempts": 1,
+        "attempts": [],
+        "method": "det-opt",
+        "converged": true,
+        "message": "OK (converge)",
+        "md5_final": "9abac86e75908ebb0dc803b06909fe0b",
+        "md5_perturbed": "8de4ddda01147cfde3af04fe4e1c6859",
+        "planar": true,
+        "angle_deg": 0.20612336324644978,
+        "rmsd": 0.004347868424268364
+      }
+    ]
+  }
+]

@@ -170,8 +170,35 @@ def _run_md(graph, sol, i, threshold, opt_level, output_dir, sol_str,
         params=md_params, opt_level=opt_level,
         deterministic=deterministic,
     )
+    # Persistance des metadonnees du run MD (retries, frames, etc.) dans
+    # md_validation/md_meta.json. aggregate_md.py les relit pour les
+    # surfacer dans data.json (cles 'n_attempts', 'attempts', 'n_frames').
+    # Sans ce fichier, ces infos seraient perdues entre _run_md et l'agregateur.
+    import json as _json
+    md_dir.mkdir(parents=True, exist_ok=True)
+    meta_path = md_dir / "md_meta.json"
+    try:
+        meta = {
+            "success": bool(success),
+            "n_attempts": info.get("n_attempts"),
+            "attempts": info.get("attempts", []),
+            "n_frames": info.get("n_frames"),
+            "expected_frames": info.get("expected_frames"),
+            "ejection_threshold": info.get("ejection_threshold"),
+            "converged": info.get("converged"),
+            "deterministic": info.get("deterministic"),
+            "message": info.get("message", ""),
+        }
+        meta_path.write_text(_json.dumps(meta, indent=2, ensure_ascii=False),
+                             encoding="utf-8")
+    except OSError:
+        pass
+
     if not success:
-        print(f"  ECHEC MD : {info.get('message', '?')}")
+        n_att = info.get("n_attempts", "?")
+        print(f"  ECHEC MD apres {n_att} tentatives : {info.get('message', '?')}")
+        for err in info.get("attempts", [])[-3:]:
+            print(f"    - {err}")
         return {
             "index": i, "solution": sol,
             "planar": False, "angle_deg": 0.0,
@@ -184,7 +211,9 @@ def _run_md(graph, sol, i, threshold, opt_level, output_dir, sol_str,
     plan = test_planarity_from_xyz(str(final_xyz), threshold)
 
     status = "PLAN" if plan["planar"] else f"NON PLAN ({plan['angle_deg']:.1f} deg)"
-    print(f"  MD + opt : {status} {'(converge)' if info['converged'] else '(non converge)'}")
+    n_att = info.get("n_attempts", 1)
+    retry_note = f" [{n_att} tentatives]" if n_att and n_att > 1 else ""
+    print(f"  MD + opt : {status} {'(converge)' if info['converged'] else '(non converge)'}{retry_note}")
 
     return {
         "index": i,

@@ -113,6 +113,31 @@ single-thread pour empecher les sur-souscriptions de coeurs) :
   initiales des atomes variaient entre lancements et xTB MD divergeait
   jusqu'a 11.5° d'angle ACP).
 
+## Methode de validation (det-opt depuis mai 2026)
+
+Le protocole de validation interne (`optimizer_md.md_then_optimize`) a ete
+refondu en methode **deterministe** :
+
+1. Perturbation analytique structuree des coordonnees z :
+   `z_i' = z_i + amplitude * sin(2*pi*i/N + phase)` (defauts amplitude=0.05,
+   phase=0.5). Zero RNG, fonction pure de l'index d'atome.
+2. `xtb --opt tight` sur la geometrie perturbee.
+3. Test ACP sur `xtbopt.xyz`.
+
+L'ancien protocole `xtb --md` etait non-deterministe (xTB seede les vitesses
+sur l'horloge), produisait des verdicts planar/non-planar instables sur les
+structures tendues. Le nouveau garantit `md5(md_final_opt.xyz)` constant
+pour le meme input.
+
+API et chaine d'appel cluster **inchangees** : `run_one_job.py`,
+`worker.py`, `finalize.py` n'ont pas a etre modifies. Les fichiers de sortie
+gardent les memes noms (`md.inp`, `md_geom.xyz`, `md_traj.xyz`,
+`md_final_opt.xyz`). Le champ `method` dans `data.json` passe a `"det-opt"`.
+
+**Tous les outputs cluster precedents (h3-h6) sont a jeter** : ils ont ete
+produits avec le protocole MD non-deterministe. Wipe `output/h*/` et
+relancer.
+
 Sur Precision 7920 (20 coeurs physiques + 20 SMT) :
 - `--concurrency 20` recommande (1 job xTB par coeur physique)
 - 16 machines x 20 = **320 jobs xTB en parallele** sur le cluster
