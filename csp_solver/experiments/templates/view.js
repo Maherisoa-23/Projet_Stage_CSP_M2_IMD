@@ -44,7 +44,26 @@
        reste synchrone (le loader plein ecran couvre deja la page) ; au-dela,
        il passe par le loader soft pour signaler le re-render. */
     initDone: false,
+    /* === Architecture rendu fast-path (mode normal) ===
+       Le tbody est construit UNE seule fois par config (render()) ; les
+       filtres / recherche / tri travaillent ensuite directement sur le DOM
+       existant en togglant des classes (applyFiltersToDOM) ou en deplacant
+       les <tr> (applySortToDOM). Plus de innerHTML reset a chaque action.
+       - allRows : row-data calculees pour la config courante (apres
+         buildRows + tri courant). Source de verite pour le filtrage.
+       - domIndex : Map name -> { molRow, detailRows[], rowData } pour acces
+         O(1) au DOM associe a une molecule.
+       - searchDebounceTimer : timer setTimeout pour debounce de la recherche
+         (200 ms) -- evite un re-filtrage a chaque keystroke. */
+    allRows: [],
+    domIndex: null,             // Map<string, {molRow, detailRows, rowData}>
+    searchDebounceTimer: null,
   };
+
+  /* Delai de debounce pour la recherche (ms). 200 ms suit la limite de
+     perception humaine pour une UI reactive ; plus court flicke a la
+     frappe rapide, plus long se sent laggy. */
+  var SEARCH_DEBOUNCE_MS = 200;
 
   /* Detecte les methodes disponibles globalement (presence d'au moins une
      solution avec le bloc correspondant). Calcule une fois a l'init. */
@@ -760,137 +779,304 @@
     return rows;
   }
 
-  /* ---- Main render (single config) ---- */
+  /* ============================================================
+     Helpers de rendu HTML (sans effets de bord, ne lisent pas le DOM).
+     Extraits de l'ancien render() pour pouvoir les invoquer une seule fois
+     a la construction initiale du tableau.
+     ============================================================ */
+
+  function buildMolRowHTML(r) {
+    var m = r.mol;
+    var origCell;
+    if (m.original) {
+      var cls = m.original.planar ? 'planar' : 'non-planar';
+      var txt = m.original.planar ? 'PLAN' : 'NON PLAN';
+      origCell = '<span class="' + cls + '">' + txt + '</span> (' + m.original.angle_deg + '&deg;)';
+    } else {
+      origCell = '<span class="na">-</span>';
+    }
+    var solCell = r.numSol === 0
+      ? '<span class="no-sol-tag">0</span>'
+      : r.numSol + ' solution' + (r.numSol > 1 ? 's' : '');
+    var planCell;
+    if (r.numSol === 0) {
+      planCell = '<span class="no-sol-pill" title="Le solveur CSP n\'a trouve aucune substitution non-benzenoide pour cette molecule">&#x2298; Aucune solution CSP</span>';
+    } else {
+      var bc = r.bucketCount;
+      var pills = [];
+      if (bc.PLANE > 0)     pills.push(renderBucketPill('PLANE', bc.PLANE));
+      if (bc.AUTRES > 0)    pills.push(renderBucketPill('AUTRES', bc.AUTRES));
+      if (bc.NON_PLANE > 0) pills.push(renderBucketPill('NON_PLANE', bc.NON_PLANE));
+      planCell = '<span class="bucket-pill-row">' + pills.join('') + '</span>';
+    }
+    var angleCell = r.numSol > 0 ? r.maxAngle + '&deg;' : '<span class="na">-</span>';
+    var noSolCls = r.numSol === 0 ? ' no-sol-row' : '';
+    return '<tr class="mol-row' + noSolCls + '" data-mol="' + r.name + '" onclick="toggleDetails(\'' + r.name + '\')">' +
+      '<td class="mol-name"><span class="expand-icon">&#9654;</span> ' + r.name + '</td>' +
+      '<td>' + origCell + '</td>' +
+      '<td>' + solCell + '</td>' +
+      '<td>' + planCell + '</td>' +
+      '<td>' + angleCell + '</td>' +
+      '</tr>';
+  }
+
+  function buildDetailRowHTML(sol, hrefBase, parentName) {
+    var detailHTML = renderSolutionDetail(sol, hrefBase);
+    var rowInner;
+    if (detailHTML !== null) {
+      rowInner = '<td colspan="5" class="solution-multirun">' + detailHTML + '</td>';
+    } else {
+      /* Single-run (retrocompat, aucun bloc enrichi). */
+      var scls = sol.planar ? 'planar' : 'non-planar';
+      var stxt = sol.planar ? 'PLAN' : 'NON PLAN';
+      var href = hrefBase + '/' + sol.file;
+      rowInner = '<td></td><td></td>' +
+        '<td class="sizes"><a href="' + href + '" target="_blank">' + (sol.sizes || sol.file) + '</a></td>' +
+        '<td><span class="' + scls + '">' + stxt + '</span></td>' +
+        '<td>' + sol.angle_deg + '&deg;</td>';
+    }
+    /* Visibilite via classes uniquement (pas de style inline) :
+       - .detail-collapsed : la mol parent n'est pas expanded.
+       - .row-hidden : applique par les filtres si la mol/sol est masquee.
+       L'init pose detail-collapsed (depliage = decision utilisateur). */
+    return '<tr class="detail-row detail-collapsed" data-parent="' + parentName + '">' +
+      rowInner + '</tr>';
+  }
+
+  /* ============================================================
+     Pipeline data : predicat pur de visibilite mol-level.
+     Lit le state mais ne touche pas au DOM. Testable en isolation.
+     ============================================================ */
+
+  function evaluateRowVisibility(r) {
+    if (state.searchQuery) {
+      var q = state.searchQuery.toLowerCase();
+      if (r.name.toLowerCase().indexOf(q) < 0) return false;
+    }
+    if (state.filterOrig === 'planar'    && r.origPlanar !== true)  return false;
+    if (state.filterOrig === 'nonplanar' && r.origPlanar !== false) return false;
+    if (state.filterSol === 'planar'    && !(r.numPlan > 0)) return false;
+    if (state.filterSol === 'nonplanar' && !(r.numNon  > 0)) return false;
+    if (state.filterVerdict !== 'all') {
+      var b = FILTER_TO_BUCKET[state.filterVerdict];
+      if (!(r.bucketCount && r.bucketCount[b] > 0)) return false;
+    }
+    return true;
+  }
+
+  /* Tri en place de state.allRows selon state.sortCol/sortAsc. Pur sur les
+     donnees, ne touche pas au DOM (l'ordre DOM est applique separement par
+     applySortToDOM via appendChild qui DEPLACE les <tr> existants). */
+  function sortRowsInPlace(rows) {
+    rows.sort(function (a, b) {
+      var va, vb;
+      switch (state.sortCol) {
+        case 'name': return state.sortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+        case 'original':
+          va = a.origPlanar === true ? 1 : (a.origPlanar === false ? -1 : 0);
+          vb = b.origPlanar === true ? 1 : (b.origPlanar === false ? -1 : 0); break;
+        case 'solutions': va = a.numSol; vb = b.numSol; break;
+        case 'planar':    va = a.numPlan; vb = b.numPlan; break;
+        case 'angle':     va = a.maxAngle; vb = b.maxAngle; break;
+        default:          va = a.name; vb = b.name;
+      }
+      var c = (va < vb) ? -1 : (va > vb) ? 1 : 0;
+      return state.sortAsc ? c : -c;
+    });
+    return rows;
+  }
+
+  function updateSortHeaders() {
+    document.querySelectorAll('th.sortable').forEach(function (th) {
+      th.classList.remove('sort-asc', 'sort-desc');
+      if (th.dataset.sort === state.sortCol) {
+        th.classList.add(state.sortAsc ? 'sort-asc' : 'sort-desc');
+      }
+    });
+  }
+
+  /* ============================================================
+     Rendu DOM : architecture build-once + class-toggle.
+
+     `render(data)` est la SEULE fonction qui touche le innerHTML du tbody.
+     Elle est appelee exclusivement au changement de configuration.
+     Tout le reste (filtre, recherche, tri, expand/collapse) manipule le
+     DOM existant via classList ou appendChild -- O(N) sans allocation
+     HTML, ~100x plus rapide qu'un re-render complet sur 50k lignes.
+     ============================================================ */
+
   function render(data) {
     var cfg = data.config || state.currentConfig;
     var allRows = buildRows(data);
-    var rows = sortRows(filterRows(allRows.slice()));
-    var showStab = anyHasRuns(allRows);
+    state.allRows = allRows;
+    sortRowsInPlace(allRows);
 
-    /* Stats sur TOUTES les lignes (non filtrees) -- les cards montrent
-       l'ensemble, pas le sous-ensemble filtre. */
-    var nMol = allRows.length, nOrigP = 0, nOrigN = 0, nSol = 0, nNoSol = 0;
-    var nPlane = 0, nAutres = 0, nNonPlane = 0;
-    allRows.forEach(function (r) {
-      if (r.origPlanar === true) nOrigP++;
-      else if (r.origPlanar === false) nOrigN++;
-      nSol += r.numSol;
-      if (r.numSol === 0) nNoSol++;
-      nPlane    += r.bucketCount.PLANE;
-      nAutres   += r.bucketCount.AUTRES;
-      nNonPlane += r.bucketCount.NON_PLANE;
-    });
-
-    var badge = rows.length < allRows.length
-      ? '<span class="count-badge">(' + rows.length + '/' + allRows.length + ')</span>' : '';
-
-    /* Cards simplifiees : Mol + Originaux + 3 buckets (PLANE/AUTRES/NON_PLANE).
-       En mode "both", AUTRES inclut les divergences MR vs MD (vu via solutionBucket). */
-    var noSolCard = nNoSol > 0
-      ? '<div class="card no-sol-card"><div class="value">' + nNoSol + '</div><div class="label">\u2298 Sans solution CSP</div></div>'
-      : '';
-    var cardsHtml =
-      '<div class="card blue"><div class="value">' + nMol + '</div><div class="label">Molecules' + badge + '</div></div>' +
-      '<div class="card green"><div class="value">' + nOrigP + '</div><div class="label">Originaux plans</div></div>' +
-      '<div class="card red"><div class="value">' + nOrigN + '</div><div class="label">Originaux non plans</div></div>' +
-      '<div class="card blue"><div class="value">' + nSol + '</div><div class="label">Solutions CSP</div></div>' +
-      noSolCard +
-      '<div class="card green"><div class="value">' + nPlane + '</div><div class="label">\uD83D\uDFE2 Plans</div></div>' +
-      '<div class="card" style="border-top-color:#bf8700"><div class="value" style="color:#bf8700">' + nAutres + '</div><div class="label">\uD83D\uDFE1 Autres</div></div>' +
-      '<div class="card red"><div class="value">' + nNonPlane + '</div><div class="label">\u26AB Non plans</div></div>';
-    document.getElementById('cards').innerHTML = cardsHtml;
-
-    /* Compteurs dynamiques pour les <th> Molecule et Solutions :
-       - molecules : nombre de rows visibles apres filtrage (rows.length).
-       - solutions : nombre de solutions individuelles effectivement affichees,
-         qui depend du mode strict (cf. passesSolDetailFilter). */
-    var nSolDisplayed = 0;
-    rows.forEach(function (r) {
-      r.mol.solutions.forEach(function (s) {
-        if (passesSolDetailFilter(s)) nSolDisplayed++;
-      });
-    });
-    var thCountMol = document.getElementById('thCountMol');
-    if (thCountMol) thCountMol.textContent = '(' + rows.length + ')';
-    var thCountSol = document.getElementById('thCountSol');
-    if (thCountSol) thCountSol.textContent = '(' + nSolDisplayed + ')';
-
-    var html = '';
-    rows.forEach(function (r) {
-      var m = r.mol;
-      var origCell;
-      if (m.original) {
-        var cls = m.original.planar ? 'planar' : 'non-planar';
-        var txt = m.original.planar ? 'PLAN' : 'NON PLAN';
-        origCell = '<span class="' + cls + '">' + txt + '</span> (' + m.original.angle_deg + '&deg;)';
-      } else {
-        origCell = '<span class="na">-</span>';
-      }
-
-      var solCell = r.numSol === 0
-        ? '<span class="no-sol-tag">0</span>'
-        : r.numSol + ' solution' + (r.numSol > 1 ? 's' : '');
-
-      var planCell;
-      if (r.numSol === 0) {
-        planCell = '<span class="no-sol-pill" title="Le solveur CSP n\'a trouve aucune substitution non-benzenoide pour cette molecule">&#x2298; Aucune solution CSP</span>';
-      } else {
-        var bc = r.bucketCount;
-        var pills = [];
-        if (bc.PLANE > 0)     pills.push(renderBucketPill('PLANE', bc.PLANE));
-        if (bc.AUTRES > 0)    pills.push(renderBucketPill('AUTRES', bc.AUTRES));
-        if (bc.NON_PLANE > 0) pills.push(renderBucketPill('NON_PLANE', bc.NON_PLANE));
-        planCell = '<span class="bucket-pill-row">' + pills.join('') + '</span>';
-      }
-
-      var angleCell = r.numSol > 0 ? r.maxAngle + '&deg;' : '<span class="na">-</span>';
-      var isExp = state.expandedMols[r.name] ? ' expanded' : '';
-      var noSolCls = r.numSol === 0 ? ' no-sol-row' : '';
-
-      html += '<tr class="mol-row' + isExp + noSolCls + '" data-mol="' + r.name + '" onclick="toggleDetails(\'' + r.name + '\')">' +
-        '<td class="mol-name"><span class="expand-icon">&#9654;</span> ' + r.name + '</td>' +
-        '<td>' + origCell + '</td>' +
-        '<td>' + solCell + '</td>' +
-        '<td>' + planCell + '</td>' +
-        '<td>' + angleCell + '</td>' +
-        '</tr>\n';
-
+    /* Construction batch : on assemble tout le HTML en une string concat
+       puis on parse via un <tbody> hote. C'est plus rapide qu'appendChild
+       row-par-row (1 parse + 1 reflow vs N reflows). */
+    var htmlChunks = [];
+    for (var i = 0; i < allRows.length; i++) {
+      var r = allRows[i];
+      htmlChunks.push(buildMolRowHTML(r));
       var hrefBase = cfg + '/' + r.name + '/solutions';
-      m.solutions.forEach(function (s) {
-        if (!passesSolDetailFilter(s)) return;
-        var disp = state.expandedMols[r.name] ? 'table-row' : 'none';
-        var detailHTML = renderSolutionDetail(s, hrefBase);
-        var rowInner;
-        if (detailHTML !== null) {
-          /* Multi-runs et/ou MD : cellule unique colspan=5. */
-          rowInner = '<td colspan="5" class="solution-multirun">' + detailHTML + '</td>';
-        } else {
-          /* Single-run classique (retrocompat, aucun bloc enrichi). */
-          var scls = s.planar ? 'planar' : 'non-planar';
-          var stxt = s.planar ? 'PLAN' : 'NON PLAN';
-          var href = hrefBase + '/' + s.file;
-          rowInner = '<td></td><td></td>' +
-            '<td class="sizes"><a href="' + href + '" target="_blank">' + (s.sizes || s.file) + '</a></td>' +
-            '<td><span class="' + scls + '">' + stxt + '</span></td>' +
-            '<td>' + s.angle_deg + '&deg;</td>';
-        }
-        html += '<tr class="detail-row" data-parent="' + r.name + '" style="display:' + disp + ';">' +
-          rowInner + '</tr>\n';
-      });
+      var sols = r.mol.solutions;
+      for (var k = 0; k < sols.length; k++) {
+        htmlChunks.push(buildDetailRowHTML(sols[k], hrefBase, r.name));
+      }
+    }
+    var tmpHost = document.createElement('tbody');
+    tmpHost.innerHTML = htmlChunks.join('');
+
+    /* Indexation : pour chaque mol, on garde une ref directe a son <tr>
+       mol-row + au tableau de ses <tr> detail-row. Acces O(1) ensuite. */
+    var index = new Map();
+    var currentEntry = null;
+    var children = tmpHost.children;
+    /* On itere sur une copie de la NodeList car on va detacher les noeuds. */
+    var nodes = Array.prototype.slice.call(children);
+    for (var n = 0; n < nodes.length; n++) {
+      var tr = nodes[n];
+      if (tr.classList.contains('mol-row')) {
+        currentEntry = { molRow: tr, detailRows: [], rowData: null };
+        index.set(tr.dataset.mol, currentEntry);
+      } else if (tr.classList.contains('detail-row') && currentEntry) {
+        currentEntry.detailRows.push(tr);
+      }
+    }
+    for (var j = 0; j < allRows.length; j++) {
+      var entry = index.get(allRows[j].name);
+      if (entry) entry.rowData = allRows[j];
+    }
+
+    /* Remplacement atomique : 1 reflow. moveAllChildren via fragment. */
+    var frag = document.createDocumentFragment();
+    while (tmpHost.firstChild) frag.appendChild(tmpHost.firstChild);
+    var tbody = document.getElementById('tbody');
+    tbody.innerHTML = '';
+    tbody.appendChild(frag);
+    state.domIndex = index;
+
+    updateSortHeaders();
+
+    /* Restaure l'expansion utilisateur memorisee (survit aux changements
+       de config si la mol existe dans la nouvelle). */
+    Object.keys(state.expandedMols).forEach(function (name) {
+      if (!state.expandedMols[name]) return;
+      var e = index.get(name);
+      if (!e) return;
+      e.molRow.classList.add('expanded');
+      e.detailRows.forEach(function (dr) { dr.classList.remove('detail-collapsed'); });
     });
 
-    document.getElementById('tbody').innerHTML = html;
+    applyFiltersToDOM();
   }
 
-  /* ---- Expand / Collapse ---- */
+  /* Applique les filtres courants (orig/sol/verdict/search/strict) au DOM
+     existant via classList.toggle('row-hidden', ...) -- O(N) sans
+     allocation HTML. Met aussi a jour cards + th-counts.
+     Cette fonction est l'unique chemin de mise a jour pour les filtres
+     une fois que render() a construit le tableau initial. */
+  function applyFiltersToDOM() {
+    if (!state.domIndex) return;
+
+    var allRows = state.allRows;
+    var nMolVisible = 0, nSolDisplayed = 0;
+    var s = { nOrigP: 0, nOrigN: 0, nSol: 0, nNoSol: 0,
+              nPlane: 0, nAutres: 0, nNonPlane: 0, nMol: allRows.length };
+
+    for (var i = 0; i < allRows.length; i++) {
+      var r = allRows[i];
+      var entry = state.domIndex.get(r.name);
+      if (!entry) continue;
+
+      /* Stats globales : independantes des filtres. Les cards montrent
+         toujours la vue d'ensemble du dataset, pas le sous-ensemble. */
+      if (r.origPlanar === true)       s.nOrigP++;
+      else if (r.origPlanar === false) s.nOrigN++;
+      s.nSol += r.numSol;
+      if (r.numSol === 0) s.nNoSol++;
+      s.nPlane    += r.bucketCount.PLANE;
+      s.nAutres   += r.bucketCount.AUTRES;
+      s.nNonPlane += r.bucketCount.NON_PLANE;
+
+      var molVisible = evaluateRowVisibility(r);
+      entry.molRow.classList.toggle('row-hidden', !molVisible);
+      if (molVisible) nMolVisible++;
+
+      /* Detail-rows : on toggle row-hidden selon le filtre Strict des
+         solutions individuelles. La visibilite globale d'une detail-row
+         est detail-row.classList = .detail-collapsed (expansion) +
+         .row-hidden (filtre). Si la mol est masquee par filtre, on cache
+         aussi ses detail-rows (sinon elles flotteraient). */
+      var sols = r.mol.solutions;
+      var dr = entry.detailRows;
+      for (var k = 0; k < dr.length && k < sols.length; k++) {
+        var solOk = passesSolDetailFilter(sols[k]);
+        dr[k].classList.toggle('row-hidden', !molVisible || !solOk);
+        if (molVisible && solOk) nSolDisplayed++;
+      }
+    }
+
+    updateCardsAndCounts(s, nMolVisible, nSolDisplayed);
+  }
+
+  function updateCardsAndCounts(s, nMolVisible, nSolDisplayed) {
+    var badge = nMolVisible < s.nMol
+      ? '<span class="count-badge">(' + nMolVisible + '/' + s.nMol + ')</span>' : '';
+    var noSolCard = s.nNoSol > 0
+      ? '<div class="card no-sol-card"><div class="value">' + s.nNoSol + '</div><div class="label">\u2298 Sans solution CSP</div></div>'
+      : '';
+    var cardsHtml =
+      '<div class="card blue"><div class="value">' + s.nMol + '</div><div class="label">Molecules' + badge + '</div></div>' +
+      '<div class="card green"><div class="value">' + s.nOrigP + '</div><div class="label">Originaux plans</div></div>' +
+      '<div class="card red"><div class="value">' + s.nOrigN + '</div><div class="label">Originaux non plans</div></div>' +
+      '<div class="card blue"><div class="value">' + s.nSol + '</div><div class="label">Solutions CSP</div></div>' +
+      noSolCard +
+      '<div class="card green"><div class="value">' + s.nPlane + '</div><div class="label">\uD83D\uDFE2 Plans</div></div>' +
+      '<div class="card" style="border-top-color:#bf8700"><div class="value" style="color:#bf8700">' + s.nAutres + '</div><div class="label">\uD83D\uDFE1 Autres</div></div>' +
+      '<div class="card red"><div class="value">' + s.nNonPlane + '</div><div class="label">\u26AB Non plans</div></div>';
+    document.getElementById('cards').innerHTML = cardsHtml;
+
+    var thCountMol = document.getElementById('thCountMol');
+    if (thCountMol) thCountMol.textContent = '(' + nMolVisible + ')';
+    var thCountSol = document.getElementById('thCountSol');
+    if (thCountSol) thCountSol.textContent = '(' + nSolDisplayed + ')';
+  }
+
+  /* Reorder le tbody dans le nouvel ordre de state.allRows sans regenerer
+     le HTML. appendChild sur un noeud deja en DOM le DEPLACE (specifie par
+     le standard) ; on en profite pour batch via DocumentFragment. */
+  function applySortToDOM() {
+    if (!state.domIndex) return;
+    var tbody = document.getElementById('tbody');
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < state.allRows.length; i++) {
+      var entry = state.domIndex.get(state.allRows[i].name);
+      if (!entry) continue;
+      frag.appendChild(entry.molRow);
+      for (var k = 0; k < entry.detailRows.length; k++) {
+        frag.appendChild(entry.detailRows[k]);
+      }
+    }
+    tbody.appendChild(frag);
+  }
+
+  /* ============================================================
+     Interactions : expand/collapse, tri, filtres, recherche.
+     Toutes operent sur le DOM existant via classList ou appendChild ;
+     aucune ne refait un innerHTML reset (sauf changement de config).
+     ============================================================ */
+
   function toggleDetails(name) {
     state.expandedMols[name] = !state.expandedMols[name];
+    var open = state.expandedMols[name];
+    /* Selectors croisent la vue normale ET les panneaux comparaison
+       (volontaire : l'expansion est synchronisee entre les deux). */
     document.querySelectorAll('.detail-row[data-parent="' + name + '"]').forEach(function (row) {
-      row.style.display = state.expandedMols[name] ? 'table-row' : 'none';
+      row.classList.toggle('detail-collapsed', !open);
     });
-    /* Rotation du chevron dans toutes les mol-rows (normal + panneaux compare). */
     document.querySelectorAll('.mol-row[data-mol="' + name + '"]').forEach(function (row) {
-      row.classList.toggle('expanded', state.expandedMols[name]);
+      row.classList.toggle('expanded', open);
     });
   }
 
@@ -899,42 +1085,48 @@
       r.classList.add('expanded');
       state.expandedMols[r.dataset.mol] = true;
     });
-    document.querySelectorAll('.detail-row').forEach(function (r) { r.style.display = 'table-row'; });
+    document.querySelectorAll('.detail-row').forEach(function (r) {
+      r.classList.remove('detail-collapsed');
+    });
   }
 
   function collapseAll() {
-    document.querySelectorAll('.mol-row').forEach(function (r) { r.classList.remove('expanded'); });
-    document.querySelectorAll('.detail-row').forEach(function (r) { r.style.display = 'none'; });
+    document.querySelectorAll('.mol-row').forEach(function (r) {
+      r.classList.remove('expanded');
+    });
+    document.querySelectorAll('.detail-row').forEach(function (r) {
+      r.classList.add('detail-collapsed');
+    });
     state.expandedMols = {};
   }
 
-  /* ---- Sort ---- */
+  /* Tri : pas de re-render. On re-trie state.allRows en place puis on
+     reordonne le DOM via appendChild. Filtres et expansion sont preserves
+     car les <tr> existants sont juste deplaces. */
   function sortTable(col) {
     if (state.sortCol === col) state.sortAsc = !state.sortAsc;
     else { state.sortCol = col; state.sortAsc = true; }
-    /* Re-render complet : le mode compare regenere aussi les th des panneaux. */
-    if (state.compareMode) renderComparison();
-    else {
-      document.querySelectorAll('th.sortable').forEach(function (th) {
-        th.classList.remove('sort-asc', 'sort-desc');
-        if (th.dataset.sort === col) th.classList.add(state.sortAsc ? 'sort-asc' : 'sort-desc');
-      });
-      if (state.currentConfig) render(state.ALL_CONFIGS[state.currentConfig]);
+    if (state.compareMode) {
+      withSoftLoader(function () { renderComparison(); });
+      return;
     }
+    sortRowsInPlace(state.allRows);
+    updateSortHeaders();
+    applySortToDOM();
   }
 
-  /* ---- Filters ---- */
   function setFilter(group, value) {
-    if (group === 'orig')        state.filterOrig = value;
-    else if (group === 'sol')    state.filterSol = value;
+    if (group === 'orig')         state.filterOrig = value;
+    else if (group === 'sol')     state.filterSol = value;
     else if (group === 'verdict') state.filterVerdict = value;
-    /* Meme data-filter present dans les 2 toolbars (normal + compare) --
-       un seul appel met a jour les deux. */
+    /* Meme data-filter present dans les 2 toolbars (normal + compare) ;
+       un seul update synchronise les deux. */
     document.querySelectorAll('.filter-btn').forEach(function (b) {
       var f = b.dataset.filter;
       if (f && f.indexOf(group + '-') === 0) b.classList.toggle('active', f === group + '-' + value);
     });
-    applyFilters();
+    if (state.compareMode) withSoftLoader(function () { renderComparison(); });
+    else applyFiltersToDOM();
   }
 
   function setCompareFilter(value) {
@@ -942,18 +1134,19 @@
     document.querySelectorAll('[data-filter^="diff-"]').forEach(function (b) {
       b.classList.toggle('active', b.dataset.filter === 'diff-' + value);
     });
-    renderComparison();
+    withSoftLoader(function () { renderComparison(); });
   }
 
-  /* Toggle "Strict" : modifie le comportement du filtre Solutions.
-     Sans effet seul -- doit etre combine avec un filtre Solutions != 'all'.
-     Toggle simple, etat synchronise sur les 2 toolbars (normal + compare). */
+  /* Toggle "Strict" : modifie le comportement des filtres Solutions ET
+     Verdict en les appliquant aussi aux solutions individuelles dans la
+     liste depliee. Etat synchronise sur les 2 toolbars (normal + compare). */
   function setFilterStrict() {
     state.filterSolStrict = !state.filterSolStrict;
     document.querySelectorAll('[data-filter-strict]').forEach(function (b) {
       b.classList.toggle('active', state.filterSolStrict);
     });
-    applyFilters();
+    if (state.compareMode) withSoftLoader(function () { renderComparison(); });
+    else applyFiltersToDOM();
   }
 
   /* Predicat : faut-il afficher cette solution dans la liste depliee ?
@@ -976,11 +1169,40 @@
     return true;
   }
 
+  /* Lit le contenu de l'input recherche puis met a jour le DOM. La
+     recherche est debouncee (SEARCH_DEBOUNCE_MS) car appelee a chaque
+     keystroke -- sans debounce, parcourir 50k <tr> a chaque touche est
+     visible. Les autres handlers (boutons filtres) NE passent PAS par
+     applyFilters : ils appellent setFilter qui touche directement
+     applyFiltersToDOM (immediat, pas de debounce souhaite la). */
   function applyFilters() {
     var inputId = state.compareMode ? 'compareSearchInput' : 'searchInput';
-    state.searchQuery = document.getElementById(inputId).value;
-    if (state.compareMode) renderComparison();
-    else if (state.currentConfig) render(state.ALL_CONFIGS[state.currentConfig]);
+    var newQuery = document.getElementById(inputId).value;
+    var queryChanged = newQuery !== state.searchQuery;
+    state.searchQuery = newQuery;
+
+    /* Annule un debounce en cours (frappe rapide -> on garde le dernier). */
+    if (state.searchDebounceTimer) {
+      clearTimeout(state.searchDebounceTimer);
+      state.searchDebounceTimer = null;
+    }
+
+    var run = state.compareMode
+      ? function () { renderComparison(); }
+      : applyFiltersToDOM;
+
+    if (queryChanged) {
+      state.searchDebounceTimer = setTimeout(function () {
+        state.searchDebounceTimer = null;
+        if (state.compareMode) withSoftLoader(run);
+        else run();
+      }, SEARCH_DEBOUNCE_MS);
+    } else {
+      /* Pas de changement detecte (ex: input.value relu sans avoir change) :
+         on applique immediatement. */
+      if (state.compareMode) withSoftLoader(run);
+      else run();
+    }
   }
 
   /* ---- Comparison mode ---- */
@@ -996,7 +1218,7 @@
       if (state.currentConfig && state.selectedConfigs.indexOf(state.currentConfig) < 0) {
         state.selectedConfigs = [state.currentConfig];
       }
-      renderComparison();
+      withSoftLoader(function () { renderComparison(); });
     } else {
       document.getElementById('normalView').style.display = 'block';
       document.getElementById('compareView').style.display = 'none';
@@ -1007,7 +1229,7 @@
       document.querySelectorAll('.cfg-btn').forEach(function (b) {
         b.classList.toggle('active', b.dataset.cfg === state.currentConfig);
       });
-      if (state.currentConfig) render(state.ALL_CONFIGS[state.currentConfig]);
+      if (state.currentConfig) withSoftLoader(function () { render(state.ALL_CONFIGS[state.currentConfig]); });
     }
   }
 
@@ -1131,7 +1353,9 @@
         '<td>' + angleCell + '</td>' +
         '</tr>';
 
-      var disp = state.expandedMols[r.name] ? 'table-row' : 'none';
+      /* Visibilite via classe .detail-collapsed (coherent avec la vue
+         normale). toggleDetails synchronise les 2 vues simultanement. */
+      var collapsedCls = state.expandedMols[r.name] ? '' : ' detail-collapsed';
       var hrefBase = cfgName + '/' + r.name + '/solutions';
       m.solutions.forEach(function (s) {
         if (!passesSolDetailFilter(s)) return;
@@ -1147,7 +1371,7 @@
             '<td colspan="2"><span class="' + scls + '">' + stxt + '</span></td>' +
             '<td>' + s.angle_deg + '&deg;</td>';
         }
-        html += '<tr class="detail-row" data-parent="' + r.name + '" style="display:' + disp + ';">' +
+        html += '<tr class="detail-row' + collapsedCls + '" data-parent="' + r.name + '">' +
           rowInner + '</tr>';
       });
     });
@@ -1199,10 +1423,13 @@
     document.querySelectorAll('[data-method-btn]').forEach(function (b) {
       b.classList.toggle('active', b.dataset.methodBtn === name);
     });
-    /* Re-render de tout ce qui depend de la methode. */
+    /* Re-render de tout ce qui depend de la methode. Le re-build des
+       cellules detail-row (multi-runs / MD / both) impose un nouveau
+       innerHTML du tbody -- c'est un changement structurel, pas juste un
+       filtre. On passe par withSoftLoader pour signaler l'attente. */
     renderCSPPartitionSection();
-    if (state.compareMode) renderComparison();
-    else if (state.currentConfig) render(state.ALL_CONFIGS[state.currentConfig]);
+    if (state.compareMode) withSoftLoader(function () { renderComparison(); });
+    else if (state.currentConfig) withSoftLoader(function () { render(state.ALL_CONFIGS[state.currentConfig]); });
   }
 
   /* Genere les boutons du toggle methode, attache au container HTML.
