@@ -168,7 +168,7 @@ def run_aggregate_md(config_dir):
     try:
         result = subprocess.run(
             [sys.executable, str(AGGREGATE_MD), str(config_dir)],
-            capture_output=True, text=True, timeout=600,
+            capture_output=True, text=True, timeout=72000,
             encoding="utf-8", errors="replace",
         )
         if result.returncode != 0:
@@ -177,7 +177,7 @@ def run_aggregate_md(config_dir):
             return False
         return True
     except subprocess.TimeoutExpired:
-        print(f"    TIMEOUT apres 600s", flush=True)
+        print(f"    TIMEOUT apres 72000s", flush=True)
         return False
 
 
