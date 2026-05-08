@@ -18,6 +18,7 @@ Puis ouvrir http://127.0.0.1:8765 dans le navigateur.
 """
 
 import argparse
+import re
 import sqlite3
 from pathlib import Path
 from flask import Flask, abort, jsonify, render_template, request, send_file
@@ -213,21 +214,84 @@ def api_sol(sol_id):
     return jsonify(dict(r))
 
 
+def _resolve_local_path(rel):
+    """Resout un chemin relatif depuis project_root vers un fichier local.
+    Tente plusieurs reecritures pour gerer les DBs buildees sur le cluster
+    (chemins comme '_h9_run/output/h9/...') vs builds locaux
+    (chemins comme 'cluster_results/h9/...').
+
+    Retourne (path_resolved, suffix_ok) ou (None, _) si rien trouve.
+    """
+    rel = rel.replace("\\", "/").lstrip("/")
+    candidates = [rel]
+
+    # Reecriture cluster -> local : '_hN_run/output/hN/<rest>' -> 'cluster_results/hN/<rest>'
+    m = re.match(r"^_h(\d+)_run/output/h\1/(.+)$", rel)
+    if m:
+        candidates.append(f"cluster_results/h{m.group(1)}/{m.group(2)}")
+
+    # Et inversement local -> cluster (si jamais tu as encore les fichiers
+    # cluster en place a cote)
+    m = re.match(r"^cluster_results/(h\d+)/(.+)$", rel)
+    if m:
+        candidates.append(f"_{m.group(1)}_run/output/{m.group(1)}/{m.group(2)}")
+
+    # Aussi : 'csp_solver/experiments/output/hN/<rest>' (build local h3-h5)
+    # est deja une variante naturelle ; pas de reecriture necessaire.
+
+    for c in candidates:
+        target = (_PROJECT_ROOT / c).resolve()
+        try:
+            target.relative_to(_PROJECT_ROOT.resolve())
+        except ValueError:
+            continue
+        if target.is_file():
+            return target
+
+    # Fallback : si aucun chemin exact ne marche, on tente un glob sur le
+    # prefixe sol_<idx>_ (le suffixe sizes peut differer legerement entre
+    # build cluster et copie locale -- ex. encodage des tailles).
+    # Pattern attendu : .../solutions/sol_<idx>_<sizes>/<filename>
+    sol_re = re.compile(r"^(.+/solutions/)sol_(\d+)_[^/]+(/.+)$")
+    for c in candidates:
+        m = sol_re.match(c)
+        if not m:
+            continue
+        prefix, idx, suffix = m.group(1), m.group(2), m.group(3)
+        parent_dir = (_PROJECT_ROOT / prefix).resolve()
+        try:
+            parent_dir.relative_to(_PROJECT_ROOT.resolve())
+        except ValueError:
+            continue
+        if not parent_dir.is_dir():
+            continue
+        # Cherche un sol_<idx>_* unique
+        matches = sorted(parent_dir.glob(f"sol_{idx}_*"))
+        for sol_dir in matches:
+            target = (sol_dir / suffix.lstrip("/")).resolve()
+            try:
+                target.relative_to(_PROJECT_ROOT.resolve())
+            except ValueError:
+                continue
+            if target.is_file():
+                return target
+    return None
+
+
 @app.route("/file")
 def serve_file():
     """Sert un fichier (xyz, json, ...) reference par chemin relatif depuis
     le project root. Securite : verifie que le chemin reste sous project_root
-    et a une extension textuelle attendue."""
+    et a une extension textuelle attendue.
+
+    Path rewriting automatique : si la DB a ete buildee sur le cluster, ses
+    chemins commencent par '_hN_run/output/hN/...' qui n'existe pas en local.
+    On reessaie avec 'cluster_results/hN/...' (et inversement)."""
     rel = request.args.get("path", "")
     if not rel:
         abort(400)
-    rel = rel.replace("\\", "/")
-    target = (_PROJECT_ROOT / rel).resolve()
-    try:
-        target.relative_to(_PROJECT_ROOT.resolve())
-    except ValueError:
-        abort(403)
-    if not target.is_file():
+    target = _resolve_local_path(rel)
+    if target is None:
         abort(404)
     if target.suffix.lower() not in (".xyz", ".json", ".inp", ".log", ".txt"):
         abort(403)
