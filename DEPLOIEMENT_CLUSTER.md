@@ -469,12 +469,121 @@ python cluster/dispatcher.py start --mode ssh \
 
 ## 16. Où on en est
 
-**État actuel** : h6 finalisé (352/352 OK en deux passes), h7 lancé en tmux.
+**État actuel** : h6, h7, h8 finalisés. h9 finalisé après détour technique
+(cf. §17 ci-dessous).
 
-**Reste à faire** :
-1. Attendre la fin de h7, finalize, télécharger.
-2. Lancer h8.
-3. Lancer h9 (le soir, surveiller le disque NFS).
+## 17. h9 — viewer SQLite + découverte des « solutions géométriquement infaisables »
+
+### Le problème : volume
+
+h9 c'est ~2 419 mols × 8 configs ≈ 19 344 jobs CSP+xTB, et au total
+**~1,5 M solutions individuelles**. Le viewer HTML monolithique utilisé pour
+h3-h8 (un seul `view.html` qui charge tout `data.json` en mémoire JS) **fait
+planter le navigateur** à cette échelle : ~600 MB de JSON pour la seule
+config `no-freeze_no-table`.
+
+### La solution : viewer SQLite + serveur Flask local
+
+J'ai écrit un viewer dédié sous
+[`csp_solver/experiments/h9_viewer/`](csp_solver/experiments/h9_viewer/) :
+
+- **Backend** : SQLite (`h9.db`) indexant l'arborescence de `cluster_results/h9/`
+  sans la modifier. Schéma dans `schema.sql`.
+- **Builder** : `build_db.py` scanne en parallèle (multiprocessing) les
+  ~19 k mols, calcule la planarité ACP de chaque `md_final_opt.xyz` et
+  insère ~1,5 M lignes en quelques minutes (sur cluster ext4 ; sur NTFS
+  Windows c'est 1-2 h, à éviter — préférer lancer le `build_db.py` côté
+  cluster avec `--root _h9_run/output/h9` puis rapatrier `h9.db`).
+- **Serveur** : `server.py` (Flask, écoute sur `127.0.0.1:8765`). API JSON
+  paginée pour les molécules et les solutions, sert les xyz à la demande.
+- **Frontend** : SPA en JS vanilla avec lazy-loading + loading screens.
+  Aucune ressource externe, fonctionne offline.
+- **MAJ incrémentale** : `update_db.py` rescanne un sous-ensemble de mols
+  (utile si on modifie ciblément quelques résultats).
+
+Lancer : `python csp_solver/experiments/h9_viewer/build_db.py` (une fois),
+puis `python csp_solver/experiments/h9_viewer/server.py` et ouvrir
+http://127.0.0.1:8765.
+
+### La découverte : `n_solutions_csp ≠ n_md_outputs`, et c'est normal
+
+En regardant un `job_status.json` h9 typique on voit par exemple
+`n_solutions: 2122` mais `n_md_outputs: 1372` : 750 solutions CSP n'ont pas
+de `md_final_opt.xyz`. Mon premier réflexe a été : « le walltime SLURM a
+coupé la boucle MD avant la fin ». J'ai donc construit toute une
+infrastructure pour relancer ces sols ciblément (build_partial_manifest +
+worker_partial + run_partial_job) puis l'ai exécutée.
+
+**Tous les sols ré-essayés ont échoué.** Le diagnostic en remontant
+l'exception côté cluster a montré :
+
+```
+ValueError: Hexagone 4: impossible de creer un pentagone,
+aucun sommet interieur libre. Pattern=(1, 1, 1, 1, 1, 0)
+```
+
+L'erreur vient de `csp_solver/reconstruction/topology.py::_apply_pentagon`,
+qui refuse de placer un pentagone sur un hexagone dont 5 côtés sur 6 sont
+déjà partagés avec des voisins (pas de sommet libre pour transformer le
+6-cycle en 5-cycle).
+
+**Conclusion** : ces 750 sols sont **CSP-valides mais géométriquement
+infaisables**. Avec les flags `--no-freeze` et `--no-table`, le solveur
+CSP accepte des assignations combinatoires que la reconstruction 3D ne
+peut pas matérialiser. Le run cluster initial faisait déjà la bonne chose :
+`main.py` essaie de reconstruire, attrape `ValueError`, et **passe au
+sol suivant** sans rien écrire dans le sol_dir → le dossier reste vide.
+Donc :
+
+> **Un sol_dir vide après un run cluster ≠ un job interrompu.**
+> C'est presque toujours une solution géométriquement inaccessible.
+
+Sur h9 / `no-freeze_no-table` ça représente jusqu'à **~75 %** des sols CSP
+sur certaines mols. Sur h6, la part est négligeable ; c'est pour ça qu'on
+ne l'avait pas vu plus tôt.
+
+### Ce que j'ai fait suite à cette découverte
+
+1. **Supprimé toute l'infra de relance partielle** (`run_partial_job.py`,
+   `cluster/build_partial_manifest.py`, `cluster/worker_partial.py`,
+   `h9_viewer/complete_jobs.py`, `h9_viewer/export_missing.py`). Inutile
+   puisque ces sols ne peuvent pas être réalisés.
+
+2. **Étendu le schéma SQLite** avec deux compteurs supplémentaires sur
+   chaque `(config, mol)` :
+   - `n_geom_infeasible` : sols sans `source.xyz`
+     (= `ValueError` pendant la reconstruction).
+   - `n_xtb_failed` : sols avec `source.xyz` mais sans `md_final_opt.xyz`
+     (xTB n'a pas convergé ; rare).
+   
+   Invariant (approximatif) :
+   `n_solutions_csp ≈ n_md_completed + n_geom_infeasible + n_xtb_failed`.
+
+3. **Adapté l'affichage du viewer** : la liste des molécules expose une
+   colonne dédiée « Géom. ✗ » qui chiffre les sols inaccessibles, au lieu
+   d'un badge orange « X/Y » ambigu qui suggérait à tort un travail
+   inachevé. Le panneau d'une molécule détaille `CSP combinatoire`,
+   `MD validées`, `Géom. infaisables`, `xTB échec`.
+
+4. **Documenté la sémantique** dans le README du viewer h9
+   ([`csp_solver/experiments/h9_viewer/README.md`](csp_solver/experiments/h9_viewer/README.md))
+   et ajouté une note dans
+   [`csp_solver/experiments/cluster/README.md`](csp_solver/experiments/cluster/README.md)
+   (« si tu vois `n_solutions_csp > n_md_outputs`, ne tente pas de
+   relancer les manquants — ils ne peuvent pas être réalisés »).
+
+### À retenir pour la suite
+
+- **Run cluster terminé = run cluster terminé.** L'écart
+  `n_solutions_csp - n_md_outputs` n'est pas une dette de calcul, c'est
+  une mesure intrinsèque de la fraction CSP-valide-mais-impossible.
+- **Le viewer h9 est généralisable** : si jamais on attaque h10 ou plus
+  large, la même architecture SQLite + Flask passe à l'échelle ; pas
+  besoin de ré-inventer.
+- **Build de la DB** : préférer le faire **côté cluster** (ext4 +
+  multiprocessing rapide) puis rapatrier `h9.db`, plutôt que de scanner
+  `cluster_results/h9/` depuis Windows (NTFS très lent sur les dossiers
+  à milliers d'entrées).
 
 ## Annexe — Commandes utiles à mémoriser
 

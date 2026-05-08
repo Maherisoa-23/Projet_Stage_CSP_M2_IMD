@@ -175,6 +175,24 @@ write tmp + os.replace, atomique sur NFSv4 sans flock.
 Le `job_id` est **stable** entre relances : il sert de cle pour les locks
 et permet la reprise.
 
+## Note sur les sol_dirs vides après un run
+
+Sur les datasets denses (h7+, surtout h9), une fraction des sol_dirs reste
+**vide** (créés mais sans `source.xyz`) après un run cluster réussi.
+**Ce ne sont pas des jobs interrompus** : ce sont des solutions
+combinatoirement valides pour le CSP mais **géométriquement infaisables**
+(ex. pentagone demandé sur un hexagone trop contraint, pattern
+`(1,1,1,1,1,0)`). `reconstruction.topology._apply_pentagon` lève alors
+`ValueError`, `main.py` skippe ce sol et passe au suivant.
+
+Cf. `csp_solver/experiments/h9_viewer/README.md` § « Sémantique des
+compteurs » pour le détail. La métrique `n_geom_infeasible` du viewer
+quantifie ces cas par molécule.
+
+Concrètement : si tu observes `n_solutions_csp > n_md_outputs` dans un
+`job_status.json`, **ne tente pas de relancer les manquants** — ils ne
+peuvent pas être réalisés. Le run est bel et bien complet.
+
 ## Format job_status.json (ecrit par run_one_job.py)
 
 ```json

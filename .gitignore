@@ -14,3 +14,4 @@ cluster_results/
 **/__pycache__/
 __pycache__/
 *.pyc
+csp_solver/experiments/h9_viewer/h9.db

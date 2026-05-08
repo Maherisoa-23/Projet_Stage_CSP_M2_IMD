@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Viewer h9 — explorateur SQLite</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header>
+    <h1>Viewer h9</h1>
+    <nav id="breadcrumb">
+      <a href="#" data-route="dashboard">Dashboard</a>
+    </nav>
+    <div id="loader" class="loader hidden">
+      <div class="spinner"></div>
+      <span id="loader-text">Chargement…</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Vue 1 : dashboard global -->
+    <section id="view-dashboard" class="view">
+      <h2>Vue d'ensemble</h2>
+      <p id="summary-text" class="muted"></p>
+      <div id="configs-grid" class="configs-grid"></div>
+    </section>
+
+    <!-- Vue 2 : liste des molécules d'une config -->
+    <section id="view-config" class="view hidden">
+      <h2 id="config-title"></h2>
+      <div class="toolbar">
+        <input type="text" id="mol-search" placeholder="Filtrer par nom (ex: 0-10-19-…)" />
+        <label>
+          Tri :
+          <select id="mol-sort">
+            <option value="name">Nom</option>
+            <option value="plans">Plus de plans</option>
+            <option value="sols">Plus de solutions</option>
+            <option value="min_angle">Angle min ↑</option>
+          </select>
+        </label>
+        <label>
+          Page size :
+          <select id="mol-pagesize">
+            <option>25</option>
+            <option selected>50</option>
+            <option>100</option>
+            <option>200</option>
+          </select>
+        </label>
+      </div>
+      <div id="mol-table-wrap"></div>
+      <div class="pagination" id="mol-pagination"></div>
+    </section>
+
+    <!-- Vue 3 : solutions d'une molécule -->
+    <section id="view-mol" class="view hidden">
+      <h2 id="mol-title"></h2>
+      <div id="mol-meta" class="meta-box"></div>
+      <div class="toolbar">
+        <label>
+          Filtre :
+          <select id="sol-filter">
+            <option value="all">Toutes</option>
+            <option value="plans" selected>Plans uniquement</option>
+            <option value="non_plans">Non plans</option>
+          </select>
+        </label>
+        <label>
+          Tri :
+          <select id="sol-sort">
+            <option value="angle">Angle croissant</option>
+            <option value="idx">Sol_idx</option>
+          </select>
+        </label>
+        <label>
+          Page size :
+          <select id="sol-pagesize">
+            <option>25</option>
+            <option selected>50</option>
+            <option>100</option>
+            <option>200</option>
+          </select>
+        </label>
+      </div>
+      <div id="sol-table-wrap"></div>
+      <div class="pagination" id="sol-pagination"></div>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
