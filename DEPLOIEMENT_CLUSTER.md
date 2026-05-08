@@ -472,7 +472,7 @@ python cluster/dispatcher.py start --mode ssh \
 **État actuel** : h6, h7, h8 finalisés. h9 finalisé après détour technique
 (cf. §17 ci-dessous).
 
-## 17. h9 — viewer SQLite + découverte des « solutions géométriquement infaisables »
+## 17. Viewer CSP unifié (h3 → h9) + découverte des « solutions géométriquement infaisables »
 
 ### Le problème : volume
 
@@ -482,28 +482,53 @@ h3-h8 (un seul `view.html` qui charge tout `data.json` en mémoire JS) **fait
 planter le navigateur** à cette échelle : ~600 MB de JSON pour la seule
 config `no-freeze_no-table`.
 
-### La solution : viewer SQLite + serveur Flask local
+### La solution : viewer SQLite + serveur Flask local, multi-datasets
 
-J'ai écrit un viewer dédié sous
-[`csp_solver/experiments/h9_viewer/`](csp_solver/experiments/h9_viewer/) :
+J'ai écrit un viewer générique sous
+[`csp_solver/experiments/csp_viewer/`](csp_solver/experiments/csp_viewer/),
+qui indexe **tous les datasets h3 → h9 dans une seule base** (`db_all.db`) :
 
-- **Backend** : SQLite (`h9.db`) indexant l'arborescence de `cluster_results/h9/`
-  sans la modifier. Schéma dans `schema.sql`.
-- **Builder** : `build_db.py` scanne en parallèle (multiprocessing) les
-  ~19 k mols, calcule la planarité ACP de chaque `md_final_opt.xyz` et
-  insère ~1,5 M lignes en quelques minutes (sur cluster ext4 ; sur NTFS
-  Windows c'est 1-2 h, à éviter — préférer lancer le `build_db.py` côté
-  cluster avec `--root _h9_run/output/h9` puis rapatrier `h9.db`).
-- **Serveur** : `server.py` (Flask, écoute sur `127.0.0.1:8765`). API JSON
-  paginée pour les molécules et les solutions, sert les xyz à la demande.
-- **Frontend** : SPA en JS vanilla avec lazy-loading + loading screens.
-  Aucune ressource externe, fonctionne offline.
+- **Backend** : SQLite avec PK `(h, config, mol)` et index sur les
+  combinaisons utiles. Schéma dans `schema.sql`.
+- **Builder** : `build_db.py` scanne en parallèle (multiprocessing). Détecte
+  automatiquement les emplacements de données (`cluster_results/{h}/`,
+  `csp_solver/experiments/output/{h}/`, ou `_{h}_run/output/{h}/` côté
+  cluster). Mode `--append` pour rebuild ciblé d'un sous-ensemble.
+- **Serveur** : `server.py` (Flask, `127.0.0.1:8765`). API JSON paginée
+  filtrée par `h` ; sert les xyz à la demande.
+- **Frontend** : SPA en JS vanilla avec sélecteur de dataset, lazy-loading,
+  loading screens. Aucune ressource externe.
 - **MAJ incrémentale** : `update_db.py` rescanne un sous-ensemble de mols
-  (utile si on modifie ciblément quelques résultats).
+  ciblées, scoped par `--h`, `--config`, `--mol`.
 
-Lancer : `python csp_solver/experiments/h9_viewer/build_db.py` (une fois),
-puis `python csp_solver/experiments/h9_viewer/server.py` et ouvrir
-http://127.0.0.1:8765.
+Build typique :
+
+```powershell
+# Auto-detect tout ce qui est sur disque local
+python csp_solver/experiments/csp_viewer/build_db.py --auto-detect
+```
+
+Build mixte recommandé pour les gros datasets (h6-h9 sur cluster ext4,
+puis h3-h5 localement) :
+
+```bash
+# Sur cluster, build h6-h9 (~5 min)
+python csp_solver/experiments/csp_viewer/build_db.py \
+    --h h6,h7,h8,h9 \
+    --root-pattern '_{h}_run/output/{h}' \
+    --db /tmp/db_partial.db --processes 30
+
+# Local, rapatrier puis ajouter h3-h5
+scp 192.168.200.58:/tmp/db_partial.db csp_solver/experiments/csp_viewer/db_all.db
+python csp_solver/experiments/csp_viewer/build_db.py --h h3,h4,h5 --append
+```
+
+Lancer le serveur :
+
+```powershell
+python csp_solver/experiments/csp_viewer/server.py
+# -> http://127.0.0.1:8765
+```
 
 ### La découverte : `n_solutions_csp ≠ n_md_outputs`, et c'est normal
 
@@ -565,25 +590,33 @@ ne l'avait pas vu plus tôt.
    inachevé. Le panneau d'une molécule détaille `CSP combinatoire`,
    `MD validées`, `Géom. infaisables`, `xTB échec`.
 
-4. **Documenté la sémantique** dans le README du viewer h9
-   ([`csp_solver/experiments/h9_viewer/README.md`](csp_solver/experiments/h9_viewer/README.md))
+4. **Documenté la sémantique** dans le README du viewer
+   ([`csp_solver/experiments/csp_viewer/README.md`](csp_solver/experiments/csp_viewer/README.md))
    et ajouté une note dans
    [`csp_solver/experiments/cluster/README.md`](csp_solver/experiments/cluster/README.md)
    (« si tu vois `n_solutions_csp > n_md_outputs`, ne tente pas de
    relancer les manquants — ils ne peuvent pas être réalisés »).
+
+5. **Étendu le viewer en multi-datasets**. Tout ce qui était scopé h9 a
+   été refondu pour h3 → h9 dans une seule base (`db_all.db`). PK élargie
+   à `(h, config, mol)`. Sélecteur de dataset dans le header.
+   `csp_solver/experiments/csp_viewer/` (renommé depuis `h9_viewer/`)
+   est maintenant le viewer canonique pour toute la table de voisinage.
+   Architecture pensée pour brancher des tables annexes (Kekulé, Clar,
+   NICS, …) liées par `(h, config, mol, sol_idx)`.
 
 ### À retenir pour la suite
 
 - **Run cluster terminé = run cluster terminé.** L'écart
   `n_solutions_csp - n_md_outputs` n'est pas une dette de calcul, c'est
   une mesure intrinsèque de la fraction CSP-valide-mais-impossible.
-- **Le viewer h9 est généralisable** : si jamais on attaque h10 ou plus
+- **Le viewer CSP est généralisable** : si jamais on attaque h10 ou plus
   large, la même architecture SQLite + Flask passe à l'échelle ; pas
-  besoin de ré-inventer.
+  besoin de ré-inventer. `build_db.py --h h10 --append` suffit.
 - **Build de la DB** : préférer le faire **côté cluster** (ext4 +
-  multiprocessing rapide) puis rapatrier `h9.db`, plutôt que de scanner
-  `cluster_results/h9/` depuis Windows (NTFS très lent sur les dossiers
-  à milliers d'entrées).
+  multiprocessing rapide) puis rapatrier `db_all.db`, plutôt que de
+  scanner depuis Windows (NTFS très lent sur les dossiers à milliers
+  d'entrées). Pour les petits datasets (h3-h5), build local OK.
 
 ## Annexe — Commandes utiles à mémoriser
 

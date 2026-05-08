@@ -1,17 +1,18 @@
 """
-Serveur Flask local pour explorer la base h9.db.
+Serveur Flask local pour explorer la base CSP multi-datasets (h3..h9).
 
 Endpoints :
-  GET /                                            → page principale
-  GET /api/summary                                 → stats par config
-  GET /api/molecules?config=X&search=&page=&size=&sort=
-  GET /api/solutions?config=X&mol=Y&filter=&page=&size=&sort=
-  GET /api/sol/<id>                                → détails d'une solution
-  GET /file?path=<chemin relatif>                  → sert un fichier xyz/json
-                                                     depuis le project root
+  GET /                                            -> page principale (SPA)
+  GET /api/datasets                                -> liste des h disponibles
+  GET /api/summary?h=hN                            -> stats par config (filtre h)
+  GET /api/molecules?h=&config=&search=&page=&size=&sort=
+  GET /api/solutions?h=&config=&mol=&filter=&page=&size=&sort=
+  GET /api/sol/<id>                                -> details d'une solution
+  GET /file?path=<chemin relatif>                  -> sert un fichier xyz/json
+                                                      depuis le project root
 
 Lancer :
-    python server.py [--db h9.db] [--host 127.0.0.1] [--port 8765]
+    python server.py [--db db_all.db] [--host 127.0.0.1] [--port 8765]
 
 Puis ouvrir http://127.0.0.1:8765 dans le navigateur.
 """
@@ -29,7 +30,7 @@ app = Flask(
     template_folder=str(_HERE / "templates"),
     static_folder=str(_HERE / "static"),
 )
-app.config["DB_PATH"] = str(_HERE / "h9.db")
+app.config["DB_PATH"] = str(_HERE / "db_all.db")
 
 
 def db():
@@ -51,18 +52,42 @@ def index():
 #  API
 # =====================================================================
 
+@app.route("/api/datasets")
+def api_datasets():
+    """Liste les datasets (h) presents dans la DB avec un compte rapide."""
+    with db() as conn:
+        rows = conn.execute(
+            "SELECT h, "
+            "       COUNT(*) AS n_configs, "
+            "       SUM(n_molecules) AS n_mol_rows, "
+            "       SUM(n_solutions) AS n_solutions, "
+            "       SUM(n_geom_infeasible) AS n_geom_infeasible, "
+            "       SUM(n_plans) AS n_plans, "
+            "       SUM(n_non_plans) AS n_non_plans "
+            "FROM configs GROUP BY h ORDER BY h"
+        ).fetchall()
+    return jsonify({"datasets": [dict(r) for r in rows]})
+
+
 @app.route("/api/summary")
 def api_summary():
+    """Stats par config pour UN dataset donne (param ?h=hN)."""
+    h = request.args.get("h", "")
+    if not h:
+        abort(400, description="missing 'h' parameter")
     with db() as conn:
         rows = conn.execute(
             "SELECT name, n_molecules, n_solutions, n_geom_infeasible, "
             "       n_plans, n_non_plans "
-            "FROM configs ORDER BY name"
+            "FROM configs WHERE h = ? ORDER BY name",
+            (h,),
         ).fetchall()
         total_mols = conn.execute(
-            "SELECT COUNT(DISTINCT mol) FROM molecules"
+            "SELECT COUNT(DISTINCT mol) FROM molecules WHERE h = ?",
+            (h,),
         ).fetchone()[0]
     return jsonify({
+        "h": h,
         "configs": [dict(r) for r in rows],
         "n_unique_molecules": total_mols,
     })
@@ -70,11 +95,14 @@ def api_summary():
 
 @app.route("/api/molecules")
 def api_molecules():
+    h = request.args.get("h", "")
     config = request.args.get("config", "")
+    if not h or not config:
+        abort(400, description="missing 'h' or 'config' parameter")
     search = request.args.get("search", "").strip()
     page = max(1, int(request.args.get("page", 1)))
     size = min(500, max(10, int(request.args.get("size", 50))))
-    sort = request.args.get("sort", "name")  # name | plans | sols
+    sort = request.args.get("sort", "name")
     if sort not in {"name", "plans", "sols", "min_angle"}:
         sort = "name"
     sort_sql = {
@@ -84,8 +112,8 @@ def api_molecules():
         "min_angle": "(min_angle IS NULL), min_angle ASC",
     }[sort]
 
-    where = ["config = ?"]
-    params = [config]
+    where = ["h = ?", "config = ?"]
+    params = [h, config]
     if search:
         where.append("mol LIKE ?")
         params.append(f"%{search}%")
@@ -116,20 +144,32 @@ def api_molecules():
 
 @app.route("/api/solutions")
 def api_solutions():
+    h = request.args.get("h", "")
     config = request.args.get("config", "")
     mol = request.args.get("mol", "")
-    flt = request.args.get("filter", "all")  # all | plans | non_plans
+    if not h or not config or not mol:
+        abort(400, description="missing 'h', 'config' or 'mol' parameter")
+    flt = request.args.get("filter", "all")
     page = max(1, int(request.args.get("page", 1)))
     size = min(500, max(10, int(request.args.get("size", 50))))
-    sort = request.args.get("sort", "angle")  # angle | idx
-    sort_sql = "angle_deg ASC" if sort == "angle" else "sol_idx ASC"
+    sort = request.args.get("sort", "angle")
+    # Tri : pour 'angle', on met les NULL (infeasible/xtb_failed) en queue.
+    sort_sql = ("(angle_deg IS NULL), angle_deg ASC"
+                if sort == "angle" else "sol_idx ASC")
 
-    where = ["config = ?", "mol = ?"]
-    params = [config, mol]
+    where = ["h = ?", "config = ?", "mol = ?"]
+    params = [h, config, mol]
     if flt == "plans":
-        where.append("planar = 1")
+        where.append("verdict = 'plan'")
     elif flt == "non_plans":
-        where.append("planar = 0")
+        where.append("verdict = 'non_plan'")
+    elif flt == "infeasible":
+        where.append("verdict = 'geom_infeasible'")
+    elif flt == "xtb_failed":
+        where.append("verdict = 'xtb_failed'")
+    elif flt == "validated":
+        where.append("verdict IN ('plan', 'non_plan')")
+    # 'all' : pas de filtre supplementaire
     where_sql = " WHERE " + " AND ".join(where)
 
     with db() as conn:
@@ -137,7 +177,7 @@ def api_solutions():
             f"SELECT COUNT(*) FROM solutions{where_sql}", params
         ).fetchone()[0]
         rows = conn.execute(
-            f"SELECT id, sol_idx, sizes, planar, angle_deg, rmsd, height, "
+            f"SELECT id, sol_idx, sizes, verdict, planar, angle_deg, rmsd, height, "
             f"       n_attempts, deterministic, sol_dir "
             f"FROM solutions{where_sql} "
             f"ORDER BY {sort_sql} "
@@ -150,8 +190,8 @@ def api_solutions():
             "       n_plans, n_non_plans, "
             "       min_angle, max_angle, original_planar, original_angle_deg, "
             "       job_status, job_duration_sec "
-            "FROM molecules WHERE config = ? AND mol = ?",
-            (config, mol)
+            "FROM molecules WHERE h = ? AND config = ? AND mol = ?",
+            (h, config, mol)
         ).fetchone()
     return jsonify({
         "total": total,
@@ -175,9 +215,9 @@ def api_sol(sol_id):
 
 @app.route("/file")
 def serve_file():
-    """Sert un fichier (xyz, json, ...) référencé par chemin relatif depuis
-    le project root. Sécurité : vérifie que le chemin résolu reste sous
-    project root et sous cluster_results/ ou csp_solver/."""
+    """Sert un fichier (xyz, json, ...) reference par chemin relatif depuis
+    le project root. Securite : verifie que le chemin reste sous project_root
+    et a une extension textuelle attendue."""
     rel = request.args.get("path", "")
     if not rel:
         abort(400)
@@ -189,7 +229,6 @@ def serve_file():
         abort(403)
     if not target.is_file():
         abort(404)
-    # Limiter aux extensions textuelles attendues
     if target.suffix.lower() not in (".xyz", ".json", ".inp", ".log", ".txt"):
         abort(403)
     return send_file(str(target), mimetype="text/plain")
@@ -201,7 +240,7 @@ def serve_file():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--db", default=str(_HERE / "h9.db"))
+    ap.add_argument("--db", default=str(_HERE / "db_all.db"))
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--debug", action="store_true")
@@ -210,7 +249,7 @@ def main():
     if not Path(args.db).is_file():
         print(f"ERREUR : DB introuvable : {args.db}")
         print("Lance d'abord :")
-        print(f"    python {_HERE / 'build_db.py'}")
+        print(f"    python {_HERE / 'build_db.py'} --auto-detect")
         return
     print(f"DB    : {args.db}")
     print(f"Serve : http://{args.host}:{args.port}")

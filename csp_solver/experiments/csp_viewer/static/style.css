@@ -41,6 +41,24 @@ header h1 {
   color: var(--primary);
 }
 
+.ds-picker {
+  font-size: 0.9rem;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.ds-picker select {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--primary);
+}
+
 #breadcrumb {
   flex: 1;
   font-size: 0.95rem;
@@ -217,6 +235,24 @@ tbody tr:last-child td { border-bottom: none; }
 .badge.plan { background: var(--success-bg); color: var(--success); }
 .badge.non-plan { background: var(--danger-bg); color: var(--danger); }
 .badge.partial { background: var(--warn-bg); color: var(--warn); }
+.badge.infeasible { background: var(--warn-bg); color: var(--warn); }
+.badge.xtb-failed { background: #e0e7ff; color: #4338ca; }
+
+/* Lignes geometriquement infaisables ou xtb-failed : grisees */
+tr.row-infeasible td,
+tr.row-xtb-failed td {
+  color: var(--muted);
+  font-style: italic;
+}
+tr.row-infeasible td:first-child,
+tr.row-infeasible td:nth-child(2),
+tr.row-infeasible td:nth-child(3),
+tr.row-xtb-failed td:first-child,
+tr.row-xtb-failed td:nth-child(2),
+tr.row-xtb-failed td:nth-child(3) {
+  color: #111827;  /* Garde le sol_idx, sizes et verdict lisibles */
+  font-style: normal;
+}
 
 .meta-box {
   background: var(--card);

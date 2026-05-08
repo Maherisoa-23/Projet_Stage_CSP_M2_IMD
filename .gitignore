@@ -15,3 +15,9 @@ cluster_results/
 __pycache__/
 *.pyc
 csp_solver/experiments/h9_viewer/h9.db
+
+# SQLite databases du viewer (regenerables via build_db.py)
+*.db
+*.db-shm
+*.db-wal
+csp_solver/experiments/csp_viewer/missing_export/

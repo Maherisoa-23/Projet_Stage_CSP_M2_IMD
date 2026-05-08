@@ -2,14 +2,18 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-  <title>Viewer h9 — explorateur SQLite</title>
+  <title>Viewer CSP — explorateur SQLite</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <header>
-    <h1>Viewer h9</h1>
+    <h1>Viewer CSP</h1>
+    <label class="ds-picker">
+      Dataset :
+      <select id="dataset-select"></select>
+    </label>
     <nav id="breadcrumb">
-      <a href="#" data-route="dashboard">Dashboard</a>
+      <a href="#" data-go="dashboard">Dashboard</a>
     </nav>
     <div id="loader" class="loader hidden">
       <div class="spinner"></div>
@@ -62,8 +66,11 @@
           Filtre :
           <select id="sol-filter">
             <option value="all">Toutes</option>
+            <option value="validated">Validées (plans + non plans)</option>
             <option value="plans" selected>Plans uniquement</option>
             <option value="non_plans">Non plans</option>
+            <option value="infeasible">Géom. infaisables</option>
+            <option value="xtb_failed">xTB échec</option>
           </select>
         </label>
         <label>

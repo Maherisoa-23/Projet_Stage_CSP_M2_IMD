@@ -1,6 +1,8 @@
 // ===== State =====
 const state = {
   view: "dashboard",       // "dashboard" | "config" | "molecule"
+  h: null,                 // dataset courant ("h3", "h4", ..., "h9")
+  datasets: [],            // liste {h, n_solutions, ...} pour le selecteur
   config: null,
   mol: null,
   molPage: 1,
@@ -70,7 +72,8 @@ function setView(name) {
 
 function renderBreadcrumb() {
   const bc = $("#breadcrumb");
-  let html = `<a href="#" data-go="dashboard">Dashboard</a>`;
+  const hLabel = state.h ? `[${state.h}] ` : "";
+  let html = `${hLabel}<a href="#" data-go="dashboard">Dashboard</a>`;
   if (state.config) {
     html += `<span class="sep">/</span><a href="#" data-go="config">${state.config}</a>`;
   }
@@ -89,14 +92,42 @@ function renderBreadcrumb() {
   });
 }
 
+// ===== Dataset selector =====
+async function loadDatasets() {
+  const data = await fetchJSON("/api/datasets", "Datasets…");
+  state.datasets = data.datasets || [];
+  const sel = $("#dataset-select");
+  sel.innerHTML = "";
+  for (const d of state.datasets) {
+    const opt = document.createElement("option");
+    opt.value = d.h;
+    opt.textContent = `${d.h} (${(d.n_solutions || 0).toLocaleString()} sols)`;
+    sel.appendChild(opt);
+  }
+  // Choisit le dernier (souvent le plus gros) par defaut
+  if (state.datasets.length > 0 && !state.h) {
+    state.h = state.datasets[state.datasets.length - 1].h;
+    sel.value = state.h;
+  } else if (state.h) {
+    sel.value = state.h;
+  }
+  sel.addEventListener("change", (ev) => {
+    state.h = ev.target.value;
+    state.config = null;
+    state.mol = null;
+    loadDashboard();
+  });
+}
+
 // ===== Dashboard =====
 async function loadDashboard() {
   state.config = null;
   state.mol = null;
   setView("dashboard");
-  const data = await fetchJSON("/api/summary", "Stats…");
+  if (!state.h) return;
+  const data = await fetchJSON(`/api/summary?h=${encodeURIComponent(state.h)}`, "Stats…");
   $("#summary-text").textContent =
-    `${data.n_unique_molecules} molécules uniques × ${data.configs.length} configurations`;
+    `[${data.h}] ${data.n_unique_molecules} molécules uniques × ${data.configs.length} configurations`;
   const grid = $("#configs-grid");
   grid.innerHTML = "";
   for (const c of data.configs) {
@@ -134,6 +165,7 @@ async function loadConfig(config) {
 
 async function fetchMolecules() {
   const params = new URLSearchParams({
+    h: state.h,
     config: state.config,
     search: state.molSearch,
     page: state.molPage,
@@ -213,6 +245,7 @@ async function loadMolecule(config, mol) {
 
 async function fetchSolutions() {
   const params = new URLSearchParams({
+    h: state.h,
     config: state.config,
     mol: state.mol,
     filter: state.solFilter,
@@ -267,24 +300,48 @@ function renderSolTable(data) {
     <th>Fichiers</th>
   </tr></thead><tbody>`;
   for (const s of data.solutions) {
-    const v = s.planar
-      ? `<span class="badge plan">PLAN</span>`
-      : `<span class="badge non-plan">NON</span>`;
-    const finalRel = `${s.sol_dir}/md_validation/md_final_opt.xyz`;
-    const sourceRel = `${s.sol_dir}/source.xyz`;
-    h += `<tr>
+    let badge, rowClass = "", angleCell, rmsdCell, heightCell, attemptsCell, filesCell;
+
+    if (s.verdict === "geom_infeasible") {
+      badge = `<span class="badge infeasible" title="Reconstruction 3D impossible (CSP-valide mais pentagone/heptagone sur hexagone trop contraint)">GÉOM ✗</span>`;
+      rowClass = "row-infeasible";
+      angleCell = `—`;
+      rmsdCell = `—`;
+      heightCell = `—`;
+      attemptsCell = `—`;
+      filesCell = `<span class="muted">aucun fichier (pas de source.xyz)</span>`;
+    } else if (s.verdict === "xtb_failed") {
+      badge = `<span class="badge xtb-failed" title="Reconstruction OK mais xTB n'a pas convergé">xTB ✗</span>`;
+      rowClass = "row-xtb-failed";
+      angleCell = `—`;
+      rmsdCell = `—`;
+      heightCell = `—`;
+      attemptsCell = s.n_attempts ?? "—";
+      const sourceRel = `${s.sol_dir}/source.xyz`;
+      filesCell = `<a href="/file?path=${encodeURIComponent(sourceRel)}" target="_blank">source</a>`;
+    } else {
+      // plan / non_plan
+      badge = s.planar
+        ? `<span class="badge plan">PLAN</span>`
+        : `<span class="badge non-plan">NON</span>`;
+      angleCell = (s.angle_deg ?? 0).toFixed(3) + "°";
+      rmsdCell = s.rmsd?.toFixed(4) ?? "—";
+      heightCell = s.height?.toFixed(4) ?? "—";
+      attemptsCell = s.n_attempts ?? "—";
+      const sourceRel = `${s.sol_dir}/source.xyz`;
+      const finalRel = `${s.sol_dir}/md_validation/md_final_opt.xyz`;
+      filesCell = `<a href="/file?path=${encodeURIComponent(sourceRel)}" target="_blank">source</a> · <a href="/file?path=${encodeURIComponent(finalRel)}" target="_blank">final</a>`;
+    }
+
+    h += `<tr${rowClass ? ` class="${rowClass}"` : ""}>
       <td><strong>${s.sol_idx}</strong></td>
       <td><code>${s.sizes}</code></td>
-      <td>${v}</td>
-      <td>${s.angle_deg.toFixed(3)}°</td>
-      <td>${s.rmsd?.toFixed(4) ?? "—"}</td>
-      <td>${s.height?.toFixed(4) ?? "—"}</td>
-      <td>${s.n_attempts ?? "—"}</td>
-      <td>
-        <a href="/file?path=${encodeURIComponent(sourceRel)}" target="_blank">source</a>
-        ·
-        <a href="/file?path=${encodeURIComponent(finalRel)}" target="_blank">final</a>
-      </td>
+      <td>${badge}</td>
+      <td>${angleCell}</td>
+      <td>${rmsdCell}</td>
+      <td>${heightCell}</td>
+      <td>${attemptsCell}</td>
+      <td>${filesCell}</td>
     </tr>`;
   }
   h += `</tbody></table>`;
@@ -380,4 +437,7 @@ $("#sol-pagesize").addEventListener("change", (e) => {
 });
 
 // ===== Initial load =====
-loadDashboard();
+(async () => {
+  await loadDatasets();
+  loadDashboard();
+})();

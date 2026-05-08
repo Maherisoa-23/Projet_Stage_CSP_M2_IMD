@@ -1,26 +1,23 @@
 """
-Met à jour h9.db pour un sous-ensemble de (config, mol), sans tout
-re-scanner. Utile après que le cluster a complété des sol_dirs vides
-et que tu as re-téléchargé `cluster_results/h9/<config>/<mol>/`.
+Met a jour db_all.db pour un sous-ensemble de (h, config, mol), sans tout
+re-scanner. Utile apres avoir modifie ciblement quelques mols (ex.
+re-telechargement partiel du cluster).
 
-Pour chaque (config, mol) ciblée, le script :
-  1. Supprime les anciennes lignes de solutions.
-  2. Re-scanne les sol_dirs sur disque, calcule la planarité.
-  3. Réinsère les lignes solutions et MAJ la ligne molecules.
-  4. Recalcule la stat globale par config.
+Pour chaque (h, config, mol) ciblee, le script :
+  1. Supprime les anciennes lignes de solutions correspondantes.
+  2. Re-scanne les sol_dirs sur disque, calcule la planarite.
+  3. Reinsere les lignes solutions et MAJ la ligne molecules.
+  4. Recalcule la stat globale par (h, config).
 
 Usage :
-    # MAJ une mol précise
-    python update_db.py --config no-freeze_no-table --mol 0-10-19-20-27-28-29-37-38
+    # MAJ une mol precise
+    python update_db.py --h h9 --config no-freeze_no-table \\
+        --mol 0-10-19-20-27-28-29-37-38
 
-    # MAJ toutes les mols listées dans un TSV (ex: missing_per_mol.tsv)
-    python update_db.py --from-tsv missing_export/missing_per_mol.tsv
+    # MAJ toutes les mols d'un dataset
+    python update_db.py --h h7 --all
 
-    # MAJ toutes les mols partielles selon la DB actuelle (utile après
-    # qu'un batch de complétion a tourné)
-    python update_db.py --all-partials
-
-    # MAJ toutes les mols (équivalent build_db, plus lent)
+    # MAJ tous les datasets
     python update_db.py --all
 """
 
@@ -35,10 +32,16 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 _PROJECT_ROOT = _HERE.parent.parent.parent
 _GEN_ROOT = _PROJECT_ROOT / "non_benzenoid_generator"
-ROOT_REL = "cluster_results/h9"
+
+DEFAULT_ROOT_PATTERNS = [
+    "cluster_results/{h}",
+    "csp_solver/experiments/output/{h}",
+    "_{h}_run/output/{h}",
+]
 
 THRESHOLD_DEG = 10.0
 _PLAN = {}
+
 
 def _load_planarity():
     if _PLAN:
@@ -49,6 +52,19 @@ def _load_planarity():
     spec.loader.exec_module(mod)
     _PLAN["compute_planarity"] = mod.compute_planarity
     _PLAN["is_planar"] = mod.is_planar
+
+
+def resolve_root_for_h(project_root, h_name, custom_pattern=None):
+    patterns = [custom_pattern] if custom_pattern else DEFAULT_ROOT_PATTERNS
+    for pat in patterns:
+        if pat is None:
+            continue
+        candidate = Path(pat.format(h=h_name, H=h_name))
+        if not candidate.is_absolute():
+            candidate = project_root / candidate
+        if candidate.is_dir():
+            return candidate
+    return None
 
 
 def read_xyz_coords(p):
@@ -98,17 +114,15 @@ def parse_sol_dirname(name):
         idx = int(parts[1])
     except ValueError:
         return None, None
-    sizes_str = "_".join(parts[2:])
-    return idx, sizes_str
+    return idx, "_".join(parts[2:])
 
 
-def rescan_one(conn, config, mol):
-    mol_dir = _PROJECT_ROOT / ROOT_REL / config / mol
+def rescan_one(conn, root_abs, h_name, config, mol):
+    mol_dir = root_abs / config / mol
     if not mol_dir.is_dir():
         print(f"  [SKIP] mol_dir absent : {mol_dir}")
         return False
 
-    # Lecture job_status (peut avoir bougé après re-run)
     js = mol_dir / "job_status.json"
     job_status = None
     job_duration = None
@@ -131,10 +145,9 @@ def rescan_one(conn, config, mol):
             original_planar = 1 if plan["planar"] else 0
             original_angle = plan["angle_deg"]
 
-    # Wipe puis re-insert
     conn.execute(
-        "DELETE FROM solutions WHERE config = ? AND mol = ?",
-        (config, mol),
+        "DELETE FROM solutions WHERE h = ? AND config = ? AND mol = ?",
+        (h_name, config, mol),
     )
 
     sol_root = mol_dir / "solutions"
@@ -156,19 +169,38 @@ def rescan_one(conn, config, mol):
                 continue
             source_xyz = sol_dir / "source.xyz"
             final_xyz = sol_dir / "md_validation" / "md_final_opt.xyz"
+
+            try:
+                sol_dir_rel = str(sol_dir.relative_to(_PROJECT_ROOT)).replace("\\", "/")
+            except ValueError:
+                sol_dir_rel = str(sol_dir).replace("\\", "/")
+
             if not final_xyz.is_file():
                 if not source_xyz.is_file():
                     n_geom_infeasible += 1
+                    rows.append((
+                        h_name, config, mol, idx, sizes, "geom_infeasible",
+                        None, None, None, None, None, None, sol_dir_rel,
+                    ))
                 else:
                     n_xtb_failed += 1
+                    rows.append((
+                        h_name, config, mol, idx, sizes, "xtb_failed",
+                        None, None, None, None, None, None, sol_dir_rel,
+                    ))
                 continue
             plan = test_planarity(final_xyz)
             if plan is None:
                 n_xtb_failed += 1
+                rows.append((
+                    h_name, config, mol, idx, sizes, "xtb_failed",
+                    None, None, None, None, None, None, sol_dir_rel,
+                ))
                 continue
             n_md += 1
             angle = plan["angle_deg"]
             planar = 1 if plan["planar"] else 0
+            verdict = "plan" if planar else "non_plan"
             if planar:
                 n_plans += 1
             else:
@@ -191,31 +223,30 @@ def rescan_one(conn, config, mol):
                 except (OSError, json.JSONDecodeError):
                     pass
 
-            sol_dir_rel = str(sol_dir.relative_to(_PROJECT_ROOT)).replace("\\", "/")
             rows.append((
-                config, mol, idx, sizes, planar,
-                angle, plan["rmsd"], plan["height"],
+                h_name, config, mol, idx, sizes, verdict,
+                planar, angle, plan["rmsd"], plan["height"],
                 n_attempts, det, sol_dir_rel,
             ))
         if rows:
             conn.executemany(
                 "INSERT INTO solutions "
-                "(config, mol, sol_idx, sizes, planar, angle_deg, rmsd, height, "
-                " n_attempts, deterministic, sol_dir) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                "(h, config, mol, sol_idx, sizes, verdict, "
+                " planar, angle_deg, rmsd, height, n_attempts, "
+                " deterministic, sol_dir) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 rows,
             )
 
-    # MAJ molecule
     conn.execute(
         "INSERT OR REPLACE INTO molecules "
-        "(config, mol, n_solutions_csp, n_md_completed, "
+        "(h, config, mol, n_solutions_csp, n_md_completed, "
         " n_geom_infeasible, n_xtb_failed, "
         " n_plans, n_non_plans, "
         " min_angle, max_angle, original_planar, original_angle_deg, "
         " job_status, job_duration_sec) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (config, mol, n_solutions_csp, n_md,
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (h_name, config, mol, n_solutions_csp, n_md,
          n_geom_infeasible, n_xtb_failed,
          n_plans, n_non_plans,
          min_a, max_a, original_planar, original_angle,
@@ -224,33 +255,34 @@ def rescan_one(conn, config, mol):
     return True
 
 
-def refresh_config_stats(conn, config):
+def refresh_config_stats(conn, h_name, config):
     r = conn.execute(
         "SELECT COUNT(*) AS n_mols, "
         "       COALESCE(SUM(n_md_completed), 0) AS n_sols, "
         "       COALESCE(SUM(n_geom_infeasible), 0) AS n_geom, "
         "       COALESCE(SUM(n_plans), 0) AS n_plans, "
         "       COALESCE(SUM(n_non_plans), 0) AS n_non_plans "
-        "FROM molecules WHERE config = ?",
-        (config,),
+        "FROM molecules WHERE h = ? AND config = ?",
+        (h_name, config),
     ).fetchone()
     conn.execute(
         "INSERT OR REPLACE INTO configs "
-        "(name, n_molecules, n_solutions, n_geom_infeasible, n_plans, n_non_plans) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (config, r[0], r[1], r[2], r[3], r[4]),
+        "(h, name, n_molecules, n_solutions, n_geom_infeasible, "
+        " n_plans, n_non_plans) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (h_name, config, r[0], r[1], r[2], r[3], r[4]),
     )
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--db", default=str(_HERE / "h9.db"))
+    ap.add_argument("--db", default=str(_HERE / "db_all.db"))
+    ap.add_argument("--h", help="dataset (ex. h9)")
     ap.add_argument("--config")
     ap.add_argument("--mol")
-    ap.add_argument("--from-tsv",
-                    help="TSV avec colonnes 'config' et 'mol' (header attendu)")
-    ap.add_argument("--all-partials", action="store_true")
-    ap.add_argument("--all", action="store_true")
+    ap.add_argument("--all", action="store_true",
+                    help="MAJ toutes les (h, config, mol) de la DB.")
+    ap.add_argument("--root-pattern", default=None)
     args = ap.parse_args()
 
     if not Path(args.db).is_file():
@@ -260,41 +292,43 @@ def main():
     conn = sqlite3.connect(args.db)
     conn.row_factory = sqlite3.Row
 
-    targets = []
-    if args.config and args.mol:
-        targets = [(args.config, args.mol)]
-    elif args.from_tsv:
-        with open(args.from_tsv, encoding="utf-8") as f:
-            header = f.readline().strip().split("\t")
-            i_cfg = header.index("config")
-            i_mol = header.index("mol")
-            for line in f:
-                parts = line.rstrip("\n").split("\t")
-                targets.append((parts[i_cfg], parts[i_mol]))
-    elif args.all_partials:
+    if args.h and args.config and args.mol:
+        targets = [(args.h, args.config, args.mol)]
+    elif args.h and args.all:
         rows = conn.execute(
-            "SELECT config, mol FROM molecules "
-            "WHERE n_solutions_csp > n_md_completed "
-            "ORDER BY config, mol"
+            "SELECT h, config, mol FROM molecules WHERE h = ? "
+            "ORDER BY config, mol", (args.h,)
         ).fetchall()
-        targets = [(r["config"], r["mol"]) for r in rows]
+        targets = [(r["h"], r["config"], r["mol"]) for r in rows]
     elif args.all:
         rows = conn.execute(
-            "SELECT config, mol FROM molecules ORDER BY config, mol"
+            "SELECT h, config, mol FROM molecules ORDER BY h, config, mol"
         ).fetchall()
-        targets = [(r["config"], r["mol"]) for r in rows]
+        targets = [(r["h"], r["config"], r["mol"]) for r in rows]
     else:
-        ap.error("rien à faire — précise --config/--mol, --from-tsv, "
-                 "--all-partials ou --all")
+        ap.error("rien a faire -- precise --h --config --mol, ou --h --all, ou --all")
+        return
 
-    print(f"=== {len(targets)} (config, mol) à rescanner ===")
-    affected_cfgs = set()
+    print(f"=== {len(targets)} (h, config, mol) a rescanner ===")
+
+    # Cache des roots resolus par dataset
+    roots_cache = {}
+    def get_root(h):
+        if h not in roots_cache:
+            r = resolve_root_for_h(_PROJECT_ROOT, h, args.root_pattern)
+            roots_cache[h] = r
+        return roots_cache[h]
+
+    affected = set()  # (h, config)
     t0 = time.time()
-    for i, (cfg, mol) in enumerate(targets, 1):
-        ok = rescan_one(conn, cfg, mol)
-        if ok:
-            affected_cfgs.add(cfg)
-        if i % 20 == 0 or i == len(targets):
+    for i, (h, cfg, mol) in enumerate(targets, 1):
+        root = get_root(h)
+        if root is None:
+            print(f"  [SKIP] {h}/{cfg}/{mol} : root introuvable")
+            continue
+        if rescan_one(conn, root, h, cfg, mol):
+            affected.add((h, cfg))
+        if i % 50 == 0 or i == len(targets):
             conn.commit()
             elapsed = time.time() - t0
             rate = i / elapsed if elapsed > 0 else 0
@@ -302,12 +336,12 @@ def main():
             print(f"  [{i}/{len(targets)}]  ({rate:.1f} mol/s, eta {eta/60:.1f} min)")
     conn.commit()
 
-    for cfg in sorted(affected_cfgs):
-        refresh_config_stats(conn, cfg)
+    for h, cfg in sorted(affected):
+        refresh_config_stats(conn, h, cfg)
     conn.commit()
 
     elapsed = (time.time() - t0) / 60
-    print(f"\nTermine en {elapsed:.1f} min. Configs MAJ : {len(affected_cfgs)}")
+    print(f"\nTermine en {elapsed:.1f} min. (h, config) MAJ : {len(affected)}")
     conn.close()
 
 
