@@ -330,7 +330,8 @@ function renderSolTable(data) {
       attemptsCell = s.n_attempts ?? "—";
       const sourceRel = `${s.sol_dir}/source.xyz`;
       const finalRel = `${s.sol_dir}/md_validation/md_final_opt.xyz`;
-      filesCell = `<a href="/file?path=${encodeURIComponent(sourceRel)}" target="_blank">source</a> · <a href="/file?path=${encodeURIComponent(finalRel)}" target="_blank">final</a>`;
+      const btn3d = `<button class="btn-3d" data-sol-idx="${s.sol_idx}" data-sol-dir="${encodeURIComponent(s.sol_dir)}" data-sizes="${s.sizes}" data-verdict="${s.verdict}" title="Visualiser en 3D">3D</button>`;
+      filesCell = `${btn3d}<a href="/file?path=${encodeURIComponent(sourceRel)}" target="_blank">source</a> · <a href="/file?path=${encodeURIComponent(finalRel)}" target="_blank">final</a>`;
     }
 
     h += `<tr${rowClass ? ` class="${rowClass}"` : ""}>
@@ -346,6 +347,23 @@ function renderSolTable(data) {
   }
   h += `</tbody></table>`;
   wrap.innerHTML = h;
+
+  // Hook les boutons 3D : ouvre le modal MolViz
+  wrap.querySelectorAll(".btn-3d").forEach((btn) => {
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      if (!window.MolViz) {
+        alert("MolViz non charge");
+        return;
+      }
+      window.MolViz.open({
+        sol_idx: btn.dataset.solIdx,
+        sol_dir: decodeURIComponent(btn.dataset.solDir),
+        sizes:   btn.dataset.sizes,
+        verdict: btn.dataset.verdict,
+      });
+    });
+  });
 }
 
 // ===== Pagination =====

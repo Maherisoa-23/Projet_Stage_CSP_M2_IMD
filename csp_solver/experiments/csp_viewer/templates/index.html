@@ -4,6 +4,9 @@
   <meta charset="utf-8">
   <title>Viewer CSP — explorateur SQLite</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <link rel="stylesheet" href="/molviz_static/molviz.css">
+  <!-- 3Dmol.js : visualisation 3D des molecules -->
+  <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
 </head>
 <body>
   <header>
@@ -95,6 +98,7 @@
     </section>
   </main>
 
+  <script src="/molviz_static/molviz.js"></script>
   <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

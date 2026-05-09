@@ -20,8 +20,13 @@ Puis ouvrir http://127.0.0.1:8765 dans le navigateur.
 import argparse
 import re
 import sqlite3
+import sys
 from pathlib import Path
 from flask import Flask, abort, jsonify, render_template, request, send_file
+
+# Permet d'importer molviz comme un sous-module
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from molviz import api as molviz_api  # noqa: E402
 
 _HERE = Path(__file__).resolve().parent
 _PROJECT_ROOT = _HERE.parent.parent.parent
@@ -310,6 +315,9 @@ def main():
     ap.add_argument("--debug", action="store_true")
     args = ap.parse_args()
     app.config["DB_PATH"] = args.db
+    # Branche le blueprint molviz (endpoint /api/mol3d). Il reutilise
+    # _resolve_local_path pour gerer les chemins cluster<->local.
+    molviz_api.init_app(app, _resolve_local_path)
     if not Path(args.db).is_file():
         print(f"ERREUR : DB introuvable : {args.db}")
         print("Lance d'abord :")
