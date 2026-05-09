@@ -250,3 +250,228 @@ csp_solver/experiments/templates/
     \texttt{generate\_scatter\_svg}) sont des fonctions pures retournant une chaîne
     \texttt{<svg>...</svg>}, faciles à tester et à réutiliser.
 \end{itemize}
+
+% ============================================================
+%  csp_viewer : refonte SQLite + Flask pour h9 (et au-dela)
+% ============================================================
+\subsection{\texttt{csp\_viewer} : refonte SQLite + Flask multi-datasets}
+
+\dateblock{mai 2026 (fin de mois)}
+
+\textbf{Motivation : le \texttt{view.html} monolithique ne passe pas h9.} Le viewer
+décrit jusqu'ici charge l'intégralité de \texttt{data.json} en mémoire JS au démarrage.
+Pour h3--h8 (de quelques dizaines à quelques milliers de solutions), c'est instantané.
+Pour h9, la config \texttt{no-freeze\_no-table} contient à elle seule
+${\sim}560\,000$ entrées (${\sim}600$~MB de JSON), et au total ${\sim}1{,}5$~M solutions
+toutes configs confondues : le navigateur plante avant même de finir de parser le
+fichier.
+
+\textbf{Architecture retenue.} Une nouvelle implémentation sous
+\texttt{csp\_solver/experiments/csp\_viewer/} adoptant le découplage
+\textbf{stockage / API / présentation} :
+
+\begin{itemize}
+  \item \textbf{Backend SQLite} (\texttt{db\_all.db}) indexant l'arborescence
+    \texttt{cluster\_results/h*}/ ou \texttt{csp\_solver/experiments/output/h*}/
+    sans la modifier. Schéma dans \texttt{schema.sql}, PK = \texttt{(h, config, mol)}
+    pour les molécules et \texttt{(h, config, mol, sol\_idx)} pour les solutions.
+  \item \textbf{Serveur Flask local} (\texttt{server.py}, écoute sur
+    \texttt{127.0.0.1:8765}) exposant une API JSON paginée avec filtres.
+  \item \textbf{Frontend SPA} en JS vanilla : sélecteur de dataset, lazy-loading par
+    requête API, pagination, filtres, loading screens. Aucune dépendance externe
+    (sauf 3Dmol.js pour la 3D, cf.~\S\ref{sec:molviz}).
+\end{itemize}
+
+\textbf{Builder \texttt{build\_db.py}.} Multiprocessing : un worker par couple
+(h, config, mol). Chaque worker lit le \texttt{md\_final\_opt.xyz} de chaque solution,
+calcule la planarité ACP, repère les statuts \emph{geom\_infeasible} et
+\emph{xtb\_failed} (cf.~ci-dessous), insère ses résultats dans la DB. Sur
+ext4 + 30 c\oe{}urs côté cluster, un build complet h6--h9 prend ${\sim}5$~min ;
+sur NTFS Windows, c'est plus lent à cause des dossiers à milliers d'entrées.
+
+Mode \texttt{-{}-append} : permet de rebuilder \emph{une portion} de la DB
+(ex.~juste h9) sans refaire les autres. Auto-detect via
+\texttt{cluster\_results/\{h\}}, \texttt{csp\_solver/experiments/output/\{h\}}, ou
+\texttt{\_\{h\}\_run/output/\{h\}} (pour exécution directe sur le cluster).
+
+\textbf{Sémantique des compteurs.} Pour chaque couple (h, config, mol), quatre
+catégories cohabitent :
+
+\begin{itemize}
+  \item \texttt{n\_solutions\_csp} : nombre de solutions trouvées par le solveur CSP
+    (énumération combinatoire pure, sans contrainte 3D).
+  \item \texttt{n\_md\_completed} : sols dont la reconstruction 3D \emph{et} la
+    validation xTB ont réussi $\rightarrow$ pris en compte dans \texttt{n\_plans}
+    et \texttt{n\_non\_plans}.
+  \item \texttt{n\_geom\_infeasible} : sols \textbf{CSP-valides mais géométriquement
+    inaccessibles}. La reconstruction lève \texttt{ValueError} (typiquement :
+    pentagone/heptagone demandé sur un hexagone trop contraint, pattern
+    \texttt{(1,1,1,1,1,0)}). Le \texttt{sol\_dir} est créé sur disque mais reste
+    \emph{vide} (pas de \texttt{source.xyz}). C'est le comportement de
+    \texttt{main.py} du run cluster --- pas un timeout, pas un bug, juste une
+    impossibilité topologique.
+  \item \texttt{n\_xtb\_failed} : sols dont la reconstruction a réussi
+    (\texttt{source.xyz} présent) mais xTB n'a pas convergé. Très rare en
+    pratique sur h6--h8, un peu plus fréquent sur h9 (structures très tendues).
+\end{itemize}
+
+L'invariant est :
+\[
+n\_solutions\_csp \approx n\_md\_completed + n\_geom\_infeasible + n\_xtb\_failed
+\]
+
+\textbf{Important pour h9} : avec les flags \texttt{no-freeze} et \texttt{no-table},
+le CSP accepte une part importante de solutions géométriquement infaisables ---
+jusqu'à ${\sim}75\%$ sur certaines mols. Ce \emph{n'est pas un manque de calcul} ;
+ces sols ne sont juste pas physiquement réalisables. Le viewer les expose comme
+lignes à part entière (badge jaune \emph{GÉOM~$\times$}, pas d'angle, pas de fichier
+à servir) plutôt que de les masquer ou de les confondre avec des jobs incomplets.
+
+\textbf{Endpoints API.} Tous filtrés par \texttt{h} :
+\begin{itemize}
+  \item \texttt{GET /api/datasets} : liste des h disponibles avec leurs compteurs.
+  \item \texttt{GET /api/summary?h=hN} : stats par config.
+  \item \texttt{GET /api/molecules?h=\&config=\&search=\&page=\&size=\&sort=}.
+  \item \texttt{GET /api/solutions?h=\&config=\&mol=\&filter=\&page=\&size=\&sort=}
+    avec \texttt{filter} $\in$ \{\emph{all, validated, plans, non\_plans, infeasible,
+    xtb\_failed}\}.
+  \item \texttt{GET /file?path=<chemin>} : sert un xyz/json/inp depuis le project
+    root, avec \emph{path rewriting} automatique entre conventions cluster
+    (\texttt{\_hN\_run/output/hN/...}) et locale
+    (\texttt{cluster\_results/hN/...}), et \emph{glob fallback} sur
+    \texttt{sol\_<idx>\_*} en cas de désync mineure du suffixe \texttt{sizes}.
+  \item \texttt{GET /api/mol3d?path=<xyz>} : voir~\S\ref{sec:molviz}.
+\end{itemize}
+
+\textbf{Frontend SPA.} En haut du dashboard, un sélecteur de dataset
+(\texttt{<select id="dataset-select">}) bascule entre h3, h4, \ldots, h9. Les cartes
+configs montrent \emph{Solutions validées}, \emph{Géom. infaisables}, \emph{Plans},
+\emph{Non plans}. La table des molécules a une colonne dédiée \emph{Géom.~$\times$}
+qui chiffre les sols inaccessibles, et une colonne \emph{xTB échec} (visible
+seulement si non-zéro). En cliquant une molécule, on voit la liste paginée de ses
+solutions avec un dropdown filtre à 6 options.
+
+% ============================================================
+%  molviz : visualisation 3D + Kekule + cycles filtres
+% ============================================================
+\subsection{\texttt{molviz} : visualisation 3D des solutions}
+\label{sec:molviz}
+
+\dateblock{mai 2026 (fin de mois)}
+
+\textbf{Objectif : voir la forme d'une solution sans quitter le navigateur.} Avant
+ce module, ouvrir un \texttt{md\_final\_opt.xyz} demandait de télécharger le fichier
+puis de l'ouvrir dans Avogadro --- friction réelle quand on parcourt des centaines
+de solutions. Le module \texttt{molviz}, sous
+\texttt{csp\_solver/experiments/csp\_viewer/molviz/}, ajoute un bouton \emph{3D} sur
+chaque ligne de solution \texttt{plan} ou \texttt{non\_plan}, qui ouvre une modal
+plein-écran avec un viewer 3D interactif.
+
+\textbf{Bibliothèque retenue : 3Dmol.js.} ${\sim}200$~KB minified, drop-in via
+balise \texttt{<script>}, support natif XYZ, API simple
+(\texttt{addSphere}, \texttt{addCylinder}, \texttt{addLabel}). Mol* (molstar) et
+NGL Viewer ont été écartés (overkill pour des molécules de 30--50 atomes), de
+même que les approches 2D type SmilesDrawer/RDKit-JS qui demandent une conversion
+XYZ$\rightarrow$SMILES non-triviale.
+
+\textbf{Architecture du module.}
+
+\begin{lstlisting}[style=benzai]
+csp_solver/experiments/csp_viewer/molviz/
+  __init__.py
+  bonds.py        # detection liaisons C-C par distance
+                  # + filtrage par cycles 5/6/7
+  kekule.py       # matching maximum (Edmonds blossom)
+                  # + identification des radicaux
+  api.py          # blueprint Flask /api/mol3d + /molviz_static/
+  static/
+    molviz.js     # wrapper 3Dmol.js (rendu custom doubles, radicaux, cycles)
+    molviz.css    # modal viewer
+\end{lstlisting}
+
+\textbf{Pipeline complet (côté serveur).} Sur appel à
+\texttt{/api/mol3d?path=<xyz>} :
+
+\begin{enumerate}
+  \item Lecture du XYZ, on garde uniquement les carbones (les H ne sont pas affichés).
+  \item Détection des liaisons par seuil de distance : C--C présente si
+    $1{,}20 \leq d \leq 1{,}65$~\AA. Couvre toutes les longueurs réelles
+    (double~$\sim$~1{,}34, aromatique~$\sim$~1{,}40, simple~$\sim$~1{,}54).
+  \item Énumération exhaustive des cycles simples de longueur $\leq 7$ via
+    \texttt{networkx.simple\_cycles(g, length\_bound=7)} (et non
+    \texttt{cycle\_basis}, qui n'en retourne qu'une base dépendante du
+    spanning tree).
+  \item \textbf{Filtrage par taille} : on ne garde que les cycles de taille
+    $\in \{5,6,7\}$ --- les seuls valides par construction de notre projet.
+  \item \textbf{Filtrage des bonds} : on supprime ceux qui n'appartiennent
+    \emph{à aucun} cycle retenu. Cible exactement les \emph{chord bonds}
+    parasites qui apparaissent dans les structures fortement tendues
+    (cf.~paragraphe suivant).
+  \item Matching Kekulé (Edmonds blossom) sur le graphe nettoyé via
+    \texttt{networkx.max\_weight\_matching(g, maxcardinality=True)}. Chaque arête
+    couplée par le matching est étiquetée \emph{double bond}, les autres
+    \emph{single bond}. Les sommets non-couverts par le matching sont les
+    \textbf{sites radicalaires}.
+  \item Sérialisation JSON : \texttt{atoms} (C uniquement),
+    \texttt{bonds} (avec \texttt{order} 1 ou 2), \texttt{cycles}
+    (avec \texttt{size} et liste d'atomes en ordre cyclique),
+    \texttt{radicals} (indices d'atomes), \texttt{meta}
+    (compteurs et flag \texttt{perfect\_matching}).
+\end{enumerate}
+
+Le tout sous cache LRU de 256 entrées : recalculer un Kekulé prend ${\sim}10$~ms
+par molécule, le cache sert les requêtes répétées en $<1$~ms.
+
+\textbf{Le piège des chord bonds parasites.} Sur des structures très tendues
+(ex.~4 pentagones + 4 heptagones d'h9), la déformation finit par rapprocher deux
+carbones non-adjacents dans le squelette CSP à une distance $< 1{,}65$~\AA.
+La détection par seuil voit alors une fausse liaison, qui crée à son tour un
+faux 3-cycle. Sans correction, le rendu affichait un triangle parasite au c\oe{}ur
+de la molécule. Les étapes 4--5 ci-dessus l'éliminent : tout 3-cycle est rejeté
+par le filtre $\{5,6,7\}$, et le bond parasite (qui n'apparaît que dans le
+3-cycle) est supprimé en cascade. Effet de bord positif : le matching Kekulé
+travaille désormais sur le \emph{vrai} squelette du non-benzénoïde, donc les
+radicaux qu'il identifie ne sont plus pollués par un sommet parasite.
+
+\textbf{Rendu côté client (\texttt{molviz.js}).} En tant qu'IIFE exposant
+\texttt{window.MolViz.open(solInfo)}. Hooké par \texttt{app.js} sur le bouton
+\emph{3D} de chaque ligne de solution.
+
+\begin{itemize}
+  \item \textbf{Atomes} : sphères grises de rayon 0{,}22~\AA. Radicaux en violet
+    (\#9333ea) avec rayon 0{,}32 et label \og{}$\bullet$\fg{} flottant au-dessus.
+  \item \textbf{Bonds simples} : un cylindre de rayon 0{,}07~\AA{} entre les deux
+    centres atomiques.
+  \item \textbf{Bonds doubles} : deux cylindres parallèles décalés perpendiculairement
+    de 0{,}10~\AA{} dans le plan de la molécule.
+  \item \textbf{Cycles colorés} : polygone semi-transparent (opacité 0{,}45) coloré
+    par taille --- pentagone orange clair (\#ffe4b5), hexagone gris (\#e5e7eb),
+    heptagone bleu clair (\#bfdbfe). Triangulé manuellement via centroïde +
+    \texttt{addCustom} car 3Dmol.js n'a pas de polygone natif.
+\end{itemize}
+
+Trois toggles dans la barre du modal : \emph{Cycles colorés}, \emph{Radicaux},
+\emph{Indices atomes}. Légende des couleurs en bas à droite. Header avec compteurs
+(\texttt{N C}, \texttt{K liaisons (D doubles)}, perfect matching ou
+\texttt{N radicaux}). Fermeture par \texttt{Esc}, clic sur l'overlay ou bouton
+\texttt{$\times$}.
+
+\textbf{Choix : matching topologique vs.~longueurs xTB.} Les doubles bonds sont
+posés par \emph{matching topologique} (sémantique chimique propre, identifie
+naturellement les radicaux), pas par longueur de liaison effective. C'est cohérent
+avec les analyses futures Kekulé/Clar (qui partent du graphe, pas des distances).
+Une variante par longueur peut être ajoutée plus tard (drapeau API
+\texttt{?bonds=distance}) pour comparaison visuelle.
+
+\textbf{Évolutions prévues}.
+\begin{itemize}
+  \item Tables annexes en DB pour propriétés topologiques :
+    \texttt{kekule\_structures}, \texttt{clar\_indices}, \texttt{nics\_values},
+    liées par \texttt{(h, config, mol, sol\_idx)}. Calculées par scripts dédiés
+    (topologiques rapides ou via xTB/DFT selon la grandeur), insérées via
+    \texttt{INSERT OR REPLACE} pour rester idempotentes.
+  \item Vue de comparaison cross-dataset (h $\times$ config $\times$ propriété)
+    sur la même page.
+  \item Toggle \emph{double bonds par longueur xTB} dans le modal pour comparer
+    matching topologique vs.~géométrie réelle.
+\end{itemize}

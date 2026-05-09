@@ -127,9 +127,9 @@ def filter_carbons(atoms: List[Atom]) -> Tuple[List[Atom], List[int]]:
 def extract_cycles(n_atoms: int,
                    bonds: List[Tuple[int, int]]) -> List[List[int]]:
     """Extrait les cycles fondamentaux (cycle_basis de networkx).
-    Pour un benzenoide / non-benzenoide planaire, ils correspondent aux
-    faces 5/6/7. Les cycles sont retournes dans l'ordre cyclique des
-    sommets (utile pour le rendu : permet de tracer le polygone).
+    Pour un benzenoide / non-benzenoide planaire propre, ils correspondent
+    aux faces 5/6/7. Si le graphe a des bonds parasites (cf. note dans
+    build_mol_graph), cycle_basis peut retourner des 3- ou 4-cycles.
     """
     import networkx as nx
     g = nx.Graph()
@@ -142,10 +142,62 @@ def extract_cycles(n_atoms: int,
     return [list(c) for c in basis]
 
 
+def enumerate_small_cycles(n_atoms: int,
+                           bonds: List[Tuple[int, int]],
+                           max_len: int = 7) -> List[List[int]]:
+    """Enumere TOUS les cycles simples de longueur in [3, max_len].
+    Plus exhaustif que cycle_basis : utile quand on veut filtrer par taille
+    avant de decider quels bonds sont legitimes.
+
+    Complexite : exponentielle dans le pire cas, mais nos graphes sont petits
+    (~50 atomes max) et les benzenoides / non-benzenoides ont peu de cycles
+    par atome -> en pratique <100 ms.
+    """
+    import networkx as nx
+    g = nx.Graph()
+    g.add_nodes_from(range(n_atoms))
+    g.add_edges_from(bonds)
+
+    # nx.simple_cycles accepte un graphe non-oriente depuis networkx 3.x,
+    # mais peut sortir chaque cycle plusieurs fois (orientation, point de
+    # depart). On dedupe via frozenset des sommets.
+    seen = set()
+    cycles = []
+    try:
+        for c in nx.simple_cycles(g, length_bound=max_len):
+            if len(c) < 3:
+                continue
+            key = frozenset(c)
+            if key in seen or len(key) != len(c):
+                continue
+            seen.add(key)
+            cycles.append(list(c))
+    except (nx.NetworkXNoCycle, AttributeError):
+        # Fallback : si simple_cycles ne supporte pas length_bound (vieux
+        # networkx) ou ne marche pas sur graphe non-oriente, on retombe sur
+        # cycle_basis (moins exhaustif mais OK la plupart du temps).
+        return extract_cycles(n_atoms, bonds)
+    return cycles
+
+
+VALID_CYCLE_SIZES = (5, 6, 7)
+
+
 def build_mol_graph(xyz_path) -> MolGraph:
     """Charge un XYZ, garde uniquement les C, construit liaisons + cycles.
 
-    Retourne un MolGraph pret pour le rendu et le matching Kekule.
+    Workflow :
+      1. Detection des bonds C-C par seuil de distance (1.20-1.65 A).
+      2. Enumeration de tous les cycles simples de taille <= 7.
+      3. Filtrage : on ne garde que les cycles de taille 5/6/7 (les seules
+         valides par construction de notre projet).
+      4. Filtrage des bonds : on supprime ceux qui n'appartiennent a aucun
+         cycle retenu. Cible les "chord bonds" parasites qui apparaissent
+         dans les structures fortement tendues (ex. 4 pentagones + 4
+         heptagones, ou des heptagones tres courbes ou deux atomes
+         non-adjacents s'approchent < 1.65 A).
+      5. Re-extraction des cycles fondamentaux sur le graphe nettoye
+         (cycle_basis renvoie maintenant directement les faces 5/6/7).
     """
     raw_atoms = read_xyz(Path(xyz_path))
     if not raw_atoms:
@@ -153,6 +205,31 @@ def build_mol_graph(xyz_path) -> MolGraph:
 
     carbons, _old_to_new = filter_carbons(raw_atoms)
     bonds = detect_bonds(carbons, only_cc=True)
-    cycles = extract_cycles(len(carbons), bonds)
+    if not bonds:
+        return MolGraph(atoms=carbons, bonds=[], cycles=[])
 
-    return MolGraph(atoms=carbons, bonds=bonds, cycles=cycles)
+    # Etape 2-3 : enumeration + filtrage par taille
+    all_cycles = enumerate_small_cycles(len(carbons), bonds, max_len=max(VALID_CYCLE_SIZES))
+    valid_cycles = [c for c in all_cycles if len(c) in VALID_CYCLE_SIZES]
+
+    # Etape 4 : ne garder que les bonds dans au moins un cycle retenu
+    valid_edges = set()
+    for c in valid_cycles:
+        for k in range(len(c)):
+            a, b = c[k], c[(k + 1) % len(c)]
+            valid_edges.add(tuple(sorted((a, b))))
+
+    cleaned_bonds = [
+        (u, v) for (u, v) in bonds
+        if tuple(sorted((u, v))) in valid_edges
+    ]
+
+    # Etape 5 : on utilise directement les cycles enumerated filtres comme
+    # cycles finaux. C'est plus complet que cycle_basis (qui ne retourne
+    # qu'une BASE de cycles dependante du spanning tree, donc peut
+    # masquer certaines faces).
+    # Dans nos non-benzenoides, simple_cycles avec length_bound=7 retourne
+    # exactement les faces 5/6/7 (les "compound cycles" naturels font >= 8
+    # sommets puisque 2 polycycles fusionnes partagent au moins une arete).
+
+    return MolGraph(atoms=carbons, bonds=cleaned_bonds, cycles=valid_cycles)

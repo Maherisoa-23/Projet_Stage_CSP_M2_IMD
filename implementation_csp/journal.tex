@@ -60,6 +60,26 @@ marquent dans le texte les contenus ajoutes a chaque etape.
     sur 5 runs (verifie sur 4 cas borderline h6). Trade-off accepte : on perd
     l'exploration thermique mais on gagne la reproductibilite -- alignement
     avec la demande des chimistes (pas d'analyse statistique). \\
+  Mai 2026 (fin de mois) &
+    \textbf{Refonte SQLite + Flask du viewer : \texttt{csp\_viewer/}}. Le
+    \texttt{view.html} monolithique ne passe pas h9 (1{,}5~M solutions, 600~MB
+    de JSON par config, navigateur plante). Backend SQLite multi-datasets
+    (db\_all.db, PK \texttt{(h, config, mol)}) + serveur Flask local + SPA
+    avec selecteur de dataset, lazy-loading, pagination. \textbf{Decouverte
+    sur h9} : les "sols vides" apres run cluster ne sont pas des timeouts,
+    mais des solutions \emph{combinatoirement valides mais geometriquement
+    infaisables} (pentagone demande sur hexagone trop contraint, pattern
+    \texttt{(1,1,1,1,1,0)}). \texttt{main.py} les saute proprement via
+    \texttt{ValueError} attrape. Schema DB etendu avec \texttt{verdict}
+    $\in$ \{\emph{plan, non\_plan, geom\_infeasible, xtb\_failed}\} et compteurs
+    par categorie. Sur h9/no-freeze\_no-table, jusqu'a 75\% de
+    \emph{geom\_infeasible} sur certaines mols --- ce n'est pas un manque de
+    calcul. \textbf{Module \texttt{molviz/}} : visualisation 3D via 3Dmol.js,
+    matching Kekule (Edmonds blossom) pour assigner les doubles, identification
+    des radicaux. Filtrage anti-chord-bonds parasites : enumere tous les
+    cycles simples $\leq 7$, garde uniquement les 5/6/7, supprime les bonds
+    qui n'appartiennent a aucun cycle retenu. Resout le cas du faux 3-cycle
+    visible sur les structures tres tendues (4 pentagones + 4 heptagones d'h9). \\
   \bottomrule
 \end{tabular}
 \end{center}
