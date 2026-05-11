@@ -11,31 +11,72 @@ from utils.parser import BenzenoidGraph, count_zero_blocks
 from utils.table import load_table
 
 
+def has_interior_free_vertex(pattern: tuple) -> bool:
+    """Vrai ssi le pattern contient au moins 2 zeros consecutifs (cyclique).
+
+    C'est la condition exacte pour pouvoir transformer l'hexagone en
+    pentagone : on a besoin d'un sommet interieur libre (= un sommet
+    dont les deux cotes adjacents sont libres) a contracter.
+    Cf. reconstruction/topology.py::_get_interior_free_vertices, qui
+    utilise exactement cette condition.
+
+    Sans 2 zeros adjacents, chaque sommet de l'hexagone est partage avec
+    au moins un voisin -> aucune contraction n'est possible sans casser
+    la topologie d'un voisin -> pentagone topologiquement infaisable.
+    """
+    n = len(pattern)
+    return any(pattern[(i - 1) % n] == 0 and pattern[i] == 0 for i in range(n))
+
+
+def has_free_side(pattern: tuple) -> bool:
+    """Vrai ssi le pattern contient au moins un zero (cote libre).
+
+    Condition pour pouvoir transformer l'hexagone en heptagone : on insere
+    un sommet sur un cote libre. Avec 0 cote libre (pattern (1,1,1,1,1,1),
+    deg=6 fully surrounded), c'est impossible -- mais ce cas est de toute
+    facon deja gele par is_fully_surrounded.
+    """
+    return any(p == 0 for p in pattern)
+
+
 def compute_domains(graph: BenzenoidGraph, freeze_b2: bool = True) -> dict:
     """Calcule le domaine de chaque variable x_v.
+
+    On filtre 5 et 7 selon la faisabilite topologique de la reconstruction
+    (cf. has_interior_free_vertex + has_free_side). Sans ce filtrage, le
+    solveur produirait des solutions CSP-valides mais geometriquement
+    inaccessibles (ex. pattern (1,1,1,1,1,0) qui demanderait un pentagone :
+    main.py les rejetait deja en levant ValueError dans la reconstruction,
+    laissant des sol_dirs vides sur disque ; ici on les exclut a la source).
 
     Args:
         graph: le graphe dual
         freeze_b2: si True, les hexagones avec b(v)>=2 sont geles a {6}.
-                   Si False, seuls les hexagones avec deg=6 sont geles.
+                   Si False, seuls les hexagones avec deg=6 sont geles
+                   (et le filtrage par faisabilite s'applique).
 
     Returns:
         dict {v: set} -- domaine de x_v (sous-ensemble de {5,6,7})
     """
     domains = {}
     for v in range(graph.h):
+        pattern = graph.patterns[v]
         if graph.is_fully_surrounded(v):
-            # deg=6 : toujours gele
+            # deg=6 : toujours gele (pattern (1,1,1,1,1,1))
             domains[v] = {6}
         elif freeze_b2 and graph.has_separated_free_edges(v):
             # b(v)>=2 avec freeze actif : gele
             domains[v] = {6}
-        elif not freeze_b2 and graph.has_separated_free_edges(v):
-            # b(v)>=2 sans freeze : heptagone OK, mais pas pentagone
-            # (pas 2 cotes libres consecutifs = pas de sommet interieur a retirer)
-            domains[v] = {6, 7}
         else:
-            domains[v] = {5, 6, 7}
+            # Hexagone non gele : on filtre 5 et 7 selon ce que la
+            # reconstruction sait realiser sans casser la topologie
+            # des voisins.
+            d = {6}
+            if has_interior_free_vertex(pattern):
+                d.add(5)
+            if has_free_side(pattern):
+                d.add(7)
+            domains[v] = d
     return domains
 
 

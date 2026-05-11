@@ -60,6 +60,23 @@ marquent dans le texte les contenus ajoutes a chaque etape.
     sur 5 runs (verifie sur 4 cas borderline h6). Trade-off accepte : on perd
     l'exploration thermique mais on gagne la reproductibilite -- alignement
     avec la demande des chimistes (pas d'analyse statistique). \\
+  Mai 2026 (fin de mois, suite) &
+    \textbf{Contrainte C2bis : filtrage topologique du domaine}.
+    La decouverte des solutions \emph{geom\_infeasible} sur h8/h9 (CSP-valides
+    mais reconstruction impossible) a motive une nouvelle regle de
+    pre-traitement formalisee dans le document de modelisation~: pour
+    chaque hexagone non gele par C2, $5 \in \mathrm{dom}(\xv)$ ssi le
+    pattern contient deux zeros adjacents (sommet interieur libre), et
+    $7 \in \mathrm{dom}(\xv)$ ssi le pattern contient au moins un zero
+    (cote libre). Implementation dans \texttt{utils/preprocessing.py} via
+    deux helpers \texttt{has\_interior\_free\_vertex} et
+    \texttt{has\_free\_side}, alignes exactement sur la condition utilisee
+    par \texttt{reconstruction/topology.py::\_get\_interior\_free\_vertices}.
+    Effet attendu~: division par 3-5 du temps de reconstruction sur les
+    configurations \texttt{-{}-no-freeze -{}-no-table} de h8/h9 ; debloquage
+    legitime du cas $b(v) \geq 2$ avec deux zeros adjacents (regression
+    de l'ancien gel aveugle). Test sur 3 mols problematiques de h9~: 3/3
+    PASS sans regression. \\
   Mai 2026 (fin de mois) &
     \textbf{Refonte SQLite + Flask du viewer : \texttt{csp\_viewer/}}. Le
     \texttt{view.html} monolithique ne passe pas h9 (1{,}5~M solutions, 600~MB

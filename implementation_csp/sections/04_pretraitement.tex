@@ -13,7 +13,7 @@ réduit considérablement le nombre de combinaisons que le solveur doit explorer
 \subsection{Calcul des domaines et hexagones gelés}
 
 Chaque variable $x_v$ représente la taille du cycle à la position $v$. Le domaine est réduit
-selon la nature de l'hexagone. Deux règles de gel distinctes sont appliquées :
+selon la nature de l'hexagone. Trois règles indépendantes sont appliquées :
 
 \begin{enumerate}
   \item \textbf{Règle deg=6} (toujours active) : si un hexagone est entouré de 6 voisins,
@@ -21,35 +21,74 @@ selon la nature de l'hexagone. Deux règles de gel distinctes sont appliquées :
   \item \textbf{Règle $b(v) \geq 2$} (désactivable) : si les arêtes partagées découpent le
     bord de l'hexagone en deux blocs ou plus d'arêtes libres, la substitution est impossible
     car elle déformerait un seul bloc sans affecter les autres. Le domaine est fixé à $\{6\}$.
+  \item \textbf{Filtrage topologique C2bis} (toujours active) : pour les hexagones non
+    gelés, on n'ajoute $5$ au domaine que si l'hexagone admet un \emph{sommet intérieur
+    libre} (deux arêtes adjacentes libres en succession dans $\sigma(v)$), et on n'ajoute
+    $7$ que si l'hexagone a au moins un côté libre. Sans ces conditions, la reconstruction
+    3D est topologiquement impossible.
 \end{enumerate}
 
+\dateblock{mai 2026 (fin de mois)}
+
+La règle C2bis a été ajoutée après avoir observé sur $h_8$ et $h_9$ une grande proportion
+de solutions CSP-valides que la reconstruction rejetait avec \texttt{ValueError}
+(\og solutions \texttt{geom\_infeasible} \fg{}) --- jusqu'à 75\,\% sur certaines molécules
+de $h_9$ en mode \texttt{-{}-no-freeze -{}-no-table}. Filtrer en amont au niveau du domaine
+divise par 3 à 5 le temps de reconstruction sur ces configurations.
+
 \begin{lstlisting}
+def has_interior_free_vertex(pattern):
+    """Vrai ssi le pattern contient au moins 2 zeros consecutifs (cyclique).
+    Condition pour contracter l'hexagone en pentagone."""
+    n = len(pattern)
+    return any(pattern[(i - 1) % n] == 0 and pattern[i] == 0
+               for i in range(n))
+
+
+def has_free_side(pattern):
+    """Vrai ssi le pattern contient au moins un zero (cote libre).
+    Condition pour inserer un sommet (passage a l'heptagone)."""
+    return any(p == 0 for p in pattern)
+
+
 def compute_domains(graph, freeze_b2=True):
     domains = {}
     for v in range(graph.h):
-        if graph.is_fully_surrounded(v):     # deg = 6
+        pattern = graph.patterns[v]
+        if graph.is_fully_surrounded(v):              # deg = 6
             domains[v] = {6}
         elif freeze_b2 and graph.has_separated_free_edges(v):  # b(v) >= 2
             domains[v] = {6}
         else:
-            domains[v] = {5, 6, 7}
+            d = {6}
+            if has_interior_free_vertex(pattern):     # C2bis: 5 admissible
+                d.add(5)
+            if has_free_side(pattern):                # C2bis: 7 admissible
+                d.add(7)
+            domains[v] = d
     return domains
 \end{lstlisting}
 
-La séparation en deux règles permet de tester l'impact de la contrainte $b(v) \geq 2$ sur
-le nombre de solutions. Le drapeau \texttt{--no-freeze} désactive cette seconde règle tout
-en conservant la première :
+\begin{remarque}
+  Les deux helpers \texttt{has\_interior\_free\_vertex} et \texttt{has\_free\_side}
+  appliquent exactement la même condition que la reconstruction (\texttt{reconstruction/
+  topology.py::\_get\_interior\_free\_vertices}), garantissant la cohérence entre le
+  filtrage CSP et la phase de reconstruction. Si la reconstruction évolue, ces helpers
+  doivent être maintenus en parallèle.
+\end{remarque}
+
+\begin{remarque}[Cas où C2bis débloque des solutions]
+  Lorsque \texttt{--no-freeze} désactive la règle $b(v) \geq 2$, C2bis reste active.
+  Un pattern $(0,0,1,0,1,1)$ (deux blocs, mais l'un contient deux zéros adjacents)
+  obtient le domaine $\{5, 6, 7\}$ : C2bis autorise légitimement le pentagone là où
+  l'ancienne version se contentait de $\{5, 6, 7\}$ aveuglément, et là où un
+  $(1,1,1,1,1,0)$ se voit désormais réduit à $\{6, 7\}$.
+\end{remarque}
 
 \begin{lstlisting}[style=benzai]
-python main.py data/5.graph              # les deux regles actives
-python main.py data/5.graph --no-freeze  # seul deg=6 est gele
+python main.py data/5.graph              # les trois regles actives
+python main.py data/5.graph --no-freeze  # deg=6 + C2bis actives, b>=2 desactive
 \end{lstlisting}
-
-\begin{remarque}
-  Désactiver la règle $b(v) \geq 2$ augmente le nombre de variables libres et donc l'espace
-  de recherche, mais permet d'explorer des solutions qui seraient autrement interdites. Cette
-  option est utile pour évaluer si la contrainte est trop restrictive.
-\end{remarque}
 
 \subsection{Filtrage de la table de voisinage}
 

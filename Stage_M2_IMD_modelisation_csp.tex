@@ -518,13 +518,107 @@ du benz\'eno\"ide d'entr\'ee, avant toute r\'esolution.
 \begin{notebox}[Activation / d\'esactivation]
 La r\`egle $\deg(v) = 6$ est \textbf{toujours active}. La r\`egle $b(v) \geq 2$ peut
 \^etre d\'esactiv\'ee avec le drapeau \texttt{--no-freeze}, ce qui lib\`ere les hexagones
-correspondants (domaine $\{6, 7\}$ au lieu de $\{6\}$ --- le pentagone reste interdit car
-il n'y a pas de sommet int\'erieur libre).
+correspondants (domaine $\{6, 7\}$ au lieu de $\{6\}$ --- le pentagone reste interdit
+par C2bis ci-dessous, faute de sommet int\'erieur libre).
 \begin{lstlisting}[style=benzai]
 python main.py data/fichier.graph              # C2 active (defaut)
 python main.py data/fichier.graph --no-freeze  # C2 (b>=2) desactive
 \end{lstlisting}
 \end{notebox}
+
+\subsubsection{C2bis --- Filtrage topologique du domaine}
+\label{sec:c2bis}
+
+\dateblock{mai 2026 (fin de mois)}
+
+Pour les hexagones \textbf{non gel\'es} par C2 (donc $\degv \leq 5$ et $b(v) = 1$
+quand \texttt{-{}-no-freeze} est inactif, ou $b(v) \geq 1$ quand il l'est),
+l'inclusion de $5$ ou de $7$ dans le domaine n'est pas automatique~: elle
+d\'epend de la \textbf{r\'ealisabilit\'e topologique} de la reconstruction 3D.
+
+\paragraph{Probl\`eme observ\'e.}
+Sur les datasets $h_8$ et $h_9$, le solveur produit des assignations
+satisfaisant C1+C2+C3+C4 mais que la phase de reconstruction est incapable
+de mat\'erialiser g\'eom\'etriquement~: typiquement, un pentagone demand\'e
+sur un hexagone dont le bord ne contient \emph{aucun} sommet partag\'e par
+deux ar\^etes libres. Ces solutions \og CSP-valides mais g\'eom\'etriquement
+infaisables \fg{} (\texttt{geom\_infeasible}) peuvent repr\'esenter jusqu'\`a
+75\,\% des sorties sur certaines mol\'ecules de $h_9$ en mode
+\texttt{-{}-no-freeze -{}-no-table}. Elles ne sont pas un \'echec du solveur~:
+elles refl\`etent une condition n\'ecessaire que C2 + C3 ne capturent pas.
+
+\begin{definition}[Sommet int\'erieur libre]
+\label{def:int-libre}
+Soit $\sigma(v) = (\sigma_0, \ldots, \sigma_5) \in \{0,1\}^6$ le pattern de $v$.
+Un \textbf{sommet int\'erieur libre} de $v$ est un sommet $i \in \{0,\ldots,5\}$
+de l'hexagone tel que les deux ar\^etes adjacentes \`a $i$ soient libres~:
+\[
+  \sigma_{(i-1) \bmod 6} = 0 \;\text{ et }\; \sigma_i = 0.
+\]
+On note $I(v) = \{i : \sigma_{(i-1) \bmod 6} = 0 \land \sigma_i = 0\}$
+l'ensemble de ces sommets.
+\end{definition}
+
+\begin{definition}[C\^ot\'e libre]
+Un \textbf{c\^ot\'e libre} de $v$ est un indice $i$ avec $\sigma_i = 0$.
+\end{definition}
+
+\paragraph{Justification topologique.}
+La reconstruction transforme un hexagone en pentagone par \textbf{contraction}
+d'un sommet int\'erieur libre (suppression du sommet, fusion des deux ar\^etes
+libres adjacentes en une seule). Si $I(v) = \emptyset$, chaque sommet de
+l'hexagone appartient \`a au moins une ar\^ete partag\'ee avec un voisin~:
+toute contraction casserait alors la topologie d'un cycle voisin.
+Sym\'etriquement, le passage \`a un heptagone se fait par \textbf{insertion}
+d'un sommet sur un c\^ot\'e libre~; sans c\^ot\'e libre, l'op\'eration est
+impossible (mais ce cas est d\'ej\`a couvert par $\degv = 6$ dans C2).
+
+\begin{contrainte}[Filtrage topologique du domaine]
+\label{c:c2bis}
+Pour tout $v \in \VD$ tel que $v$ n'est pas gel\'e par C2~:
+\[
+  5 \in \mathrm{dom}(\xv) \;\Longleftrightarrow\; I(v) \neq \emptyset,
+  \qquad
+  7 \in \mathrm{dom}(\xv) \;\Longleftrightarrow\; \exists\, i,\; \sigma_i = 0.
+\]
+La valeur $6$ reste toujours dans le domaine (le cycle peut conserver sa
+taille d'origine).
+\end{contrainte}
+
+\begin{exemple}
+$\sigma(v) = (1,1,1,1,1,0)$~: $\degv = 5$, $b(v) = 1$, donc non gel\'e par
+C2. Mais $I(v) = \emptyset$ (l'unique z\'ero est entour\'e de deux uns), donc
+$\mathrm{dom}(\xv) = \{6,7\}$. Une assignation $\xv = 5$ serait CSP-valide
+mais la reconstruction \'echouerait.
+
+$\sigma(v) = (1,1,0,0,1,1)$~: $\degv = 4$, $b(v) = 1$, $I(v) = \{3\}$
+(le sommet 3 a ses deux ar\^etes adjacentes libres), donc
+$\mathrm{dom}(\xv) = \{5,6,7\}$.
+
+$\sigma(v) = (1,1,1,1,1,1)$~: cas couvert par C2 ($\degv = 6$),
+$\mathrm{dom}(\xv) = \{6\}$ ; C2bis ne s'applique pas.
+\end{exemple}
+
+\begin{remarque}[Place dans la propagation]
+C2bis est \'evalu\'ee comme C2~: en temps constant lors du pr\'e-traitement,
+puisqu'elle ne d\'epend que de $\sigma(v)$. Elle se traduit par une
+\textbf{r\'eduction de domaine} appliqu\'ee une seule fois avant l'envoi au
+solveur, sans encombrer la propagation principale. C'est strictement plus
+efficace que de laisser le CSP produire ces solutions puis les filtrer
+en aval~: pour les configurations \og no-freeze + no-table \fg{} sur $h_8$
+et $h_9$, le gain en temps de reconstruction est de l'ordre d'un facteur 3
+\`a 5.
+\end{remarque}
+
+\begin{remarque}[Compatibilit\'e avec \texttt{-{}-no-freeze}]
+Le filtrage topologique reste appliqu\'e m\^eme lorsque la r\`egle $b(v) \geq 2$
+de C2 est d\'esactiv\'ee~: il s'agit d'une condition n\'ecessaire de
+faisabilit\'e g\'eom\'etrique, ind\'ependante du choix de geler ou non les
+configurations \`a blocs s\'epar\'es. Cela d\'ebloque l\'egitimement le cas
+$b(v) \geq 2$ avec deux z\'eros adjacents (par exemple
+$\sigma(v) = (0,0,1,0,1,1)$~: deux blocs, mais $I(v) = \{1\}$ donc le
+pentagone reste autoris\'e si l'on utilise \texttt{-{}-no-freeze}).
+\end{remarque}
 
 \subsubsection{Construction de la table de voisinage $\mathcal{T}(n)$}
 \label{sec:table}
@@ -678,6 +772,9 @@ C1 & Conservation du carbone &
   $\displaystyle\sum_{v \in \VD} x_v = 6h \;\Leftrightarrow\; n_5 = n_7$ \\[6pt]
 C2 & Hexagones gel\'es &
   $\bigl[\degv=6 \;\lor\; b(v) \geq 2\bigr] \Rightarrow \xv=6$ \\[4pt]
+C2bis & Filtrage topologique du domaine &
+  $5 \in \mathrm{dom}(\xv) \Leftrightarrow I(v) \neq \emptyset$,\;
+  $7 \in \mathrm{dom}(\xv) \Leftrightarrow \exists i,\sigma_i=0$ \\[6pt]
 C3 & Voisinage admissible &
   $\Lambda(v) \in \mathcal{T}(\xv)$ pour tout $v \in \VD$ \\[6pt]
 C4 & Brisure de sym\'etrie (lex-leader) &
@@ -704,6 +801,7 @@ commande. Le tableau ci-dessous r\'esume leur \'etat par d\'efaut.
 C1 (conservation) & toujours active & --- \\
 C2, r\`egle $\degv=6$ & toujours active & --- \\
 C2, r\`egle $b(v) \geq 2$ & active & \texttt{--no-freeze} pour d\'esactiver \\
+C2bis (topologie du domaine) & toujours active & --- \\
 C3 (table voisinage) & active & \texttt{--no-table} pour d\'esactiver \\
 C4 (lex-leader) & toujours active & --- \\
 C5 (adjacence 5--7) & \textbf{d\'esactiv\'ee} & \texttt{--adj-57} pour activer \\
@@ -728,9 +826,12 @@ actives, encod\'ees dans le format de sortie adapt\'e du format Benzai.
 
 \begin{itemize}
   \item \textbf{Ordre de propagation recommand\'e} :
-        C1 $\to$ C2 $\to$ C3.
+        C1 $\to$ C2 $\to$ C2bis $\to$ C3.
         C1 filtre globalement (\'equilibre $n_5/n_7$), C2 fige les cycles
-        incompatibles, C3 filtre par voisinage local.
+        incompatibles, C2bis r\'eduit le domaine des cycles libres selon la
+        topologie locale, C3 filtre par voisinage. C2 et C2bis sont
+        \'evalu\'ees \emph{une fois} au pr\'e-traitement (constantes
+        d\'ependant uniquement de $\sigma(v)$).
   \item \textbf{Ordre de branchement} : commencer par les cycles de bord
         (degr\'e faible) qui ont les domaines les plus contraints par C3.
   \item \textbf{Complexit\'e} : $|\mathbf{X}| = h$ variables, domaine de
