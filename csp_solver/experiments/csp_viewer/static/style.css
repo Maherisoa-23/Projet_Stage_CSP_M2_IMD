@@ -269,6 +269,14 @@ tr.row-xtb-failed td:nth-child(3) {
 .meta-box .item .label { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; }
 .meta-box .item .value { font-weight: 600; font-size: 1rem; }
 
+/* Bouton 3D dans le meta-box (vue molecule) : retire le margin droit
+   herite et ajuste l'alignement vertical par rapport au texte "PLAN (xx°)". */
+.meta-box .btn-3d-orig {
+  margin-right: 0;
+  margin-left: 0.4rem;
+  vertical-align: middle;
+}
+
 /* ===== Pagination ===== */
 .pagination {
   display: flex;

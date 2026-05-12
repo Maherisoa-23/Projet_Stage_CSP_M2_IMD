@@ -199,11 +199,32 @@ def api_solutions():
             "FROM molecules WHERE h = ? AND config = ? AND mol = ?",
             (h, config, mol)
         ).fetchone()
+        # Chemin relatif du fichier d'optim de la molecule d'origine.
+        # On le deduit d'un sol_dir quelconque de la mol (deux niveaux au-dessus),
+        # car la table molecules ne stocke pas le mol_dir explicitement.
+        original_xyz_path = None
+        any_sol_dir = conn.execute(
+            "SELECT sol_dir FROM solutions "
+            "WHERE h = ? AND config = ? AND mol = ? LIMIT 1",
+            (h, config, mol)
+        ).fetchone()
+        if any_sol_dir and any_sol_dir["sol_dir"]:
+            sd = any_sol_dir["sol_dir"].replace("\\", "/").rstrip("/")
+            # Format attendu : <prefix>/<mol>/solutions/sol_X_Y
+            # On remonte deux fois pour atteindre <prefix>/<mol>/
+            parts = sd.split("/")
+            if len(parts) >= 3 and parts[-2] == "solutions":
+                mol_dir_rel = "/".join(parts[:-2])
+                original_xyz_path = f"{mol_dir_rel}/{mol}_original_opt.xyz"
+
+    meta_out = dict(meta) if meta else None
+    if meta_out is not None:
+        meta_out["original_xyz_path"] = original_xyz_path
     return jsonify({
         "total": total,
         "page": page,
         "size": size,
-        "molecule": dict(meta) if meta else None,
+        "molecule": meta_out,
         "solutions": [dict(r) for r in rows],
     })
 

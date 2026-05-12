@@ -269,6 +269,11 @@ function renderMolMeta(meta) {
     : (meta.original_planar ? "PLAN" : "NON PLAN") + ` (${(meta.original_angle_deg ?? 0).toFixed(2)}°)`;
   const infeasible = meta.n_geom_infeasible || 0;
   const xtbFailed = meta.n_xtb_failed || 0;
+  // Bouton 3D pour la molecule d'origine optimisee : visible uniquement si on
+  // a un chemin xyz cote serveur (sinon le pipeline n'a pas produit le fichier).
+  const origBtn3d = meta.original_xyz_path
+    ? `<button class="btn-3d btn-3d-orig" id="btn-3d-orig" title="Visualiser l'original optimisé en 3D">3D</button>`
+    : "";
   box.innerHTML = `
     <div class="item"><span class="label">CSP combinatoire</span><span class="value">${meta.n_solutions_csp ?? "—"}</span></div>
     <div class="item"><span class="label">MD validées</span><span class="value">${meta.n_md_completed ?? "—"}</span></div>
@@ -278,9 +283,26 @@ function renderMolMeta(meta) {
     <div class="item"><span class="label">Non plans</span><span class="value" style="color:var(--danger)">${meta.n_non_plans}</span></div>
     <div class="item"><span class="label">Angle min</span><span class="value">${meta.min_angle === null ? "—" : meta.min_angle.toFixed(2) + "°"}</span></div>
     <div class="item"><span class="label">Angle max</span><span class="value">${meta.max_angle === null ? "—" : meta.max_angle.toFixed(2) + "°"}</span></div>
-    <div class="item"><span class="label">Original</span><span class="value">${orig}</span></div>
+    <div class="item"><span class="label">Original</span><span class="value">${orig} ${origBtn3d}</span></div>
     <div class="item"><span class="label">Job</span><span class="value">${meta.job_status ?? "—"}${meta.job_duration_sec ? ` · ${(meta.job_duration_sec/60).toFixed(0)} min` : ""}</span></div>
   `;
+
+  // Hook le bouton 3D Original (si present)
+  const btnOrig = $("#btn-3d-orig");
+  if (btnOrig && meta.original_xyz_path) {
+    btnOrig.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      if (!window.MolViz) {
+        alert("MolViz non chargé");
+        return;
+      }
+      window.MolViz.open({
+        xyz_path: meta.original_xyz_path,
+        title:    "Original",
+        subtitle: state.mol,
+      });
+    });
+  }
 }
 
 function renderSolTable(data) {

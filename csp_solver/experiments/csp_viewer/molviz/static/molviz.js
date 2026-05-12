@@ -1,13 +1,24 @@
 /**
  * Visualisation 3D d'une molecule avec 3Dmol.js.
  *
- * API publique : window.MolViz.open(solInfo)
- *   solInfo = {
- *     sol_dir: "...",   // chemin relatif du sol_dir
- *     sol_idx: 1234,
- *     sizes:   "5_7_6",
- *     verdict: "plan" | "non_plan" | ...,
- *   }
+ * API publique : window.MolViz.open(info)
+ *
+ *   Variante "solution" (par defaut, retro-compatible) :
+ *     info = {
+ *       sol_dir: "...",   // chemin relatif du sol_dir
+ *       sol_idx: 1234,
+ *       sizes:   "5_7_6",
+ *       verdict: "plan" | "non_plan" | ...,
+ *     }
+ *   -> charge <sol_dir>/md_validation/md_final_opt.xyz et titre "sol_X · sizes Y".
+ *
+ *   Variante "generique" (override explicite, pour ex. molecule d'origine) :
+ *     info = {
+ *       xyz_path: "...",  // chemin relatif d'un .xyz (resolu cote serveur)
+ *       title:    "Original",
+ *       subtitle: "0-10-19-…",
+ *     }
+ *   -> charge directement xyz_path et utilise title + subtitle dans l'en-tete.
  *
  * Le fichier 3Dmol-min.js doit etre charge AVANT ce script.
  *
@@ -76,13 +87,28 @@
     if (ev.key === "Escape") close();
   }
 
+  /** Construit le titre d'en-tete a partir des infos d'ouverture. */
+  function buildHeaderTitle(info) {
+    // Variante explicite : title (+ subtitle) fournis directement
+    if (info.title) {
+      return info.subtitle
+        ? `${info.title}  ·  ${info.subtitle}`
+        : info.title;
+    }
+    // Variante "solution" (retro-compatible)
+    if (info.sol_idx !== undefined) {
+      return `sol_${info.sol_idx}  ·  sizes ${info.sizes}`;
+    }
+    return "Molécule";
+  }
+
   /** Construit le modal et son contenu. Retourne {body, header, controls}. */
-  function buildModal(solInfo) {
+  function buildModal(info) {
     const overlay = el("div", { class: "molviz-overlay" });
     const modal = el("div", { class: "molviz-modal", onclick: (e) => e.stopPropagation() });
 
     const header = el("div", { class: "molviz-header" },
-      el("div", { class: "title" }, `sol_${solInfo.sol_idx}  ·  sizes ${solInfo.sizes}`),
+      el("div", { class: "title" }, buildHeaderTitle(info)),
       el("div", { class: "meta", id: "molviz-meta" }, "—"),
       el("button", { class: "molviz-close", title: "Fermer (Esc)", onclick: close }, "✕"),
     );
@@ -259,17 +285,27 @@
     render();
   }
 
-  /** Charge les donnees pour un sol_dir et ouvre le modal. */
-  async function open(solInfo) {
+  /** Charge un .xyz et ouvre le modal. Accepte deux formes d'info :
+   *   - {xyz_path, title, subtitle}   pour ouvrir un xyz arbitraire
+   *   - {sol_dir, sol_idx, sizes, verdict}  pour les solutions (retro-compat)
+   */
+  async function open(info) {
     if (currentRoot) close();
 
-    const refs = buildModal(solInfo);
+    const refs = buildModal(info);
     currentRoot = refs.overlay;
 
-    // Path = <sol_dir>/md_validation/md_final_opt.xyz
-    // (fallback source.xyz si verdict est xtb_failed mais on n'arrivera pas la
-    // dans la vue actuelle ; le bouton 3D n'apparait pas pour ces sols)
-    const xyzRel = `${solInfo.sol_dir}/md_validation/md_final_opt.xyz`;
+    // Resolution du chemin : explicite > deduit depuis sol_dir
+    let xyzRel;
+    if (info.xyz_path) {
+      xyzRel = info.xyz_path;
+    } else if (info.sol_dir) {
+      // Path = <sol_dir>/md_validation/md_final_opt.xyz
+      xyzRel = `${info.sol_dir}/md_validation/md_final_opt.xyz`;
+    } else {
+      refs.loading.innerHTML = `<div style="color:#dc2626">Erreur : aucun chemin de molécule fourni.</div>`;
+      return;
+    }
     let data;
     try {
       const r = await fetch(`/api/mol3d?path=${encodeURIComponent(xyzRel)}`);
