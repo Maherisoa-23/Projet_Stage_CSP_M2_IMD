@@ -44,6 +44,7 @@ def _compute_mol3d(xyz_path_str: str) -> dict:
 
     kekule = assign_kekule(mol)
 
+    n_anomaly = sum(1 for c in mol.cycles if c.anomaly)
     return {
         "atoms": [a.to_dict() for a in mol.atoms],
         "bonds": [
@@ -51,7 +52,11 @@ def _compute_mol3d(xyz_path_str: str) -> dict:
             for (u, v), order in zip(mol.bonds, kekule.bond_orders)
         ],
         "cycles": [
-            {"size": len(c), "atoms": [int(i) for i in c]}
+            {
+                "size": c.size,
+                "atoms": [int(i) for i in c.atoms],
+                "anomaly": bool(c.anomaly),
+            }
             for c in mol.cycles
         ],
         "radicals": sorted(int(i) for i in kekule.radicals),
@@ -60,6 +65,8 @@ def _compute_mol3d(xyz_path_str: str) -> dict:
             "n_bonds": len(mol.bonds),
             "n_doubles": int(kekule.n_doubles),
             "n_radicals": len(kekule.radicals),
+            "n_cycles": len(mol.cycles),
+            "n_anomaly_cycles": n_anomaly,
             "perfect_matching": bool(kekule.is_perfect),
             "source": str(p),
         },

@@ -44,15 +44,30 @@ class Atom:
 
 
 @dataclass
+class Cycle:
+    """Un cycle (face planaire) du squelette carbone.
+    - atoms  : liste ordonnee des indices d'atomes (sequence cyclique).
+    - anomaly: True si la taille n'est pas dans {5,6,7} (signal d'un bond
+               parasite ou d'une geometrie cassee).
+    """
+    atoms: List[int]
+    anomaly: bool = False
+
+    @property
+    def size(self) -> int:
+        return len(self.atoms)
+
+
+@dataclass
 class MolGraph:
     """Squelette carbone d'une molecule.
     - atoms : liste des atomes C uniquement (les H sont droppes).
     - bonds : liste de tuples (i, j) avec i<j, indices dans `atoms`.
-    - cycles : liste de listes d'indices, dans l'ordre cyclique.
+    - cycles : liste de Cycle, idealement les faces 5/6/7 du plongement planaire.
     """
     atoms: List[Atom] = field(default_factory=list)
     bonds: List[Tuple[int, int]] = field(default_factory=list)
-    cycles: List[List[int]] = field(default_factory=list)
+    cycles: List["Cycle"] = field(default_factory=list)
 
 
 def read_xyz(path) -> List[Atom]:
@@ -183,21 +198,82 @@ def enumerate_small_cycles(n_atoms: int,
 VALID_CYCLE_SIZES = (5, 6, 7)
 
 
+def _order_cycle_vertices(node_set, graph) -> List[int]:
+    """Reconstruit l'ordre cyclique des sommets d'un cycle simple.
+
+    `minimum_cycle_basis` retourne juste l'ensemble des sommets ; pour dessiner
+    le polygone il faut la sequence le long du cycle. On part d'un sommet
+    quelconque et on suit l'arete qui reste dans node_set jusqu'a revenir au
+    point de depart.
+    """
+    nodes = set(node_set)
+    if not nodes:
+        return []
+    start = next(iter(nodes))
+    ordered = [start]
+    prev = None
+    current = start
+    while True:
+        # Trouve le voisin de `current` qui est dans le cycle et pas le precedent
+        nxt = None
+        for v in graph.neighbors(current):
+            if v in nodes and v != prev:
+                nxt = v
+                break
+        if nxt is None or nxt == start:
+            break
+        ordered.append(nxt)
+        prev = current
+        current = nxt
+        if len(ordered) > len(nodes):  # garde-fou
+            break
+    return ordered
+
+
+def _compute_cycles_sssr(n_atoms: int,
+                         bonds: List[Tuple[int, int]]) -> List["Cycle"]:
+    """Calcule le SSSR via nx.minimum_cycle_basis et reconstruit l'ordre
+    cyclique des sommets. Marque comme `anomaly` toute taille hors {5,6,7}.
+
+    Pour un graphe planaire 2-connecte (cas standard des non-benzenoides),
+    c'est mathematiquement equivalent aux faces internes du plongement.
+    """
+    import networkx as nx
+    g = nx.Graph()
+    g.add_nodes_from(range(n_atoms))
+    g.add_edges_from(bonds)
+    try:
+        basis = nx.minimum_cycle_basis(g)
+    except (nx.NetworkXNoCycle, nx.NetworkXError):
+        return []
+
+    cycles: List[Cycle] = []
+    for node_list in basis:
+        ordered = _order_cycle_vertices(node_list, g)
+        if len(ordered) < 3:
+            continue
+        cycles.append(Cycle(
+            atoms=ordered,
+            anomaly=(len(ordered) not in VALID_CYCLE_SIZES),
+        ))
+    return cycles
+
+
 def build_mol_graph(xyz_path) -> MolGraph:
     """Charge un XYZ, garde uniquement les C, construit liaisons + cycles.
 
     Workflow :
       1. Detection des bonds C-C par seuil de distance (1.20-1.65 A).
-      2. Enumeration de tous les cycles simples de taille <= 7.
-      3. Filtrage : on ne garde que les cycles de taille 5/6/7 (les seules
-         valides par construction de notre projet).
-      4. Filtrage des bonds : on supprime ceux qui n'appartiennent a aucun
-         cycle retenu. Cible les "chord bonds" parasites qui apparaissent
-         dans les structures fortement tendues (ex. 4 pentagones + 4
-         heptagones, ou des heptagones tres courbes ou deux atomes
-         non-adjacents s'approchent < 1.65 A).
-      5. Re-extraction des cycles fondamentaux sur le graphe nettoye
-         (cycle_basis renvoie maintenant directement les faces 5/6/7).
+      2. Calcul du SSSR (Smallest Set of Smallest Rings) via
+         nx.minimum_cycle_basis : pour un graphe planaire 2-connecte c'est
+         equivalent aux faces internes du plongement.
+      3. Filtrage des bonds parasites : on supprime ceux qui n'appartiennent
+         a aucun cycle de la base de taille raisonnable (<= 8). Cible les
+         "chord bonds" qui apparaissent dans les structures tendues quand
+         deux atomes non-adjacents s'approchent < 1.65 A.
+      4. Recalcul du SSSR sur le graphe nettoye -> cycles finaux.
+         Tout cycle dont la taille n'est pas dans {5,6,7} est conserve mais
+         flagge `anomaly=True` (signal visuel cote viewer).
     """
     raw_atoms = read_xyz(Path(xyz_path))
     if not raw_atoms:
@@ -208,28 +284,31 @@ def build_mol_graph(xyz_path) -> MolGraph:
     if not bonds:
         return MolGraph(atoms=carbons, bonds=[], cycles=[])
 
-    # Etape 2-3 : enumeration + filtrage par taille
-    all_cycles = enumerate_small_cycles(len(carbons), bonds, max_len=max(VALID_CYCLE_SIZES))
-    valid_cycles = [c for c in all_cycles if len(c) in VALID_CYCLE_SIZES]
+    # Etape 2 : premier SSSR pour reperer les bonds legitimes
+    first_pass = _compute_cycles_sssr(len(carbons), bonds)
 
-    # Etape 4 : ne garder que les bonds dans au moins un cycle retenu
+    # Etape 3 : ne garder que les bonds dans au moins un cycle "petit" (<=8)
     valid_edges = set()
-    for c in valid_cycles:
-        for k in range(len(c)):
-            a, b = c[k], c[(k + 1) % len(c)]
+    for c in first_pass:
+        if c.size > 8:
+            # Cycle trop grand : probablement compose, on n'en tire pas
+            # d'info pour la legitimite des bonds.
+            continue
+        atoms = c.atoms
+        for k in range(len(atoms)):
+            a, b = atoms[k], atoms[(k + 1) % len(atoms)]
             valid_edges.add(tuple(sorted((a, b))))
 
     cleaned_bonds = [
         (u, v) for (u, v) in bonds
         if tuple(sorted((u, v))) in valid_edges
     ]
+    if not cleaned_bonds:
+        # Fallback : si le nettoyage a tout supprime (graphe sans cycle <=8),
+        # on garde les bonds bruts et on prend le SSSR tel quel.
+        cleaned_bonds = bonds
+        cycles_final = first_pass
+    else:
+        cycles_final = _compute_cycles_sssr(len(carbons), cleaned_bonds)
 
-    # Etape 5 : on utilise directement les cycles enumerated filtres comme
-    # cycles finaux. C'est plus complet que cycle_basis (qui ne retourne
-    # qu'une BASE de cycles dependante du spanning tree, donc peut
-    # masquer certaines faces).
-    # Dans nos non-benzenoides, simple_cycles avec length_bound=7 retourne
-    # exactement les faces 5/6/7 (les "compound cycles" naturels font >= 8
-    # sommets puisque 2 polycycles fusionnes partagent au moins une arete).
-
-    return MolGraph(atoms=carbons, bonds=cleaned_bonds, cycles=valid_cycles)
+    return MolGraph(atoms=carbons, bonds=cleaned_bonds, cycles=cycles_final)
