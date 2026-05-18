@@ -97,6 +97,35 @@ marquent dans le texte les contenus ajoutes a chaque etape.
     cycles simples $\leq 7$, garde uniquement les 5/6/7, supprime les bonds
     qui n'appartiennent a aucun cycle retenu. Resout le cas du faux 3-cycle
     visible sur les structures tres tendues (4 pentagones + 4 heptagones d'h9). \\
+  Mai 2026 (mi-mai, post-reunion chimistes) &
+    \textbf{Reunion Denis Hagebaum-Reignier + Yannick Carissan}. L'interet
+    chimique central des structures 5/7 est l'\emph{etude de la
+    delocalisation electronique} (pas la stabilite aromatique stricte) :
+    ou les electrons se placent, ou apparaissent les sites radicalaires
+    forces par la parite 5/7. \textbf{Module \texttt{molviz} etendu en
+    deux temps.} (1) \emph{Mode Kekule/Radicalaires} :
+    \texttt{enumerate\_kekule} canonique par backtracking, endpoint
+    \texttt{/api/kekule\_list}, chip de navigation parmi toutes les
+    structures du squelette carbone. Le label de la chip change
+    dynamiquement (\emph{Kekule} si \texttt{n\_radicals=0},
+    \emph{Radicalaires} sinon) avec icone d'aide \texttt{\textcircled{i}}
+    expliquant la convention. Tests : 9/9 OK (benzene 2, naphtalene 3,
+    anthracene 4, phenanthrene 5, invariants, cap). (2) \emph{Mode RBO}
+    \emph{etendu aux cycles 5/7} : \texttt{molviz/rbo.py} +
+    \texttt{/api/rbo} + chip RBO. La methode de Rispoli (these Varet,
+    th. 2.2.1) est non applicable car non-bipartite des qu'on a un cycle
+    impair ; sa generalisation Kasteleyn 1967 (citee dans la these)
+    demande trop de code pour le perimetre. On enumere donc les Kekule
+    et on agrege : \texttt{bond\_order(e)} = fraction de Kekule ou
+    \(e\) est double, \texttt{CBO(cycle)} = somme. Affichage label
+    \og{}CBO / cbo\_max\fg{} au centre de chaque cycle. Plafond 10 000
+    Kekule (jamais atteint sur h3--h9) ; molecules radicalaires
+    $\to$ bandeau \emph{RBO non defini} et redirection implicite vers
+    le mode Radicalaires. \textbf{Petite contribution originale} :
+    l'extension de la definition Pauling/Randic aux pentagones (max 2)
+    et heptagones (max 3), absente de Varet/BenzAI. Tests : 5/5 OK,
+    valide sur l'azulene (CBO pent = 2,0 / max = 2 ; CBO hept = 3,0
+    / max = 3, coherent avec l'aromaticite Huckel 10\(\pi\)). \\
   \bottomrule
 \end{tabular}
 \end{center}

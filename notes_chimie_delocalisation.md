@@ -113,6 +113,66 @@ Cette distinction n'est pas mathématiquement nécessaire (le même calcul fonct
 
 ---
 
+## 7bis. RBO : implémentation et extension non-benzénoïde
+
+**Implémenté** dans `molviz/rbo.py` + endpoint `/api/rbo` + chip "RBO" dans le viewer. Synthèse de ce qu'on fait et pourquoi.
+
+### Définition (thèse Varet, def. 2.4.14 et 2.4.15)
+
+```
+bond_order(e) = (# Kekulé où e est double) / (# total Kekulé)         ∈ [0, 1]
+RBO(cycle h) = Σ bond_order(e) pour e ∈ h
+```
+
+Pour un hexagone benzénoïde : RBO ∈ [0, 3]. Benzène pur → 3 (chaque arête est double à 50% du temps, 6 × 0,5 = 3). Hexagone "mort" (jamais de double dedans) → 0.
+
+### Extension non-benzénoïde (notre apport)
+
+Varet/BenzAI s'arrêtent aux benzénoïdes purs (hexagones uniquement). Pour nos 5/7, on garde la **même formule** mais sommée sur toutes les arêtes du cycle quelle que soit sa taille. Bornes chimiques :
+
+- Pentagone : RBO ∈ [0, 2] (au plus 2 doubles dans un pent d'un PAH)
+- Hexagone : RBO ∈ [0, 3]
+- Heptagone : RBO ∈ [0, 3] (au plus 3 doubles dans un hept)
+
+On affiche `CBO / cbo_max` où `cbo_max` = max nombre de doubles **observé** dans le cycle sur les Kekulé énumérées. Plus honnête que de coder en dur les bornes théoriques.
+
+### Pourquoi pas Rispoli ?
+
+Méthode BenzAI = déterminant de la matrice de biadjacence (théorème de Rispoli 2001), polynomial **parce que les benzénoïdes sont bipartites**. Dès qu'il y a un cycle impair (5 ou 7), bipartition cassée → Rispoli inapplicable directement.
+
+La généralisation = théorème de Kasteleyn 1967 (cité dans la thèse, ligne ~2601) pour graphes planaires (bipartites ou non). Implémentable mais ~150 lignes (orientation de Kasteleyn + Pfaffien). **Trop pour le temps du stage** ; on est passés sur l'énumération directe.
+
+### Algo retenu : énumération + agrégation
+
+```python
+1. kekule_list, is_exact = enumerate_kekule(mol, max_count=10000)
+2. Si n_radicals > 0 dans tous les matchings max  → available=False
+3. Sinon :
+   double_count[e] = nb Kekulé où e est double  # une passe sur la liste
+   bond_orders[e] = double_count[e] / N
+   cbo[c] = Σ bond_orders[e] pour e ∈ c
+   cbo_max[c] = max sur les Kekulé du nb de doubles dans c
+```
+
+Plafond à 10 000 Kekulé. Au-delà, RBO approximé avec bandeau jaune. Sur h3-h9, ce plafond n'a jamais été atteint en pratique (les 5/7 contraignent fortement le matching).
+
+### Cas radicalaires
+
+Si la molécule n'admet aucun matching parfait (n_radicals > 0), RBO non défini au sens strict (Pauling/Randić raisonnent sur les Kekulé). Backend renvoie `available=False` + raison. UI affiche "RBO non défini — molécule radicalaire" et l'utilisateur peut basculer sur la chip "Radicalaires" déjà existante.
+
+### Tests (`molviz/test_rbo.py`, 5/5 OK)
+
+- **Benzène** : BO=0,5 partout, CBO=3,0 ✓
+- **Naphtalène, anthracène** : invariants (Σ BO = n_doubles, BO ∈ [0,1], CBO ≤ cbo_max) ✓
+- **Pentagone seul** : `available=False` (radicalaire) ✓
+- **Azulène (5/7 fused)** : 2 Kekulé, pent CBO=2,0/max=2, hept CBO=3,0/max=3 — valide l'extension et cohérent avec l'aromaticité connue de l'azulène (10π, Hückel n=2)
+
+### Justification du choix face à la thèse
+
+Pour le rapport : on cite Rispoli **et** Kasteleyn (les deux dans la thèse). On explique qu'on utilise l'énumération directe car (1) Rispoli n'est pas applicable (bipartition cassée), (2) Kasteleyn demandait trop de code pour le périmètre du stage, (3) le nombre de Kekulé de nos h3-h9 reste petit (les 5/7 contraignent). L'extension de la définition aux pentagones/heptagones est notre **petite contribution originale**.
+
+---
+
 ## 8. Vocabulaire récap
 
 | Terme | Sens court |

@@ -22,6 +22,7 @@ from flask import Blueprint, abort, jsonify, request, send_from_directory
 
 from .bonds import build_mol_graph
 from .kekule import assign_kekule, enumerate_kekule
+from .rbo import compute_rbo, DEFAULT_MAX_KEKULE
 
 
 _HERE = Path(__file__).resolve().parent
@@ -107,6 +108,44 @@ def _compute_kekule_list(xyz_path_str: str, max_count: int) -> dict:
     }
 
 
+@lru_cache(maxsize=256)
+def _compute_rbo_payload(xyz_path_str: str, max_count: int) -> dict:
+    """Calcul des Ring Bond Orders d'une molecule.
+
+    Cle de cache = (chemin absolu, max_count). Si la molecule est radicalaire,
+    available=False avec une raison textuelle. Sinon on renvoie les bond_orders
+    par arete et le CBO par cycle.
+    """
+    p = Path(xyz_path_str)
+    mol = build_mol_graph(p)
+    if not mol.atoms:
+        return {"error": "empty or unreadable xyz"}
+
+    result = compute_rbo(mol, max_count=max_count)
+
+    return {
+        "available": bool(result.available),
+        "bond_orders": [float(b) for b in result.bond_orders],
+        "cycles": [
+            {
+                "size": c.size,
+                "atoms": [int(i) for i in c.atoms],
+                "cbo": float(result.cbo[i]) if result.available else None,
+                "cbo_max": int(result.cbo_max[i]) if result.available else None,
+            }
+            for i, c in enumerate(mol.cycles)
+        ],
+        "meta": {
+            "n_kekule": int(result.n_kekule),
+            "is_exact": bool(result.is_exact),
+            "n_radicals": int(result.n_radicals),
+            "max_requested": int(max_count),
+            "reason": result.reason,
+            "source": str(p),
+        },
+    }
+
+
 def init_app(app, resolve_path_fn):
     """Branche le blueprint sur l'app Flask.
 
@@ -145,5 +184,24 @@ def init_app(app, resolve_path_fn):
         # pour eviter qu'un client malicieux ne fasse exploser le cache.
         max_count = max(1, min(max_count, 1000))
         return jsonify(_compute_kekule_list(str(target.resolve()), max_count))
+
+    @bp.route("/api/rbo")
+    def api_rbo():
+        rel = request.args.get("path", "")
+        if not rel:
+            abort(400, description="missing 'path' parameter")
+        target = resolve_path_fn(rel)
+        if target is None:
+            abort(404)
+        if target.suffix.lower() not in (".xyz",):
+            abort(403, description="only .xyz supported")
+        try:
+            max_count = int(request.args.get("max", DEFAULT_MAX_KEKULE))
+        except ValueError:
+            abort(400, description="'max' must be an integer")
+        # Borne dure : on plafonne a DEFAULT_MAX_KEKULE pour eviter de saturer
+        # cache et CPU. Si l'utilisateur demande plus, on ignore silencieusement.
+        max_count = max(1, min(max_count, DEFAULT_MAX_KEKULE))
+        return jsonify(_compute_rbo_payload(str(target.resolve()), max_count))
 
     app.register_blueprint(bp)

@@ -60,9 +60,12 @@
   let showRadicals = true;
   let showLabels = false;
 
-  // Etat du systeme de modes (defaut / kekule)
+  // Etat du systeme de modes (defaut / kekule / rbo)
   // - 'default'  : bonds + radicaux tels que renvoyes par /api/mol3d (matching max)
   // - 'kekule'   : bonds + radicaux du i-eme Kekule de la liste enumere
+  // - 'rbo'      : vue Ring Bond Order. Bonds = ceux du matching max (mode
+  //                'default'), avec en plus un label "CBO=x/y" au centre
+  //                de chaque cycle. Si molecule radicalaire, banniere d'erreur.
   let currentMode = "default";
 
   // Cache de la liste Kekule pour la molecule courante (lazy-loadee)
@@ -76,6 +79,13 @@
   let kekuleChipRef = null;    // bouton chip "Kekule"/"Radicalaires"
   let kekuleLabelRef = null;   // span dans la barre de nav
   let kekuleHelpRef = null;    // icone d'aide "ⓘ" visible si radicaux
+
+  // Cache du payload RBO pour la molecule courante (lazy-loadee)
+  // Format : { available, bond_orders, cycles: [{atoms, cbo, cbo_max}], meta }
+  let rboData = null;
+  let rboLoading = false;
+  // Banniere pour les avertissements RBO (radicaux, approximation)
+  let rboBannerRef = null;
 
   function el(tag, attrs, ...children) {
     const e = document.createElement(tag);
@@ -116,6 +126,9 @@
     kekuleChipRef = null;
     kekuleLabelRef = null;
     kekuleHelpRef = null;
+    rboData = null;
+    rboLoading = false;
+    rboBannerRef = null;
     document.removeEventListener("keydown", onKey);
   }
 
@@ -183,6 +196,12 @@
       id: "mode-kekule",
       onclick: () => setMode("kekule"),
     }, "Kekule");
+    const rboChip = el("button", {
+      class: "molviz-mode-chip",
+      id: "mode-rbo",
+      onclick: () => setMode("rbo"),
+      title: "Ring Bond Order : aromaticite locale de chaque cycle",
+    }, "RBO");
     const modeBar = el("div", { class: "molviz-modebar" },
       el("button", {
         class: "molviz-mode-chip active",
@@ -191,7 +210,16 @@
         title: "Vue par defaut : un matching maximum",
       }, "Defaut"),
       kekuleChip,
+      rboChip,
     );
+
+    // Banniere d'information/avertissement pour le mode RBO (cachee par defaut).
+    // S'affiche pour :
+    //   - molecule radicalaire (RBO non defini)
+    //   - calcul approxime (Kekule plafonnees)
+    //   - chargement en cours
+    const rboBanner = el("div", { class: "molviz-rbo-banner hidden" });
+    rboBannerRef = rboBanner;
 
     // Barre de navigation Kekule (cachee par defaut, affichee en mode kekule)
     const kekuleLabel = el("span", { class: "molviz-kekule-label" }, "Kekule");
@@ -259,6 +287,7 @@
     modal.appendChild(header);
     modal.appendChild(modeBar);
     modal.appendChild(kekuleNav);
+    modal.appendChild(rboBanner);
     modal.appendChild(body);
     modal.appendChild(controls);
     overlay.appendChild(modal);
@@ -389,6 +418,32 @@
       }
     }
 
+    // 2bis. Labels CBO au centre des cycles (mode RBO uniquement, si RBO defini)
+    //       Format : "CBO/max" (ex : "2.3 / 3"). Affiche aussi si is_exact=false
+    //       pour signaler les valeurs approximees.
+    if (currentMode === "rbo" && rboData && rboData.available) {
+      const isApprox = !rboData.meta.is_exact;
+      for (let ci = 0; ci < rboData.cycles.length; ci++) {
+        const c = rboData.cycles[ci];
+        if (c.cbo == null) continue;
+        const verts = c.atoms.map(i => data.atoms[i]);
+        const cx = verts.reduce((s, a) => s + a.x, 0) / verts.length;
+        const cy = verts.reduce((s, a) => s + a.y, 0) / verts.length;
+        const cz = verts.reduce((s, a) => s + a.z, 0) / verts.length;
+        const txt = `${c.cbo.toFixed(2)} / ${c.cbo_max}`;
+        v.addLabel(txt, {
+          position: { x: cx, y: cy, z: cz + 0.05 },
+          fontColor: isApprox ? "#a16207" : "#1e293b",
+          fontSize: 13,
+          backgroundColor: "white",
+          backgroundOpacity: 0.92,
+          borderThickness: 1,
+          borderColor: isApprox ? "#a16207" : "#1e293b",
+          inFront: true,
+        });
+      }
+    }
+
     // 3. Bonds : single = 1 cylindre central, double = 2 cylindres paralleles
     //    L'ordre vient de bondOrders (qui depend du mode courant).
     for (let i = 0; i < data.bonds.length; i++) {
@@ -436,6 +491,7 @@
   function rerender() {
     render();
     updateKekuleStatus();
+    updateRboBanner();
   }
 
   /** Met a jour le compteur "i / N" et l'etat des boutons prev/next. */
@@ -504,6 +560,76 @@
     });
   }
 
+  /** Met a jour le contenu et la visibilite de la banniere RBO selon l'etat. */
+  function updateRboBanner() {
+    if (!rboBannerRef) return;
+    // Cacher si on n'est pas en mode rbo
+    if (currentMode !== "rbo") {
+      rboBannerRef.classList.add("hidden");
+      rboBannerRef.textContent = "";
+      return;
+    }
+    if (rboLoading) {
+      rboBannerRef.classList.remove("hidden");
+      rboBannerRef.className = "molviz-rbo-banner info";
+      rboBannerRef.textContent = "Calcul du RBO en cours…";
+      return;
+    }
+    if (!rboData) {
+      rboBannerRef.classList.add("hidden");
+      return;
+    }
+    if (!rboData.available) {
+      rboBannerRef.classList.remove("hidden");
+      rboBannerRef.className = "molviz-rbo-banner warn";
+      rboBannerRef.textContent =
+        rboData.meta.reason
+          ? `RBO non defini : ${rboData.meta.reason}.`
+          : "RBO non defini pour cette molecule.";
+      return;
+    }
+    if (!rboData.meta.is_exact) {
+      rboBannerRef.classList.remove("hidden");
+      rboBannerRef.className = "molviz-rbo-banner warn";
+      rboBannerRef.textContent =
+        `RBO approxime : enumeration plafonnee a ${rboData.meta.n_kekule} Kekule `
+        + `(la molecule en a davantage). Les valeurs sont indicatives.`;
+      return;
+    }
+    // RBO exact disponible : on cache la banniere
+    rboBannerRef.classList.add("hidden");
+    rboBannerRef.textContent = "";
+  }
+
+  /** Charge le payload RBO via /api/rbo (lazy). */
+  async function loadRbo() {
+    if (rboData || rboLoading || !currentXyzRel) return;
+    rboLoading = true;
+    updateRboBanner();
+    try {
+      const url = `/api/rbo?path=${encodeURIComponent(currentXyzRel)}`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const payload = await r.json();
+      if (payload.error) throw new Error(payload.error);
+      rboData = payload;
+    } catch (e) {
+      rboData = {
+        available: false,
+        cycles: [],
+        bond_orders: [],
+        meta: { reason: `erreur de calcul (${e.message})`, is_exact: true,
+                n_kekule: 0, n_radicals: 0 },
+      };
+      console.error("Echec chargement RBO :", e);
+    } finally {
+      rboLoading = false;
+    }
+    if (currentMode === "rbo") {
+      rerender();
+    }
+  }
+
   /** Charge la liste des Kekule via /api/kekule_list (lazy). */
   async function loadKekuleList() {
     if (kekuleList || kekuleLoading || !currentXyzRel) return;
@@ -531,8 +657,8 @@
     }
   }
 
-  /** Bascule le mode courant. Si on passe en kekule pour la 1ere fois,
-   *  declenche le chargement de la liste.
+  /** Bascule le mode courant. Si on passe en kekule/rbo pour la 1ere fois,
+   *  declenche le chargement lazy.
    */
   function setMode(mode) {
     if (mode === currentMode) return;
@@ -544,6 +670,11 @@
       updateKekuleStatus();
       loadKekuleList();
       return; // loadKekuleList rerender quand fini
+    }
+    if (mode === "rbo" && !rboData && !rboLoading) {
+      updateRboBanner();
+      loadRbo();
+      return; // loadRbo rerender quand fini
     }
     rerender();
   }

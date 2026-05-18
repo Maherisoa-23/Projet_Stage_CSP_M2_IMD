@@ -544,10 +544,103 @@ phénanthrène = 5), l'absence de doublons dans l'énumération, et l'invariant
 le mécanisme de \texttt{max\_count} et le flag \texttt{is\_exact}.
 
 \textbf{Plan des étapes suivantes.} L'architecture est posée pour ajouter
-sans refactor :
+sans refactor : prochain mode prévu \emph{Clar} (nouvelle chip, nouveau
+module \texttt{molviz/clar.py}, nouvel endpoint \texttt{/api/clar}).
+
+\subsection{Mode \emph{RBO} : Ring Bond Orders étendus aux cycles 5/7}
+\label{sec:molviz-rbo}
+
+\dateblock{mai 2026 (mi-mai, post-réunion chimistes)}
+
+\textbf{Motivation.} Le \emph{Ring Bond Order} (RBO) est l'indicateur
+topologique standard utilisé en chimie pour estimer l'aromaticité locale
+d'un benzénoïde. Définitions de référence (thèse Varet, def.~2.4.14 et
+2.4.15, après Pauling 1935 et Randić 2018) :
+\begin{align*}
+  \text{bond\_order}(e) &= \frac{\#\{\text{K\'ekul\'e o\`u } e \text{ est double}\}}{\#\{\text{toutes les K\'ekul\'e}\}} \in [0, 1] \\
+  \text{RBO}(h) &= \sum_{e \in h} \text{bond\_order}(e)
+\end{align*}
+Pour un hexagone, $\text{RBO} \in [0, 3]$ : valeur proche de 3
+$\Rightarrow$ hexagone fortement aromatique (cas idéal du benzène, qui
+vaut exactement~3), valeur faible $\Rightarrow$ hexagone faiblement
+délocalisé ou radicalaire.
+
+\textbf{Extension non-benzénoïde.} La thèse Varet (comme BenzAI) ne
+traite que les benzénoïdes purs (hexagones uniquement). Pour nos
+structures 5/7, on étend la définition à la même formule, appliquée aux
+arêtes de chaque cycle de taille quelconque. Bornes chimiques
+théoriques :
 \begin{itemize}
-  \item un mode \emph{Clar} : nouvelle chip, nouveau module \texttt{molviz/clar.py},
-    nouvel endpoint \texttt{/api/clar} ;
-  \item un mode \emph{RBO} : idem avec \texttt{molviz/rbo.py} et
-    \texttt{/api/rbo}, rendu sous forme de heatmap par cycle.
-\end{itemize>
+  \item pentagone : RBO $\in [0, 2]$ (au plus 2 doubles dans un
+    pentagone d'un PAH non-benzénoïde) ;
+  \item hexagone~~ : RBO $\in [0, 3]$ ;
+  \item heptagone : RBO $\in [0, 3]$ (au plus 3 doubles).
+\end{itemize}
+Plutôt que de coder en dur les bornes théoriques, on calcule la borne
+\emph{observée} \texttt{cbo\_max} = nombre maximum de doubles dans le
+cycle observé sur l'ensemble des Kékulé énumérées. L'UI affiche
+\texttt{CBO / cbo\_max}, ce qui reste honnête chimiquement et évite de
+préjuger des configurations admissibles.
+
+\textbf{Pourquoi pas la méthode de Rispoli.} Varet/BenzAI calculent RBO
+par déterminant de la matrice de biadjacence (théorème de
+Rispoli~2001), polynomial sur les benzénoïdes \emph{parce que ces
+derniers sont bipartites}. Dès qu'on ajoute un cycle impair (pentagone
+ou heptagone), la bipartition se brise et le théorème ne s'applique
+plus directement. La généralisation propre est le théorème de Kasteleyn
+(1967) cité dans la thèse (ligne~2601, justifiant que Rispoli est
+polynomial) : pour tout graphe \emph{planaire}, le nombre de couplages
+parfaits se calcule en O($n^3$) via un Pfaffien. L'implémenter
+proprement (orientation de Kasteleyn + Pfaffien numérique) demanderait
+${\sim}150$~lignes supplémentaires.
+
+\textbf{Choix pragmatique : énumération exhaustive avec plafond.} Vu
+que nos molécules h3--h9 ont peu de Kékulé (les contraintes 5/7
+réduisent le nombre de matchings parfaits), on s'appuie sur
+l'énumérateur \texttt{enumerate\_kekule} existant et on agrège
+\emph{a posteriori} (un \texttt{double\_count[e]} par arête, divisé
+par $N$ au final). Plafond \texttt{DEFAULT\_MAX\_KEKULE = 10000} : au-delà,
+le RBO est approximé sur les 10000 premières Kékulé canoniquement
+énumérées et un bandeau jaune \emph{RBO approximé : énumération
+plafonnée} est affiché dans l'UI. Pour nos tailles cibles ce plafond
+n'a jamais été atteint en pratique.
+
+\textbf{Cas particulier radicalaire.} Si la molécule n'admet aucune
+structure de Kékulé stricte (\texttt{n\_radicals > 0} pour tout
+matching max), RBO n'est pas défini au sens strict
+(Pauling/Randić raisonnent sur les Kékulé, pas les matchings
+maximums). Le backend retourne \texttt{available=False} avec une
+raison textuelle ; l'UI affiche un bandeau \emph{RBO non défini ---
+molécule radicalaire}, et redirige implicitement vers le mode
+\emph{Radicalaires} déjà existant.
+
+\textbf{API.} Nouvel endpoint
+\texttt{GET /api/rbo?path=<xyz>} retournant
+\texttt{\{available, bond\_orders, cycles: [\{atoms, cbo, cbo\_max\}], meta: \{n\_kekule, is\_exact, n\_radicals, reason\}\}}.
+Cache LRU 256 entrées avec clé \texttt{(xyz, max\_count)}. Lazy-loadé
+par le frontend uniquement lors du premier clic sur la chip \emph{RBO}.
+
+\textbf{Rendu UI.} Une nouvelle chip \emph{RBO} dans la barre de
+modes (à côté de \emph{Défaut} et \emph{Kekulé/Radicalaires}). En mode
+RBO, on affiche au centre de chaque cycle un label
+\og{}$\text{CBO} / \text{cbo\_max}$\fg{} (ex.~\og{}2{,}30 / 3\fg{})
+en texte 3D via \texttt{addLabel} de 3Dmol.js. Les liaisons et atomes
+restent ceux du matching max (vue par défaut). Si RBO approximé, le
+texte des labels passe en orange (\#a16207) au lieu de noir, comme
+signal visuel additionnel au bandeau.
+
+\textbf{Tests} (\texttt{molviz/test\_rbo.py}, 5 tests, tous OK) :
+\begin{itemize}
+  \item Benzène : valeurs exactes (BO~=~0{,}5 sur les 6 arêtes,
+    CBO~=~3{,}0) ;
+  \item Naphtalène, anthracène : invariants généraux
+    ($\sum_e \text{BO}(e) = n_{\text{doubles}}$, chaque BO $\in [0,1]$,
+    CBO d'un cycle = somme des BO de ses 6 arêtes, $\text{CBO} \leq \text{cbo\_max}$) ;
+  \item Pentagone seul (C$_5$) : retourne \texttt{available=False}
+    (impair, pas de matching parfait) ;
+  \item Azulène (5/7 fusionnés) : 2 Kékulé, pentagone CBO~=~2{,}0 / max=2,
+    heptagone CBO~=~3{,}0 / max=3 --- ce qui valide l'extension non-benzénoïde
+    et est cohérent avec la nature aromatique connue de l'azulène
+    (10~$\pi$~électrons, règle de Hückel 4n+2 avec $n=2$).
+\end{itemize}
+

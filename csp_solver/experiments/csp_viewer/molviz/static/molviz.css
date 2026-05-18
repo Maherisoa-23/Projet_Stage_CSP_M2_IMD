@@ -232,3 +232,25 @@
   color: #1e293b;
   font-variant-numeric: tabular-nums;
 }
+
+/* Banniere RBO (mode "RBO"). 3 etats : info (chargement), warn (radical ou
+ * approxime), cachee (par defaut et quand RBO exact disponible).
+ */
+.molviz-rbo-banner {
+  padding: 0.5rem 1.2rem;
+  font-size: 0.85rem;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+.molviz-rbo-banner.hidden {
+  display: none;
+}
+.molviz-rbo-banner.info {
+  background: #eff6ff;
+  color: #1e40af;
+}
+.molviz-rbo-banner.warn {
+  background: #fef3c7;
+  color: #92400e;
+  border-bottom-color: #fbbf24;
+}
