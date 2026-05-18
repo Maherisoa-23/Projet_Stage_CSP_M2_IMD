@@ -88,7 +88,32 @@ Le point 5 est probablement la première étude à tenter : il met en relation *
 
 ---
 
-## 7. Vocabulaire récap
+## 7. Vocabulaire : Kekulé vs Radicalaire (notre convention)
+
+Dans le strict sens chimique, une **structure de Kekulé** est une assignation de doubles liaisons telle que **chaque carbone participe à exactement une double**. Mathématiquement = un *couplage parfait* du graphe carbone.
+
+Si la molécule a un nombre **impair** de carbones (typique 5/7 par parité), ou si sa topologie force des électrons non appariés (cas « concealed non-Kekuléan »), aucun couplage parfait n'existe → **pas de Kekulé au sens strict**.
+
+Pour ces molécules, on parle de **configurations radicalaires** : on place autant de doubles que possible (matching maximum), et les carbones non couverts sont des **sites radicalaires** (électron π non apparié).
+
+### Convention dans nos outils (BenzAI / molviz / docs)
+
+| Cas | Nombre de radicaux | Terme utilisé |
+|---|---|---|
+| Molécule admettant un couplage parfait | 0 | **Structures de Kekulé** |
+| Molécule sans couplage parfait | > 0 | **Configurations radicalaires** |
+
+L'algorithme sous-jacent (`enumerate_kekule`) est le même dans les deux cas — il énumère les matchings de cardinalité maximum du graphe carbone. Seul le **nom affiché** change selon le cas, pour ne pas abuser du terme « Kekulé » quand des radicaux sont présents.
+
+Dans l'interface du viewer 3D :
+- La chip de mode s'appelle **« Kekulé »** quand `n_radicals == 0`, **« Radicalaires »** sinon.
+- Une icône d'aide `ⓘ` apparaît à côté du label dans le second cas, avec une explication au survol.
+
+Cette distinction n'est pas mathématiquement nécessaire (le même calcul fonctionne), mais elle reste fidèle au vocabulaire chimique : on n'appelle pas « Kekulé » ce qui ne peut pas l'être par construction.
+
+---
+
+## 8. Vocabulaire récap
 
 | Terme | Sens court |
 |---|---|

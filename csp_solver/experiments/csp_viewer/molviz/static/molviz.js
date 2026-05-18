@@ -55,9 +55,27 @@
   let currentViewer = null;
   let currentRoot = null;
   let currentData = null;
+  let currentXyzRel = null;     // chemin xyz courant (pour fetch lazy Kekule)
   let showCycles = true;
   let showRadicals = true;
   let showLabels = false;
+
+  // Etat du systeme de modes (defaut / kekule)
+  // - 'default'  : bonds + radicaux tels que renvoyes par /api/mol3d (matching max)
+  // - 'kekule'   : bonds + radicaux du i-eme Kekule de la liste enumere
+  let currentMode = "default";
+
+  // Cache de la liste Kekule pour la molecule courante (lazy-loadee)
+  // Format : { kekule: [{bond_orders, radicals, n_doubles}, ...], meta: {...} }
+  let kekuleList = null;
+  let kekuleIndex = 0;
+  let kekuleLoading = false;
+  // Refs DOM mises a jour quand le mode change ou qu'on navigue
+  let kekuleNavRef = null;
+  let kekuleStatusRef = null;
+  let kekuleChipRef = null;    // bouton chip "Kekule"/"Radicalaires"
+  let kekuleLabelRef = null;   // span dans la barre de nav
+  let kekuleHelpRef = null;    // icone d'aide "ⓘ" visible si radicaux
 
   function el(tag, attrs, ...children) {
     const e = document.createElement(tag);
@@ -88,11 +106,34 @@
       currentRoot = null;
     }
     currentData = null;
+    currentXyzRel = null;
+    currentMode = "default";
+    kekuleList = null;
+    kekuleIndex = 0;
+    kekuleLoading = false;
+    kekuleNavRef = null;
+    kekuleStatusRef = null;
+    kekuleChipRef = null;
+    kekuleLabelRef = null;
+    kekuleHelpRef = null;
     document.removeEventListener("keydown", onKey);
   }
 
   function onKey(ev) {
-    if (ev.key === "Escape") close();
+    if (ev.key === "Escape") {
+      close();
+      return;
+    }
+    // Navigation Kekule au clavier (uniquement quand on est en mode kekule)
+    if (currentMode === "kekule" && kekuleList && kekuleList.kekule.length > 0) {
+      if (ev.key === "ArrowLeft") {
+        ev.preventDefault();
+        gotoKekule(kekuleIndex - 1);
+      } else if (ev.key === "ArrowRight") {
+        ev.preventDefault();
+        gotoKekule(kekuleIndex + 1);
+      }
+    }
   }
 
   /** Construit le titre d'en-tete a partir des infos d'ouverture. */
@@ -129,6 +170,62 @@
     body.appendChild(canvas);
     body.appendChild(loading);
 
+    // Barre de modes : chips pour basculer entre les vues
+    // (defaut = matching max, kekule = navigation parmi tous les Kekule)
+    // Le label de la chip "kekule" est mis a jour dynamiquement par
+    // updateModeLabels() apres l'arrivee des donnees /api/mol3d :
+    //   - "Kekule"       si la molecule a un matching parfait (n_radicals = 0)
+    //   - "Radicalaires" sinon (les configurations enumerees ont des
+    //                          electrons radicalaires, donc ce ne sont pas
+    //                          des Kekule au sens strict)
+    const kekuleChip = el("button", {
+      class: "molviz-mode-chip",
+      id: "mode-kekule",
+      onclick: () => setMode("kekule"),
+    }, "Kekule");
+    const modeBar = el("div", { class: "molviz-modebar" },
+      el("button", {
+        class: "molviz-mode-chip active",
+        id: "mode-default",
+        onclick: () => setMode("default"),
+        title: "Vue par defaut : un matching maximum",
+      }, "Defaut"),
+      kekuleChip,
+    );
+
+    // Barre de navigation Kekule (cachee par defaut, affichee en mode kekule)
+    const kekuleLabel = el("span", { class: "molviz-kekule-label" }, "Kekule");
+    const kekuleHelp = el("span", {
+      class: "molviz-kekule-help hidden",
+      title: "Cette molecule n'admet pas de structure de Kekule classique "
+           + "(nombre impair de carbones ou topologie qui force des "
+           + "electrons non apparies). Les configurations affichees sont "
+           + "les matchings maximums : les liaisons doubles sont placees "
+           + "de toutes les manieres valides, et les carbones non couverts "
+           + "(en violet) sont les sites radicalaires possibles.",
+    }, "ⓘ");
+    const kekuleStatus = el("span", { class: "molviz-kekule-status" }, "—");
+    const kekuleNav = el("div", { class: "molviz-kekule-nav hidden" },
+      kekuleLabel,
+      kekuleHelp,
+      el("button", {
+        class: "molviz-kekule-btn",
+        title: "Precedent (fleche gauche)",
+        onclick: () => gotoKekule(kekuleIndex - 1),
+      }, "◀"),
+      kekuleStatus,
+      el("button", {
+        class: "molviz-kekule-btn",
+        title: "Suivant (fleche droite)",
+        onclick: () => gotoKekule(kekuleIndex + 1),
+      }, "▶"),
+    );
+    kekuleNavRef = kekuleNav;
+    kekuleStatusRef = kekuleStatus;
+    kekuleChipRef = kekuleChip;
+    kekuleLabelRef = kekuleLabel;
+    kekuleHelpRef = kekuleHelp;
+
     const controls = el("div", { class: "molviz-controls" },
       el("label", null,
         el("input", { type: "checkbox", id: "ck-cycles", checked: "checked",
@@ -160,6 +257,8 @@
     );
 
     modal.appendChild(header);
+    modal.appendChild(modeBar);
+    modal.appendChild(kekuleNav);
     modal.appendChild(body);
     modal.appendChild(controls);
     overlay.appendChild(modal);
@@ -171,11 +270,30 @@
     return { overlay, body, canvas, loading, headerMeta: header.querySelector("#molviz-meta") };
   }
 
+  /** Retourne l'override (bond_orders, radicals) a appliquer selon le mode
+   *  courant. En mode "default" on renvoie null (= utiliser les valeurs
+   *  natives de currentData). En mode "kekule" on renvoie le Kekule courant.
+   */
+  function currentOverride() {
+    if (currentMode === "kekule" && kekuleList && kekuleList.kekule.length > 0) {
+      const k = kekuleList.kekule[kekuleIndex];
+      return { bond_orders: k.bond_orders, radicals: k.radicals };
+    }
+    return null;
+  }
+
   /** Trace les atomes + bonds + cycles + radicaux dans le viewer 3Dmol. */
   function render() {
     if (!currentViewer || !currentData) return;
     const v = currentViewer;
     const data = currentData;
+    const override = currentOverride();
+
+    // Bond orders et radicaux effectifs (selon mode)
+    const bondOrders = override
+      ? override.bond_orders
+      : data.bonds.map(b => b.order);
+    const radicalsList = override ? override.radicals : data.radicals;
 
     v.removeAllModels();
     v.removeAllShapes();
@@ -237,7 +355,7 @@
     }
 
     // 2. Atomes : sphere par atome (carbones gris fonce, radicaux violet)
-    const radSet = new Set(showRadicals ? data.radicals : []);
+    const radSet = new Set(showRadicals ? radicalsList : []);
     for (let i = 0; i < data.atoms.length; i++) {
       const a = data.atoms[i];
       const isRadical = radSet.has(i);
@@ -272,10 +390,13 @@
     }
 
     // 3. Bonds : single = 1 cylindre central, double = 2 cylindres paralleles
-    for (const bnd of data.bonds) {
+    //    L'ordre vient de bondOrders (qui depend du mode courant).
+    for (let i = 0; i < data.bonds.length; i++) {
+      const bnd = data.bonds[i];
+      const order = bondOrders[i];
       const a = data.atoms[bnd.a];
       const b = data.atoms[bnd.b];
-      if (bnd.order === 2) {
+      if (order === 2) {
         // Decalage perpendiculaire dans le plan moyen
         const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
         // Vecteur perpendiculaire approximatif (dans plan xy)
@@ -314,6 +435,126 @@
 
   function rerender() {
     render();
+    updateKekuleStatus();
+  }
+
+  /** Met a jour le compteur "i / N" et l'etat des boutons prev/next. */
+  function updateKekuleStatus() {
+    if (!kekuleStatusRef) return;
+    if (!kekuleList) {
+      kekuleStatusRef.textContent = kekuleLoading ? "chargement…" : "—";
+      return;
+    }
+    const total = kekuleList.kekule.length;
+    if (total === 0) {
+      kekuleStatusRef.textContent = "aucun";
+      return;
+    }
+    const suffix = kekuleList.meta.has_more
+      ? `${total}+`
+      : `${total}`;
+    kekuleStatusRef.textContent = `${kekuleIndex + 1} / ${suffix}`;
+  }
+
+  /** Active/desactive l'affichage de la barre de navigation Kekule. */
+  function setKekuleNavVisible(visible) {
+    if (!kekuleNavRef) return;
+    if (visible) {
+      kekuleNavRef.classList.remove("hidden");
+    } else {
+      kekuleNavRef.classList.add("hidden");
+    }
+  }
+
+  /** Met a jour les labels "Kekule" / "Radicalaires" partout dans l'UI.
+   *
+   *  Appele apres l'arrivee des donnees /api/mol3d, quand on sait si la
+   *  molecule admet un matching parfait ou non.
+   *
+   *  - n_radicals == 0 : la molecule a (au moins) une structure de Kekule
+   *                       classique. Label = "Kekule".
+   *  - n_radicals  > 0 : aucune Kekule classique possible. Les configurations
+   *                       enumerees ont toutes le meme nombre de radicaux.
+   *                       Label = "Radicalaires", icone d'aide visible.
+   */
+  function updateModeLabels(nRadicals) {
+    const isKekule = (nRadicals === 0);
+    const label = isKekule ? "Kekule" : "Radicalaires";
+    if (kekuleChipRef) {
+      kekuleChipRef.textContent = label;
+      kekuleChipRef.title = isKekule
+        ? "Naviguer parmi toutes les structures de Kekule de la molecule"
+        : "Naviguer parmi les configurations radicalaires (la molecule "
+          + "n'admet pas de structure de Kekule classique)";
+    }
+    if (kekuleLabelRef) {
+      kekuleLabelRef.textContent = label;
+    }
+    if (kekuleHelpRef) {
+      kekuleHelpRef.classList.toggle("hidden", isKekule);
+    }
+  }
+
+  /** Met a jour l'apparence des chips de mode (lequel est "active"). */
+  function updateModeChips() {
+    const chips = document.querySelectorAll(".molviz-mode-chip");
+    chips.forEach(chip => {
+      const isActive = chip.id === `mode-${currentMode}`;
+      chip.classList.toggle("active", isActive);
+    });
+  }
+
+  /** Charge la liste des Kekule via /api/kekule_list (lazy). */
+  async function loadKekuleList() {
+    if (kekuleList || kekuleLoading || !currentXyzRel) return;
+    kekuleLoading = true;
+    updateKekuleStatus();
+    try {
+      const url = `/api/kekule_list?path=${encodeURIComponent(currentXyzRel)}&max=200`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const payload = await r.json();
+      if (payload.error) throw new Error(payload.error);
+      kekuleList = payload;
+      kekuleIndex = 0;
+    } catch (e) {
+      kekuleList = { kekule: [], meta: { returned: 0, is_exact: true, has_more: false } };
+      console.error("Echec chargement Kekule :", e);
+    } finally {
+      kekuleLoading = false;
+    }
+    // Si on est encore en mode kekule au retour de la requete, on re-render
+    if (currentMode === "kekule") {
+      rerender();
+    } else {
+      updateKekuleStatus();
+    }
+  }
+
+  /** Bascule le mode courant. Si on passe en kekule pour la 1ere fois,
+   *  declenche le chargement de la liste.
+   */
+  function setMode(mode) {
+    if (mode === currentMode) return;
+    currentMode = mode;
+    updateModeChips();
+    setKekuleNavVisible(mode === "kekule");
+    if (mode === "kekule" && !kekuleList && !kekuleLoading) {
+      // Affiche "chargement…" tout de suite puis fetch
+      updateKekuleStatus();
+      loadKekuleList();
+      return; // loadKekuleList rerender quand fini
+    }
+    rerender();
+  }
+
+  /** Navigue dans la liste des Kekule. Index borne et cyclique. */
+  function gotoKekule(newIndex) {
+    if (!kekuleList || kekuleList.kekule.length === 0) return;
+    const n = kekuleList.kekule.length;
+    // Comportement cyclique : <- depuis 0 va a n-1, -> depuis n-1 va a 0.
+    kekuleIndex = ((newIndex % n) + n) % n;
+    rerender();
   }
 
   /** Charge un .xyz et ouvre le modal. Accepte deux formes d'info :
@@ -337,6 +578,7 @@
       refs.loading.innerHTML = `<div style="color:#dc2626">Erreur : aucun chemin de molécule fourni.</div>`;
       return;
     }
+    currentXyzRel = xyzRel;
     let data;
     try {
       const r = await fetch(`/api/mol3d?path=${encodeURIComponent(xyzRel)}`);
@@ -353,6 +595,10 @@
     }
 
     currentData = data;
+    // Renomme la chip et le label de nav selon la nature de la molecule
+    // (Kekule vs Radicalaires). A faire AVANT que l'utilisateur puisse
+    // cliquer sur la chip.
+    updateModeLabels(data.meta.n_radicals || 0);
     const nAnomaly = data.meta.n_anomaly_cycles || 0;
     refs.headerMeta.innerHTML = `
       <span>${data.meta.n_carbons} C</span>

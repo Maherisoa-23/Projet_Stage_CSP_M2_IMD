@@ -475,3 +475,79 @@ Une variante par longueur peut être ajoutée plus tard (drapeau API
   \item Toggle \emph{double bonds par longueur xTB} dans le modal pour comparer
     matching topologique vs.~géométrie réelle.
 \end{itemize}
+
+\subsection{Navigation parmi les structures de Kekulé}
+\label{sec:molviz-kekule-nav}
+
+\dateblock{mai 2026 (mi-mai, post-réunion chimistes)}
+
+\textbf{Motivation.} Après échange avec Denis Hagebaum-Reignier et Yannick
+Carissan, l'intérêt chimique central des structures 5/7 est l'étude de la
+\emph{délocalisation des électrons} : où peuvent-ils se placer, comment se
+répartissent les sites radicalaires, et comment varient ces configurations
+selon les Kekulé possibles. La vue par défaut du \texttt{molviz} ne montrait
+qu'\emph{un} matching maximum arbitraire ; on a besoin de pouvoir parcourir
+\emph{toutes} les Kekulé d'une molécule pour visualiser ces alternatives.
+
+\textbf{Architecture : un système de modes dans le modal.} Le modal a maintenant
+une barre de modes (chips \emph{Défaut} / \emph{Kekulé}) au-dessus des toggles
+existants. La vue \emph{Défaut} conserve le comportement initial (matching max).
+La vue \emph{Kekulé} fait apparaître une barre de navigation
+\og{}$\blacktriangleleft$\quad $i / N$\quad $\blacktriangleright$\fg{} et
+re-rend la molécule avec les liaisons doubles / radicaux du $i$-ème Kekulé
+de la liste énumérée. Touches clavier $\leftarrow$ / $\rightarrow$ pour
+naviguer. Architecture extensible : les futurs modes \emph{Clar} et
+\emph{RBO} viendront s'ajouter comme nouvelles chips sans refactor.
+
+\textbf{Convention de vocabulaire : Kekulé vs Radicalaire.} Au sens strict
+chimique, une structure de Kekulé requiert un couplage parfait (chaque carbone
+porte exactement une liaison double). Pour les molécules à nombre impair de
+carbones ou à topologie qui force des électrons non appariés (\emph{concealed
+non-Kekuléan}, typique des structures à cycles 5/7), aucun couplage parfait
+n'existe : on parle alors de \emph{configurations radicalaires} plutôt que de
+structures de Kekulé. L'algorithme énumère dans les deux cas les matchings de
+cardinalité maximum --- seul le nom affiché change. La chip de mode s'appelle
+\emph{Kekulé} quand \texttt{n\_radicals == 0}, \emph{Radicalaires} sinon, avec
+une icône d'aide \og{}ⓘ\fg{} qui explique la situation au survol. C'est une
+question de rigueur de vocabulaire, pas d'algorithme.
+
+\textbf{Backend.} Énumération canonique via backtracking
+(\texttt{kekule.enumerate\_kekule}) sur le squelette carbone :
+
+\begin{enumerate}
+  \item Calcul de la cardinalité $M$ d'un matching maximum
+    (\texttt{nx.max\_weight\_matching}). Budget de radicaux $= n - 2M$.
+  \item Backtracking déterministe : à chaque étape on prend le sommet
+    d'index minimal non encore décidé, et on branche sur (a) le matcher
+    avec chaque voisin libre (ordre croissant des voisins), (b) le laisser
+    comme radical si le budget le permet.
+  \item Plafond \texttt{max\_count} (défaut 200, max 1000) avec retour
+    \texttt{(liste, is\_exact)} où \texttt{is\_exact=False} signale qu'on
+    a coupé avant épuisement.
+\end{enumerate}
+
+L'ordre canonique garantit que chaque Kekulé est généré une et une seule
+fois (pas de déduplication nécessaire). Comportement byte-déterministe :
+même molécule $\to$ même liste, dans le même ordre.
+
+\textbf{API.} Nouvel endpoint \texttt{GET /api/kekule\_list?path=<xyz>\&max=N}
+qui renvoie \texttt{\{kekule: [\{bond\_orders, radicals, n\_doubles\}, ...],
+meta: \{returned, is\_exact, has\_more, max\_requested\}\}}. Cache LRU 256
+entrées avec clé \texttt{(xyz, max\_count)}, lazy-loadé par le frontend
+uniquement lors du premier clic sur \emph{Kekulé}.
+
+\textbf{Tests.} Le script
+\texttt{molviz/test\_kekule\_enum.py} vérifie le compte de Kekulé sur des
+molécules de référence (benzène = 2, naphtalène = 3, anthracène = 4,
+phénanthrène = 5), l'absence de doublons dans l'énumération, et l'invariant
+\og toutes les Kekulé ont la même cardinalité \fg{}. Test additionnel sur
+le mécanisme de \texttt{max\_count} et le flag \texttt{is\_exact}.
+
+\textbf{Plan des étapes suivantes.} L'architecture est posée pour ajouter
+sans refactor :
+\begin{itemize}
+  \item un mode \emph{Clar} : nouvelle chip, nouveau module \texttt{molviz/clar.py},
+    nouvel endpoint \texttt{/api/clar} ;
+  \item un mode \emph{RBO} : idem avec \texttt{molviz/rbo.py} et
+    \texttt{/api/rbo}, rendu sous forme de heatmap par cycle.
+\end{itemize>

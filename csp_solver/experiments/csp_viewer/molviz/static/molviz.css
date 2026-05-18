@@ -149,3 +149,86 @@
 }
 .btn-3d:hover { background: #1d4ed8; }
 .btn-3d:disabled { background: #9ca3af; cursor: not-allowed; }
+
+/* Barre de modes (Defaut / Kekule / Clar ... ) */
+.molviz-modebar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 1.2rem;
+  background: #f1f5f9;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+.molviz-mode-chip {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  padding: 0.25rem 0.85rem;
+  font-size: 0.82rem;
+  color: #475569;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.molviz-mode-chip:hover {
+  background: #e2e8f0;
+}
+.molviz-mode-chip.active {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+  font-weight: 600;
+}
+
+/* Barre de navigation Kekule (visible en mode kekule) */
+.molviz-kekule-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 1.2rem;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+.molviz-kekule-nav.hidden {
+  display: none;
+}
+.molviz-kekule-label {
+  font-size: 0.82rem;
+  color: #475569;
+  font-weight: 600;
+  margin-right: 0.2rem;
+}
+.molviz-kekule-help {
+  display: inline-block;
+  font-size: 0.85rem;
+  color: #9333ea;
+  cursor: help;
+  margin-right: 0.3rem;
+  user-select: none;
+}
+.molviz-kekule-help.hidden {
+  display: none;
+}
+.molviz-kekule-btn {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.85rem;
+  color: #2563eb;
+  cursor: pointer;
+  font-family: inherit;
+}
+.molviz-kekule-btn:hover {
+  background: #eff6ff;
+  border-color: #2563eb;
+}
+.molviz-kekule-status {
+  display: inline-block;
+  min-width: 5.5rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #1e293b;
+  font-variant-numeric: tabular-nums;
+}

@@ -21,7 +21,7 @@ from pathlib import Path
 from flask import Blueprint, abort, jsonify, request, send_from_directory
 
 from .bonds import build_mol_graph
-from .kekule import assign_kekule
+from .kekule import assign_kekule, enumerate_kekule
 
 
 _HERE = Path(__file__).resolve().parent
@@ -73,6 +73,40 @@ def _compute_mol3d(xyz_path_str: str) -> dict:
     }
 
 
+@lru_cache(maxsize=256)
+def _compute_kekule_list(xyz_path_str: str, max_count: int) -> dict:
+    """Calcul d'une liste de Kekule, plafonnee a max_count.
+
+    Cle de cache = (chemin absolu, max_count). On garde une entree distincte
+    par max_count pour eviter que demander 50 puis 500 ne re-utilise le cache
+    tronque a 50.
+    """
+    p = Path(xyz_path_str)
+    mol = build_mol_graph(p)
+    if not mol.atoms:
+        return {"error": "empty or unreadable xyz"}
+
+    kekule_list, is_exact = enumerate_kekule(mol, max_count=max_count)
+
+    return {
+        "kekule": [
+            {
+                "bond_orders": [int(o) for o in k.bond_orders],
+                "radicals": sorted(int(i) for i in k.radicals),
+                "n_doubles": int(k.n_doubles),
+            }
+            for k in kekule_list
+        ],
+        "meta": {
+            "returned": len(kekule_list),
+            "is_exact": bool(is_exact),
+            "has_more": not is_exact,
+            "max_requested": int(max_count),
+            "source": str(p),
+        },
+    }
+
+
 def init_app(app, resolve_path_fn):
     """Branche le blueprint sur l'app Flask.
 
@@ -92,5 +126,24 @@ def init_app(app, resolve_path_fn):
         if target.suffix.lower() not in (".xyz",):
             abort(403, description="only .xyz supported")
         return jsonify(_compute_mol3d(str(target.resolve())))
+
+    @bp.route("/api/kekule_list")
+    def api_kekule_list():
+        rel = request.args.get("path", "")
+        if not rel:
+            abort(400, description="missing 'path' parameter")
+        target = resolve_path_fn(rel)
+        if target is None:
+            abort(404)
+        if target.suffix.lower() not in (".xyz",):
+            abort(403, description="only .xyz supported")
+        try:
+            max_count = int(request.args.get("max", 200))
+        except ValueError:
+            abort(400, description="'max' must be an integer")
+        # Bornes de securite : on refuse 0/negatif et on plafonne dur a 1000
+        # pour eviter qu'un client malicieux ne fasse exploser le cache.
+        max_count = max(1, min(max_count, 1000))
+        return jsonify(_compute_kekule_list(str(target.resolve()), max_count))
 
     app.register_blueprint(bp)
