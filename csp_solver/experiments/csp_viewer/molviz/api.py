@@ -21,6 +21,7 @@ from pathlib import Path
 from flask import Blueprint, abort, jsonify, request, send_from_directory
 
 from .bonds import build_mol_graph
+from .clar import enumerate_clar_covers
 from .kekule import assign_kekule, enumerate_kekule
 from .rbo import compute_rbo, DEFAULT_MAX_KEKULE
 
@@ -109,6 +110,43 @@ def _compute_kekule_list(xyz_path_str: str, max_count: int) -> dict:
 
 
 @lru_cache(maxsize=256)
+def _compute_clar_list(xyz_path_str: str, max_count: int) -> dict:
+    """Calcul des couvertures de Clar d'une molecule.
+
+    Cle de cache = (chemin absolu, max_count). Retourne la liste des
+    couvertures de score MAXIMUM (= nombre de Clar), chacune avec ses
+    sextets, bond_orders canoniques et radicaux du residu.
+    """
+    p = Path(xyz_path_str)
+    mol = build_mol_graph(p)
+    if not mol.atoms:
+        return {"error": "empty or unreadable xyz"}
+
+    covers, is_exact = enumerate_clar_covers(mol, max_count=max_count)
+    clar_number = covers[0].n_sextets if covers else 0
+
+    return {
+        "clar": [
+            {
+                "sextets": [int(s) for s in c.sextets],
+                "bond_orders": [int(o) for o in c.bond_orders],
+                "radicals": sorted(int(i) for i in c.radicals),
+                "n_sextets": int(c.n_sextets),
+            }
+            for c in covers
+        ],
+        "meta": {
+            "returned": len(covers),
+            "is_exact": bool(is_exact),
+            "has_more": not is_exact,
+            "max_requested": int(max_count),
+            "clar_number": int(clar_number),
+            "source": str(p),
+        },
+    }
+
+
+@lru_cache(maxsize=256)
 def _compute_rbo_payload(xyz_path_str: str, max_count: int) -> dict:
     """Calcul des Ring Bond Orders d'une molecule.
 
@@ -184,6 +222,24 @@ def init_app(app, resolve_path_fn):
         # pour eviter qu'un client malicieux ne fasse exploser le cache.
         max_count = max(1, min(max_count, 1000))
         return jsonify(_compute_kekule_list(str(target.resolve()), max_count))
+
+    @bp.route("/api/clar_list")
+    def api_clar_list():
+        rel = request.args.get("path", "")
+        if not rel:
+            abort(400, description="missing 'path' parameter")
+        target = resolve_path_fn(rel)
+        if target is None:
+            abort(404)
+        if target.suffix.lower() not in (".xyz",):
+            abort(403, description="only .xyz supported")
+        try:
+            max_count = int(request.args.get("max", 200))
+        except ValueError:
+            abort(400, description="'max' must be an integer")
+        # Borne dure : 1 <= max <= 1000 (cf /api/kekule_list)
+        max_count = max(1, min(max_count, 1000))
+        return jsonify(_compute_clar_list(str(target.resolve()), max_count))
 
     @bp.route("/api/rbo")
     def api_rbo():

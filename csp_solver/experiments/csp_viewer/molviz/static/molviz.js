@@ -87,6 +87,16 @@
   // Banniere pour les avertissements RBO (radicaux, approximation)
   let rboBannerRef = null;
 
+  // Cache de la liste Clar pour la molecule courante (lazy-loadee)
+  // Format : { clar: [{sextets, bond_orders, radicals, n_sextets}, ...], meta: {clar_number, ...} }
+  let clarList = null;
+  let clarIndex = 0;
+  let clarLoading = false;
+  let clarNavRef = null;
+  let clarStatusRef = null;
+  let clarChipRef = null;     // bouton chip "Clar"
+  let clarLabelRef = null;    // span "Clar N=..." dans la barre de nav
+
   function el(tag, attrs, ...children) {
     const e = document.createElement(tag);
     if (attrs) {
@@ -129,6 +139,13 @@
     rboData = null;
     rboLoading = false;
     rboBannerRef = null;
+    clarList = null;
+    clarIndex = 0;
+    clarLoading = false;
+    clarNavRef = null;
+    clarStatusRef = null;
+    clarChipRef = null;
+    clarLabelRef = null;
     document.removeEventListener("keydown", onKey);
   }
 
@@ -145,6 +162,16 @@
       } else if (ev.key === "ArrowRight") {
         ev.preventDefault();
         gotoKekule(kekuleIndex + 1);
+      }
+    }
+    // Navigation Clar au clavier (uniquement quand on est en mode clar)
+    if (currentMode === "clar" && clarList && clarList.clar.length > 0) {
+      if (ev.key === "ArrowLeft") {
+        ev.preventDefault();
+        gotoClar(clarIndex - 1);
+      } else if (ev.key === "ArrowRight") {
+        ev.preventDefault();
+        gotoClar(clarIndex + 1);
       }
     }
   }
@@ -202,6 +229,13 @@
       onclick: () => setMode("rbo"),
       title: "Ring Bond Order : aromaticite locale de chaque cycle",
     }, "RBO");
+    const clarChip = el("button", {
+      class: "molviz-mode-chip",
+      id: "mode-clar",
+      onclick: () => setMode("clar"),
+      title: "Couvertures de Clar : navigation parmi les structures maximisant le nombre de sextets aromatiques",
+    }, "Clar");
+    clarChipRef = clarChip;
     const modeBar = el("div", { class: "molviz-modebar" },
       el("button", {
         class: "molviz-mode-chip active",
@@ -211,6 +245,7 @@
       }, "Defaut"),
       kekuleChip,
       rboChip,
+      clarChip,
     );
 
     // Banniere d'information/avertissement pour le mode RBO (cachee par defaut).
@@ -254,6 +289,29 @@
     kekuleLabelRef = kekuleLabel;
     kekuleHelpRef = kekuleHelp;
 
+    // Barre de navigation Clar (cachee par defaut, affichee en mode clar)
+    // Label dynamique "Clar N=X" mis a jour par updateClarStatus() apres
+    // l'arrivee des donnees /api/clar_list.
+    const clarLabel = el("span", { class: "molviz-kekule-label" }, "Clar");
+    const clarStatus = el("span", { class: "molviz-kekule-status" }, "—");
+    const clarNav = el("div", { class: "molviz-kekule-nav hidden" },
+      clarLabel,
+      el("button", {
+        class: "molviz-kekule-btn",
+        title: "Couverture precedente (fleche gauche)",
+        onclick: () => gotoClar(clarIndex - 1),
+      }, "◀"),
+      clarStatus,
+      el("button", {
+        class: "molviz-kekule-btn",
+        title: "Couverture suivante (fleche droite)",
+        onclick: () => gotoClar(clarIndex + 1),
+      }, "▶"),
+    );
+    clarNavRef = clarNav;
+    clarStatusRef = clarStatus;
+    clarLabelRef = clarLabel;
+
     const controls = el("div", { class: "molviz-controls" },
       el("label", null,
         el("input", { type: "checkbox", id: "ck-cycles", checked: "checked",
@@ -287,6 +345,7 @@
     modal.appendChild(header);
     modal.appendChild(modeBar);
     modal.appendChild(kekuleNav);
+    modal.appendChild(clarNav);
     modal.appendChild(rboBanner);
     modal.appendChild(body);
     modal.appendChild(controls);
@@ -301,12 +360,27 @@
 
   /** Retourne l'override (bond_orders, radicals) a appliquer selon le mode
    *  courant. En mode "default" on renvoie null (= utiliser les valeurs
-   *  natives de currentData). En mode "kekule" on renvoie le Kekule courant.
+   *  natives de currentData). En mode "kekule" / "clar" on renvoie le
+   *  Kekule / la couverture Clar courante.
    */
   function currentOverride() {
     if (currentMode === "kekule" && kekuleList && kekuleList.kekule.length > 0) {
       const k = kekuleList.kekule[kekuleIndex];
       return { bond_orders: k.bond_orders, radicals: k.radicals };
+    }
+    if (currentMode === "clar" && clarList && clarList.clar.length > 0) {
+      const c = clarList.clar[clarIndex];
+      return { bond_orders: c.bond_orders, radicals: c.radicals };
+    }
+    return null;
+  }
+
+  /** Indices des cycles porteurs d'un rond de Clar pour le mode courant
+   *  (ou null sinon). Utilise par render() pour dessiner les ronds.
+   */
+  function currentSextets() {
+    if (currentMode === "clar" && clarList && clarList.clar.length > 0) {
+      return clarList.clar[clarIndex].sextets;
     }
     return null;
   }
@@ -418,6 +492,52 @@
       }
     }
 
+    // 2ter. Ronds de Clar au centre des hexagones porteurs d'un sextet
+    //       (mode Clar uniquement). On dessine un anneau (annulus) plat
+    //       a 60% du rayon de l'hexagone, en gris fonce, par-dessus le
+    //       polygone du cycle.
+    const sextets = currentSextets();
+    if (sextets && sextets.length > 0) {
+      const RING_RAD_FRAC = 0.55;  // rayon exterieur de l'anneau
+      const RING_THICKNESS = 0.10; // epaisseur de l'anneau (en A)
+      const N_SEG = 32;            // resolution angulaire
+      for (const ci of sextets) {
+        const cyc = data.cycles[ci];
+        if (!cyc) continue;
+        const verts = cyc.atoms.map(i => data.atoms[i]);
+        const cx = verts.reduce((s, a) => s + a.x, 0) / verts.length;
+        const cy = verts.reduce((s, a) => s + a.y, 0) / verts.length;
+        const cz = verts.reduce((s, a) => s + a.z, 0) / verts.length;
+        // Rayon = distance moyenne du centroide aux sommets
+        let rmean = 0;
+        for (const a of verts) {
+          rmean += Math.sqrt((a.x-cx)**2 + (a.y-cy)**2 + (a.z-cz)**2);
+        }
+        rmean /= verts.length;
+        const rOuter = RING_RAD_FRAC * rmean;
+        const rInner = Math.max(0.01, rOuter - RING_THICKNESS);
+        // Triangulation de l'anneau : 2 triangles par segment
+        for (let k = 0; k < N_SEG; k++) {
+          const t0 = (2 * Math.PI * k) / N_SEG;
+          const t1 = (2 * Math.PI * (k + 1)) / N_SEG;
+          const out0 = { x: cx + rOuter*Math.cos(t0), y: cy + rOuter*Math.sin(t0), z: cz + 0.02 };
+          const out1 = { x: cx + rOuter*Math.cos(t1), y: cy + rOuter*Math.sin(t1), z: cz + 0.02 };
+          const in0  = { x: cx + rInner*Math.cos(t0), y: cy + rInner*Math.sin(t0), z: cz + 0.02 };
+          const in1  = { x: cx + rInner*Math.cos(t1), y: cy + rInner*Math.sin(t1), z: cz + 0.02 };
+          v.addCustom({
+            vertexArr: [out0, out1, in1, in0],
+            normalArr: [
+              { x: 0, y: 0, z: 1 }, { x: 0, y: 0, z: 1 },
+              { x: 0, y: 0, z: 1 }, { x: 0, y: 0, z: 1 },
+            ],
+            faceArr: [0, 1, 2, 0, 2, 3],
+            color: 0x1e293b,  // gris fonce
+            opacity: 1.0,
+          });
+        }
+      }
+    }
+
     // 2bis. Labels CBO au centre des cycles (mode RBO uniquement, si RBO defini)
     //       Format : "CBO/max" (ex : "2.3 / 3"). Affiche aussi si is_exact=false
     //       pour signaler les valeurs approximees.
@@ -491,6 +611,7 @@
   function rerender() {
     render();
     updateKekuleStatus();
+    updateClarStatus();
     updateRboBanner();
   }
 
@@ -520,6 +641,37 @@
     } else {
       kekuleNavRef.classList.add("hidden");
     }
+  }
+
+  /** Active/desactive l'affichage de la barre de navigation Clar. */
+  function setClarNavVisible(visible) {
+    if (!clarNavRef) return;
+    if (visible) {
+      clarNavRef.classList.remove("hidden");
+    } else {
+      clarNavRef.classList.add("hidden");
+    }
+  }
+
+  /** Met a jour "Clar N=X" + compteur "i / N" + libelle de la chip. */
+  function updateClarStatus() {
+    if (!clarStatusRef) return;
+    if (!clarList) {
+      clarStatusRef.textContent = clarLoading ? "chargement…" : "—";
+      if (clarLabelRef) clarLabelRef.textContent = "Clar";
+      return;
+    }
+    const clarNumber = clarList.meta.clar_number || 0;
+    const total = clarList.clar.length;
+    if (clarLabelRef) {
+      clarLabelRef.textContent = `Clar N=${clarNumber}`;
+    }
+    if (total === 0) {
+      clarStatusRef.textContent = "aucune";
+      return;
+    }
+    const suffix = clarList.meta.has_more ? `${total}+` : `${total}`;
+    clarStatusRef.textContent = `${clarIndex + 1} / ${suffix}`;
   }
 
   /** Met a jour les labels "Kekule" / "Radicalaires" partout dans l'UI.
@@ -630,6 +782,41 @@
     }
   }
 
+  /** Charge la liste des couvertures de Clar via /api/clar_list (lazy). */
+  async function loadClarList() {
+    if (clarList || clarLoading || !currentXyzRel) return;
+    clarLoading = true;
+    updateClarStatus();
+    try {
+      const url = `/api/clar_list?path=${encodeURIComponent(currentXyzRel)}&max=200`;
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const payload = await r.json();
+      if (payload.error) throw new Error(payload.error);
+      clarList = payload;
+      clarIndex = 0;
+    } catch (e) {
+      clarList = { clar: [], meta: { returned: 0, is_exact: true, has_more: false,
+                                      clar_number: 0 } };
+      console.error("Echec chargement Clar :", e);
+    } finally {
+      clarLoading = false;
+    }
+    if (currentMode === "clar") {
+      rerender();
+    } else {
+      updateClarStatus();
+    }
+  }
+
+  /** Navigue dans la liste des couvertures Clar. Index borne et cyclique. */
+  function gotoClar(newIndex) {
+    if (!clarList || clarList.clar.length === 0) return;
+    const n = clarList.clar.length;
+    clarIndex = ((newIndex % n) + n) % n;
+    rerender();
+  }
+
   /** Charge la liste des Kekule via /api/kekule_list (lazy). */
   async function loadKekuleList() {
     if (kekuleList || kekuleLoading || !currentXyzRel) return;
@@ -657,14 +844,15 @@
     }
   }
 
-  /** Bascule le mode courant. Si on passe en kekule/rbo pour la 1ere fois,
-   *  declenche le chargement lazy.
+  /** Bascule le mode courant. Si on passe en kekule/rbo/clar pour la 1ere
+   *  fois, declenche le chargement lazy.
    */
   function setMode(mode) {
     if (mode === currentMode) return;
     currentMode = mode;
     updateModeChips();
     setKekuleNavVisible(mode === "kekule");
+    setClarNavVisible(mode === "clar");
     if (mode === "kekule" && !kekuleList && !kekuleLoading) {
       // Affiche "chargement…" tout de suite puis fetch
       updateKekuleStatus();
@@ -675,6 +863,11 @@
       updateRboBanner();
       loadRbo();
       return; // loadRbo rerender quand fini
+    }
+    if (mode === "clar" && !clarList && !clarLoading) {
+      updateClarStatus();
+      loadClarList();
+      return; // loadClarList rerender quand fini
     }
     rerender();
   }
