@@ -173,6 +173,59 @@ Pour le rapport : on cite Rispoli **et** Kasteleyn (les deux dans la thèse). On
 
 ---
 
+## 7ter. Clar : implémentation
+
+**Implémenté** dans `molviz/clar.py` + endpoint `/api/clar_list` + chip "Clar" + ronds gris au centre des hex porteurs de sextets.
+
+### Définition opérationnelle (notre convention)
+
+Une **couverture de Clar** = (S, matching) où :
+- `S` = sous-ensemble d'**hexagones** de la molécule, **deux-à-deux vertex-disjoints** (aucun atome partagé)
+- `matching` = matching maximum du résidu G \\ V(S)
+- valide ssi le nombre de radicaux du résidu n'excède pas le minimum global
+
+Le **nombre de Clar** = max |S| sur toutes les couvertures valides.
+
+Les pentagones et heptagones **ne peuvent pas** porter un sextet (règle de Hückel 4n+2 avec n=1 → il faut exactement 6 électrons π).
+
+### Algorithme : énumération exhaustive
+
+```
+Pour mol avec n_hex hexagones :
+  Pour chaque sous-ensemble S des hex (2^n_hex itérations) :
+    - vérifier S vertex-disjoint
+    - calculer max matching du résidu (Edmonds blossom)
+    - si valide, score = |S|
+  Garder les S avec score maximum.
+```
+
+Pour h3-h9 : n_hex ≤ 9 donc 2^9 = 512 sous-ensembles, trivial.
+
+### Plusieurs couvertures de Clar pour une même molécule
+
+La thèse mentionne (§7.2) que certaines molécules ont plusieurs couvertures de Clar maximales (différentes façons de placer les sextets pour atteindre le max). C'est implémenté : la chip Clar permet de naviguer entre toutes ces couvertures.
+
+Exemples vérifiés sur des références :
+- Benzène : 1 couverture (Clar=1, l'unique hex)
+- Naphtalène : **2 couvertures** (Clar=1, chaque hex peut être le sextet)
+- Anthracène : **3 couvertures** (Clar=1 ; correspond à la figure 2.27 de la thèse)
+- Phénanthrène : 1 couverture (Clar=2, les 2 hex extérieurs vertex-disjoints)
+
+### Visualisation
+
+- Anneau gris foncé (32 segments, 60% du rayon de l'hex) au centre de chaque hexagone sextet
+- Les bonds des sextets sont dessinés en alternance canonique (3 doubles/3 singles)
+- Les bonds du résidu suivent le matching
+- Les bonds connectant sextet et résidu sont des singles (σ uniquement)
+
+### Cas radicalaire
+
+Pour les molécules sans matching parfait (n_radicaux global > 0), l'algorithme tolère un résidu avec radicaux (au plus le minimum global). Pratique : permet d'analyser des molécules 5/7 fortement radicalaires sans rejeter d'emblée.
+
+Exemple : pentagone seul → Clar=0 (pas d'hex), 1 couverture vide avec 1 radical dans le résidu.
+
+---
+
 ## 8. Vocabulaire récap
 
 | Terme | Sens court |

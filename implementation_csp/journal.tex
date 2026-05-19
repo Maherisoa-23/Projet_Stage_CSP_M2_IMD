@@ -126,6 +126,29 @@ marquent dans le texte les contenus ajoutes a chaque etape.
     et heptagones (max 3), absente de Varet/BenzAI. Tests : 5/5 OK,
     valide sur l'azulene (CBO pent = 2,0 / max = 2 ; CBO hept = 3,0
     / max = 3, coherent avec l'aromaticite Huckel 10\(\pi\)). \\
+  Mai 2026 (mi-mai, suite) &
+    \textbf{Mode Clar : couvertures aromatiques}. Module
+    \texttt{molviz/clar.py} : \texttt{enumerate\_clar\_covers} enumere
+    de maniere exhaustive sur les $2^{n_{\text{hex}}}$ sous-ensembles
+    d'hexagones (au plus $2^9 = 512$ pour h9, trivial). Pour chaque
+    sous-ensemble vertex-disjoint, on calcule le matching maximum du
+    residu (Edmonds blossom) et on garde celui avec $|S|$ maximum
+    (= nombre de Clar). Pentagones et heptagones \emph{ne peuvent pas}
+    porter de sextet (regle de Huckel : 6 electrons exactement). Une
+    molecule peut avoir \emph{plusieurs couvertures de Clar maximales}
+    --- la chip \emph{Clar} permet de naviguer entre elles. Cas
+    radicalaire tolere : l'algo accepte un residu avec radicaux tant
+    que le total reste egal au minimum global. Visualisation : anneau
+    plat gris fonce (32 segments, $\sim$60\% du rayon de l'hex)
+    dessine au centre de chaque sextet via \texttt{addCustom} de
+    3Dmol.js. Endpoint \texttt{/api/clar\_list} avec cache LRU.
+    Tests : 9/9 OK. Conformite avec la these verifiee : anthracene a
+    bien 3 couvertures de Clar (cf. fig. 2.27 these Varet),
+    naphtalene 2 couvertures, phenanthrene 1 couverture avec 2
+    sextets simultanes (rings exterieurs vertex-disjoints).
+    \textbf{Le viewer dispose desormais des 4 modes (Defaut / Kekule /
+    RBO / Clar)} correspondant aux 4 indicateurs topologiques cles de
+    l'aromaticite locale. \\
   \bottomrule
 \end{tabular}
 \end{center}

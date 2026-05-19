@@ -9,6 +9,11 @@ Composants :
   - rbo.py     : compute_rbo : bond orders par arete (Pauling) et Ring
                  Bond Order par cycle, etendu aux cycles 5 et 7. S'appuie
                  sur l'enumeration des Kekule.
-  - api.py     : endpoints Flask /api/mol3d, /api/kekule_list, /api/rbo.
-  - static/    : molviz.js (modes Defaut / Kekule / RBO) et molviz.css.
+  - clar.py    : enumerate_clar_covers : couvertures de Clar (sextets
+                 aromatiques vertex-disjoints + matching du residu).
+                 Enumeration exhaustive sur les 2^n_hex sous-ensembles
+                 d'hexagones (trivial pour h3-h9).
+  - api.py     : endpoints Flask /api/mol3d, /api/kekule_list, /api/rbo,
+                 /api/clar_list.
+  - static/    : molviz.js (modes Defaut / Kekule / RBO / Clar) et molviz.css.
 """

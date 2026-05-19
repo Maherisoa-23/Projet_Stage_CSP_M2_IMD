@@ -644,3 +644,87 @@ signal visuel additionnel au bandeau.
     (10~$\pi$~électrons, règle de Hückel 4n+2 avec $n=2$).
 \end{itemize}
 
+\subsection{Mode \emph{Clar} : couvertures aromatiques}
+\label{sec:molviz-clar}
+
+\dateblock{mai 2026 (mi-mai, post-réunion chimistes)}
+
+\textbf{Définition opérationnelle.} Une couverture de Clar
+(Clar~1972, thèse Varet~\S2.4.5) est un choix de :
+\begin{enumerate}
+  \item un sous-ensemble $S$ d'\emph{hexagones} de la molécule,
+    \textbf{deux-à-deux vertex-disjoints} (aucun atome partagé) ;
+  \item un matching maximum du résidu $G \setminus V(S)$.
+\end{enumerate}
+Chaque hexagone de $S$ porte un \emph{sextet aromatique} de 6~électrons
+$\pi$ délocalisés à l'intérieur (\og{}rond de Clar\fg{}). Le
+\textbf{nombre de Clar} de la molécule = $\max |S|$ sur toutes les
+couvertures valides.
+
+Les pentagones et heptagones \textbf{ne peuvent pas} porter un sextet
+(règle de Hückel 4n+2 avec $n=1$ : il faut exactement 6 électrons~$\pi$).
+Cette contrainte est rigoureuse, indépendante de toute heuristique :
+seuls les cycles de taille 6 sont éligibles.
+
+\textbf{Algorithme : énumération exhaustive sur les sous-ensembles
+d'hexagones.} Pour h3--h9, le nombre d'hexagones est borné par 9 donc
+$2^{n_{\text{hex}}} \leq 512$ : on énumère tous les sous-ensembles dans
+l'ordre canonique (bitmask croissant), on filtre les non-disjoints, on
+calcule le matching maximum du résidu via Edmonds blossom
+(\texttt{nx.max\_weight\_matching}), on retient ceux où le nombre de
+radicaux du résidu n'excède pas le minimum global. On garde les
+couvertures avec $|S|$ maximum. Complexité : O($2^{n_{\text{hex}}} \cdot
+n^3$) avec $n \leq 35$ atomes, trivial. Le déterminisme et
+l'exhaustivité sont garantis par construction.
+
+\textbf{Plusieurs couvertures de Clar pour une même molécule.} La thèse
+mentionne (\S7.2) que certaines molécules ont plusieurs couvertures de
+Clar maximales (différentes façons de placer les sextets pour atteindre
+le max). C'est exposé : la chip \emph{Clar} permet de naviguer entre
+toutes ces couvertures (boutons $\blacktriangleleft / \blacktriangleright$
+ou touches $\leftarrow / \rightarrow$). Le label dynamique
+\og{}Clar N=$k$\fg{} en début de barre rappelle le nombre de Clar.
+
+\textbf{Construction des \texttt{bond\_orders} pour la visualisation.}
+Pour chaque couverture, on dessine :
+\begin{itemize}
+  \item Sur les 6~arêtes de chaque sextet : alternance canonique
+    (doubles aux positions paires dans l'ordre du cycle, soit 3~doubles
+    / 3~singles).
+  \item Sur les arêtes du résidu : valeurs du matching (1 ou 2).
+  \item Sur les arêtes connectant sextet et résidu : single
+    ($\sigma$~uniquement, le $\pi$ est \og{}consommé\fg{} par le rond).
+\end{itemize}
+Un anneau plat gris foncé est dessiné au centre de chaque hexagone
+sextet via \texttt{addCustom} de 3Dmol.js (32 segments, rayon
+extérieur~=~60\,\% du rayon de l'hex, épaisseur 0{,}10~\AA, légèrement
+au-dessus du plan $z$ du cycle pour rester visible par-dessus son
+polygone coloré).
+
+\textbf{Cas radicalaire.} L'algorithme tolère un résidu avec radicaux
+si le nombre total de radicaux reste égal au minimum global (= nombre
+de radicaux du matching max sur la molécule entière). Pratique : permet
+d'analyser des structures 5/7 fortement radicalaires sans les rejeter.
+Pour un pentagone seul (5 atomes, impair) : Clar=0 (pas d'hex), une
+seule couverture vide, 1~radical dans le résidu.
+
+\textbf{API.} Nouvel endpoint
+\texttt{GET /api/clar\_list?path=<xyz>\&max=N} retournant
+\texttt{\{clar: [\{sextets, bond\_orders, radicals, n\_sextets\}, ...],
+meta: \{returned, is\_exact, has\_more, max\_requested, clar\_number\}\}}.
+Cache LRU 256 entrées, lazy-loadé au premier clic sur \emph{Clar}.
+
+\textbf{Tests} (\texttt{molviz/test\_clar.py}, 9 tests, tous OK) :
+\begin{itemize}
+  \item Benzène : Clar=1, 1 couverture ;
+  \item Naphtalène : Clar=1, \textbf{2~couvertures} (chaque hex peut
+    porter le sextet, vertex-disjoint des autres) ;
+  \item Anthracène : Clar=1, \textbf{3~couvertures} (correspond à la
+    figure~2.27 de la thèse) ;
+  \item Phénanthrène : Clar=2, 1~couverture (les rings extérieurs sont
+    vertex-disjoints, sextets simultanés) ;
+  \item Pentagone seul : Clar=0, couverture vide avec 1~radical ;
+  \item Invariants : sextets sont des hex, vertex-disjoints,
+    \texttt{bond\_orders} $\in \{1,2\}$.
+\end{itemize}
+
