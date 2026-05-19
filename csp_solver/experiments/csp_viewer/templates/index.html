@@ -65,6 +65,7 @@
       <h2 id="mol-title"></h2>
       <div id="mol-meta" class="meta-box"></div>
       <div class="toolbar">
+        <input type="text" id="sol-search" placeholder="Filtrer par sol_idx ou sizes (ex: 6_6_6_6_6_5_7_5_7)" />
         <label>
           Filtre :
           <select id="sol-filter">
@@ -80,7 +81,9 @@
           Tri :
           <select id="sol-sort">
             <option value="angle">Angle croissant</option>
-            <option value="idx">Sol_idx</option>
+            <option value="angle_desc">Angle décroissant</option>
+            <option value="idx">Sol_idx croissant</option>
+            <option value="idx_desc">Sol_idx décroissant</option>
           </select>
         </label>
         <label>

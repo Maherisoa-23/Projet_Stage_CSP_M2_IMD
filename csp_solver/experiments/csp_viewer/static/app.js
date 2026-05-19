@@ -13,6 +13,7 @@ const state = {
   solSize: 50,
   solFilter: "plans",
   solSort: "angle",
+  solSearch: "",
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -236,8 +237,10 @@ async function loadMolecule(config, mol) {
   state.solPage = 1;
   state.solFilter = "plans";
   state.solSort = "angle";
+  state.solSearch = "";
   $("#sol-filter").value = "plans";
   $("#sol-sort").value = "angle";
+  $("#sol-search").value = "";
   setView("mol");
   $("#mol-title").textContent = `Molécule : ${mol}  (${config})`;
   await fetchSolutions();
@@ -252,6 +255,7 @@ async function fetchSolutions() {
     page: state.solPage,
     size: state.solSize,
     sort: state.solSort,
+    search: state.solSearch,
   });
   const data = await fetchJSON(`/api/solutions?${params}`, "Solutions…");
   renderMolMeta(data.molecule);
@@ -319,7 +323,7 @@ function renderSolTable(data) {
     <th>RMSD</th>
     <th>Height</th>
     <th>Tentatives MD</th>
-    <th>Fichiers</th>
+    <th>Vue 3D</th>
   </tr></thead><tbody>`;
   for (const s of data.solutions) {
     let badge, rowClass = "", angleCell, rmsdCell, heightCell, attemptsCell, filesCell;
@@ -331,7 +335,7 @@ function renderSolTable(data) {
       rmsdCell = `—`;
       heightCell = `—`;
       attemptsCell = `—`;
-      filesCell = `<span class="muted">aucun fichier (pas de source.xyz)</span>`;
+      filesCell = `<span class="muted">—</span>`;
     } else if (s.verdict === "xtb_failed") {
       badge = `<span class="badge xtb-failed" title="Reconstruction OK mais xTB n'a pas convergé">xTB ✗</span>`;
       rowClass = "row-xtb-failed";
@@ -339,8 +343,7 @@ function renderSolTable(data) {
       rmsdCell = `—`;
       heightCell = `—`;
       attemptsCell = s.n_attempts ?? "—";
-      const sourceRel = `${s.sol_dir}/source.xyz`;
-      filesCell = `<a href="/file?path=${encodeURIComponent(sourceRel)}" target="_blank">source</a>`;
+      filesCell = `<span class="muted">—</span>`;
     } else {
       // plan / non_plan
       badge = s.planar
@@ -350,10 +353,7 @@ function renderSolTable(data) {
       rmsdCell = s.rmsd?.toFixed(4) ?? "—";
       heightCell = s.height?.toFixed(4) ?? "—";
       attemptsCell = s.n_attempts ?? "—";
-      const sourceRel = `${s.sol_dir}/source.xyz`;
-      const finalRel = `${s.sol_dir}/md_validation/md_final_opt.xyz`;
-      const btn3d = `<button class="btn-3d" data-sol-idx="${s.sol_idx}" data-sol-dir="${encodeURIComponent(s.sol_dir)}" data-sizes="${s.sizes}" data-verdict="${s.verdict}" title="Visualiser en 3D">3D</button>`;
-      filesCell = `${btn3d}<a href="/file?path=${encodeURIComponent(sourceRel)}" target="_blank">source</a> · <a href="/file?path=${encodeURIComponent(finalRel)}" target="_blank">final</a>`;
+      filesCell = `<button class="btn-3d" data-sol-idx="${s.sol_idx}" data-sol-dir="${encodeURIComponent(s.sol_dir)}" data-sizes="${s.sizes}" data-verdict="${s.verdict}" title="Visualiser en 3D">3D</button>`;
     }
 
     h += `<tr${rowClass ? ` class="${rowClass}"` : ""}>
@@ -459,6 +459,13 @@ $("#mol-pagesize").addEventListener("change", (e) => {
   state.molSize = parseInt(e.target.value, 10);
   state.molPage = 1;
   fetchMolecules();
+});
+let solSearchTimer = null;
+$("#sol-search").addEventListener("input", (e) => {
+  state.solSearch = e.target.value;
+  state.solPage = 1;
+  clearTimeout(solSearchTimer);
+  solSearchTimer = setTimeout(fetchSolutions, 250);
 });
 $("#sol-filter").addEventListener("change", (e) => {
   state.solFilter = e.target.value;

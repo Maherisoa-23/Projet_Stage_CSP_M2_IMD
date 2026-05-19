@@ -156,12 +156,18 @@ def api_solutions():
     if not h or not config or not mol:
         abort(400, description="missing 'h', 'config' or 'mol' parameter")
     flt = request.args.get("filter", "all")
+    search = request.args.get("search", "").strip()
     page = max(1, int(request.args.get("page", 1)))
     size = min(500, max(10, int(request.args.get("size", 50))))
     sort = request.args.get("sort", "angle")
     # Tri : pour 'angle', on met les NULL (infeasible/xtb_failed) en queue.
-    sort_sql = ("(angle_deg IS NULL), angle_deg ASC"
-                if sort == "angle" else "sol_idx ASC")
+    sort_map = {
+        "angle":     "(angle_deg IS NULL), angle_deg ASC",
+        "angle_desc":"(angle_deg IS NULL), angle_deg DESC",
+        "idx":       "sol_idx ASC",
+        "idx_desc":  "sol_idx DESC",
+    }
+    sort_sql = sort_map.get(sort, sort_map["angle"])
 
     where = ["h = ?", "config = ?", "mol = ?"]
     params = [h, config, mol]
@@ -176,6 +182,19 @@ def api_solutions():
     elif flt == "validated":
         where.append("verdict IN ('plan', 'non_plan')")
     # 'all' : pas de filtre supplementaire
+
+    # Recherche libre : matche sol_idx (egalite numerique si entier) OU sizes
+    # (sous-chaine, ex. "6_6_5_7" matchera "..._6_6_5_7_..." aussi). Insensible
+    # a la casse via LIKE (les sizes ne contiennent que des chiffres et "_").
+    if search:
+        sub = f"(sizes LIKE ?"
+        params.append(f"%{search}%")
+        if search.isdigit():
+            sub += " OR sol_idx = ?"
+            params.append(int(search))
+        sub += ")"
+        where.append(sub)
+
     where_sql = " WHERE " + " AND ".join(where)
 
     with db() as conn:
