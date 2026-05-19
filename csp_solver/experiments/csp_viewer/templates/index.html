@@ -18,6 +18,9 @@
     <nav id="breadcrumb">
       <a href="#" data-go="dashboard">Dashboard</a>
     </nav>
+    <a href="/designer" class="header-designer-link" title="Dessiner un benzenoide et lancer le CSP">
+      ✏️ Designer
+    </a>
     <div id="loader" class="loader hidden">
       <div class="spinner"></div>
       <span id="loader-text">Chargement…</span>
@@ -58,6 +61,32 @@
       </div>
       <div id="mol-table-wrap"></div>
       <div class="pagination" id="mol-pagination"></div>
+    </section>
+
+    <!-- Vue 4 : resultats d'un job designer (route /?job=<id>) -->
+    <section id="view-job" class="view hidden">
+      <h2 id="job-title">Job designer</h2>
+      <div id="job-meta" class="meta-box"></div>
+      <h3 id="job-original-title" style="margin-top:1rem;margin-bottom:0.4rem">Benzenoide d'entree</h3>
+      <div id="job-original-box" class="meta-box"></div>
+      <h3 style="margin-top:1rem;margin-bottom:0.4rem">Solutions CSP</h3>
+      <div class="toolbar">
+        <input type="text" id="job-sol-search" placeholder="Filtrer par sol_idx ou sizes" />
+        <label>
+          Filtre :
+          <select id="job-sol-filter">
+            <option value="all" selected>Toutes</option>
+            <option value="plan">Plans</option>
+            <option value="non_plan">Non plans</option>
+            <option value="md_failed">MD echec</option>
+            <option value="unknown">Sans verdict</option>
+          </select>
+        </label>
+        <a id="job-back-designer" href="/designer" class="header-designer-link" style="margin-left:auto">
+          ← Retour au designer
+        </a>
+      </div>
+      <div id="job-sol-table-wrap"></div>
     </section>
 
     <!-- Vue 3 : solutions d'une molécule -->

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Designer — Generateur non-benzenoides</title>
+  <link rel="stylesheet" href="/designer_static/designer.css">
+  <!-- molviz : visualisation 3D des solutions trouvees par le job. -->
+  <link rel="stylesheet" href="/molviz_static/molviz.css">
+  <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
+  <script src="/molviz_static/molviz.js"></script>
+</head>
+<body>
+  <div id="app">
+    <header class="dz-header">
+      <div class="dz-header-left">
+        <a href="/" class="dz-back" title="Retour au viewer">←</a>
+        <h1>Designer de benzenoides</h1>
+      </div>
+      <div class="dz-header-right">
+        <span class="dz-status" id="status-info">—</span>
+      </div>
+    </header>
+
+    <main class="dz-main">
+      <!-- Canvas + toolbar a gauche -->
+      <section class="dz-canvas-area">
+        <div class="dz-toolbar">
+          <button id="btn-clear" class="dz-btn" title="Effacer le canvas">
+            <span>⌫</span> Effacer
+          </button>
+          <div class="dz-divider"></div>
+          <select id="select-template" class="dz-select" title="Importer un .graph de csp_solver/data/">
+            <option value="">— Importer un template —</option>
+          </select>
+          <label class="dz-btn dz-btn-secondary" title="Importer un fichier .graph local">
+            <span>📁</span> Importer .graph
+            <input type="file" id="file-import" accept=".graph" hidden>
+          </label>
+          <button id="btn-export" class="dz-btn dz-btn-secondary" title="Telecharger le .graph">
+            <span>⤓</span> Exporter
+          </button>
+          <div class="dz-divider"></div>
+          <div class="dz-zoom-controls">
+            <button id="btn-zoom-in"  class="dz-btn dz-btn-icon" title="Zoom +">+</button>
+            <button id="btn-zoom-out" class="dz-btn dz-btn-icon" title="Zoom -">−</button>
+            <button id="btn-recenter" class="dz-btn dz-btn-icon" title="Recentrer">⊙</button>
+          </div>
+          <div class="dz-spacer"></div>
+          <div class="dz-counter">
+            <span><b id="count-hex">0</b> hex</span>
+            <span><b id="count-atoms">0</b> C</span>
+            <span><b id="count-edges">0</b> liaisons</span>
+          </div>
+        </div>
+        <div class="dz-canvas-wrapper">
+          <canvas id="hex-canvas"></canvas>
+          <div class="dz-canvas-help" id="canvas-help">
+            <div class="dz-help-card">
+              <h3>Comment dessiner</h3>
+              <ul>
+                <li><b>Clic</b> sur une case : ajouter ou retirer un hexagone</li>
+                <li><b>Glisser</b> : déplacer la vue</li>
+                <li><b>Molette</b> : zoom</li>
+                <li><b>Touches</b> ←↑→↓ : naviguer</li>
+              </ul>
+              <p class="dz-help-note">
+                Le benzenoide doit etre connexe (un seul morceau).
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Panneau config + run a droite -->
+      <aside class="dz-sidebar">
+        <h2 class="dz-section-title">Configuration CSP</h2>
+        <div id="config-panel" class="dz-config-panel">
+          <div class="dz-loading-mini">Chargement…</div>
+        </div>
+
+        <div class="dz-actions">
+          <button id="btn-run" class="dz-btn dz-btn-primary" disabled>
+            <span>▶</span> Lancer la generation
+          </button>
+        </div>
+
+        <details class="dz-recent-jobs">
+          <summary>Jobs recents</summary>
+          <div id="recent-jobs-list">
+            <p class="dz-muted">Aucun job recent</p>
+          </div>
+        </details>
+      </aside>
+    </main>
+
+    <!-- Modal de chargement -->
+    <div class="dz-overlay hidden" id="loading-overlay">
+      <div class="dz-loading-modal">
+        <div class="dz-loading-header">
+          <h3 id="loading-title">Generation en cours</h3>
+          <span class="dz-loading-jobid" id="loading-jobid"></span>
+        </div>
+        <div class="dz-loading-stage" id="loading-stage">Initialisation…</div>
+        <div class="dz-progress-bar">
+          <div class="dz-progress-fill" id="progress-fill" style="width:5%"></div>
+        </div>
+        <div class="dz-loading-meta">
+          <span id="loading-elapsed">0 s</span>
+          <span id="loading-detail"></span>
+        </div>
+        <div class="dz-loading-actions">
+          <button id="btn-cancel-job" class="dz-btn dz-btn-warning">Annuler</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de resultat -->
+    <div class="dz-overlay hidden" id="result-overlay">
+      <div class="dz-loading-modal dz-result-modal">
+        <div class="dz-loading-header">
+          <h3 id="result-title">Generation terminee</h3>
+          <span class="dz-loading-jobid" id="result-jobid"></span>
+        </div>
+        <div class="dz-result-body" id="result-body">
+          <!-- rempli dynamiquement -->
+        </div>
+        <div class="dz-loading-actions">
+          <button id="btn-result-close" class="dz-btn dz-btn-secondary">Fermer</button>
+          <button id="btn-result-view"  class="dz-btn dz-btn-primary" disabled>Voir dans le viewer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/designer_static/designer.js"></script>
+</body>
+</html>

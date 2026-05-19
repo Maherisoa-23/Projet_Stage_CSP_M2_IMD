@@ -41,6 +41,37 @@ header h1 {
   color: var(--primary);
 }
 
+.header-designer-link {
+  margin-left: auto;
+  margin-right: 1rem;
+  padding: 0.4rem 0.9rem;
+  background: linear-gradient(135deg, #2563eb, #6366f1);
+  color: #fff !important;
+  text-decoration: none;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.header-designer-link:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+}
+
+/* Pills compactes utilisees dans la meta-box de la vue job designer */
+.pill {
+  display: inline-block;
+  padding: 0.12rem 0.5rem;
+  background: #eef2ff;
+  color: #4338ca;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-family: ui-monospace, monospace;
+  margin-right: 0.25rem;
+  margin-bottom: 0.2rem;
+}
+
 .ds-picker {
   font-size: 0.9rem;
   color: var(--muted);

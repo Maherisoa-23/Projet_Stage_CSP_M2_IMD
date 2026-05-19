@@ -27,6 +27,7 @@ from flask import Flask, abort, jsonify, render_template, request, send_file
 # Permet d'importer molviz comme un sous-module
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from molviz import api as molviz_api  # noqa: E402
+from designer import api as designer_api  # noqa: E402
 
 _HERE = Path(__file__).resolve().parent
 _PROJECT_ROOT = _HERE.parent.parent.parent
@@ -358,6 +359,9 @@ def main():
     # Branche le blueprint molviz (endpoint /api/mol3d). Il reutilise
     # _resolve_local_path pour gerer les chemins cluster<->local.
     molviz_api.init_app(app, _resolve_local_path)
+    # Branche le blueprint designer (page /designer, endpoints /api/designer/*).
+    # Cree au passage la table designer_jobs et le dossier de sortie.
+    designer_api.init_app(app)
     if not Path(args.db).is_file():
         print(f"ERREUR : DB introuvable : {args.db}")
         print("Lance d'abord :")

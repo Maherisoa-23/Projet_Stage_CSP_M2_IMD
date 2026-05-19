@@ -1,6 +1,6 @@
 // ===== State =====
 const state = {
-  view: "dashboard",       // "dashboard" | "config" | "molecule"
+  view: "dashboard",       // "dashboard" | "config" | "mol" | "job"
   h: null,                 // dataset courant ("h3", "h4", ..., "h9")
   datasets: [],            // liste {h, n_solutions, ...} pour le selecteur
   config: null,
@@ -14,6 +14,12 @@ const state = {
   solFilter: "plans",
   solSort: "angle",
   solSearch: "",
+  // Vue job designer (route /?job=<id>)
+  jobId: null,             // UUID du job ouvert
+  jobData: null,           // { state, summary, config, ... } depuis /api/designer/jobs/<id>
+  jobSolutions: [],        // [{name, sol_idx, sizes, verdict, best_xyz_path, ...}]
+  jobSolFilter: "all",
+  jobSolSearch: "",
 };
 
 const $ = (sel) => document.querySelector(sel);
@@ -73,13 +79,21 @@ function setView(name) {
 
 function renderBreadcrumb() {
   const bc = $("#breadcrumb");
-  const hLabel = state.h ? `[${state.h}] ` : "";
-  let html = `${hLabel}<a href="#" data-go="dashboard">Dashboard</a>`;
-  if (state.config) {
-    html += `<span class="sep">/</span><a href="#" data-go="config">${state.config}</a>`;
-  }
-  if (state.mol) {
-    html += `<span class="sep">/</span><a href="#" data-go="mol">${state.mol}</a>`;
+  let html;
+  // Si on est sur la vue job designer, breadcrumb specifique
+  if (state.view === "job") {
+    html = `<a href="#" data-go="dashboard">Dashboard</a>`
+         + `<span class="sep">/</span>`
+         + `<span>Job designer #${state.jobId}</span>`;
+  } else {
+    const hLabel = state.h ? `[${state.h}] ` : "";
+    html = `${hLabel}<a href="#" data-go="dashboard">Dashboard</a>`;
+    if (state.config) {
+      html += `<span class="sep">/</span><a href="#" data-go="config">${state.config}</a>`;
+    }
+    if (state.mol) {
+      html += `<span class="sep">/</span><a href="#" data-go="mol">${state.mol}</a>`;
+    }
   }
   bc.innerHTML = html;
   bc.querySelectorAll("a").forEach((a) => {
@@ -388,6 +402,227 @@ function renderSolTable(data) {
   });
 }
 
+// ===== Designer job view (route /?job=<id>) =====
+//
+// Vue dediee aux resultats d'un job lance depuis le designer. Pas de
+// dataset/config/mol : on a juste l'id de job et on liste ses solutions.
+async function loadJobView(jobId) {
+  state.view = "job";
+  state.jobId = jobId;
+  state.jobData = null;
+  state.jobSolutions = [];
+  state.jobOriginal = null;
+  state.jobCounts = null;
+  setView("job");
+  $("#job-title").textContent = `Job designer #${jobId}`;
+  $("#job-meta").innerHTML = '<div class="item"><span class="muted">Chargement…</span></div>';
+  $("#job-original-box").innerHTML = '<div class="item"><span class="muted">Chargement…</span></div>';
+  $("#job-sol-table-wrap").innerHTML = "";
+
+  try {
+    const [job, sols] = await Promise.all([
+      fetchJSON(`/api/designer/jobs/${jobId}`, "Job…"),
+      fetchJSON(`/api/designer/jobs/${jobId}/solutions`, "Solutions…"),
+    ]);
+    state.jobData = job;
+    state.jobSolutions = sols.solutions || [];
+    state.jobOriginal = sols.original || null;
+    state.jobCounts = sols.counts || null;
+    renderJobMeta(job);
+    renderJobOriginal(state.jobOriginal);
+    renderJobSolTable();
+  } catch (e) {
+    $("#job-meta").innerHTML = `<div class="item"><span class="muted">Erreur : ${e.message}</span></div>`;
+  }
+}
+
+function renderJobMeta(job) {
+  const box = $("#job-meta");
+  const cfg = job.config || {};
+  const cfgPills = Object.entries(cfg).map(([k, v]) => {
+    let s;
+    if (v === true) s = k;
+    else if (v === false) return null;
+    else s = `${k}=${v}`;
+    return `<span class="pill">${s}</span>`;
+  }).filter(Boolean).join(" ");
+
+  const stateClass = {
+    "success": "success",
+    "running": "running",
+    "failed": "danger",
+    "cancelled": "muted",
+    "pending": "warning",
+  }[job.state] || "muted";
+
+  const dur = job.duration_s
+    ? (job.duration_s >= 60
+        ? `${(job.duration_s / 60).toFixed(1)} min`
+        : `${job.duration_s.toFixed(1)} s`)
+    : "—";
+
+  const s = job.summary || {};
+  const c = state.jobCounts || {};
+  box.innerHTML = `
+    <div class="item"><span class="label">Statut</span>
+      <span class="value" style="color:var(--${stateClass})">${job.state}</span></div>
+    <div class="item"><span class="label">Solutions</span>
+      <span class="value">${s.n_sol_dirs || 0}</span></div>
+    <div class="item"><span class="label">Plans</span>
+      <span class="value" style="color:var(--success)">${c.plan || 0}</span></div>
+    <div class="item"><span class="label">Non plans</span>
+      <span class="value" style="color:var(--danger)">${c.non_plan || 0}</span></div>
+    <div class="item"><span class="label">MD echec</span>
+      <span class="value" style="color:var(--muted)">${c.md_failed || 0}</span></div>
+    <div class="item"><span class="label">Duree</span>
+      <span class="value">${dur}</span></div>
+    <div class="item" style="grid-column: 1 / -1"><span class="label">Configuration</span>
+      <span class="value">${cfgPills || '<span class="muted">defauts</span>'}</span></div>
+  `;
+}
+
+// Bloc "Benzenoide d'entree" : planarite + bouton 3D du benzenoide original
+// (tout-hexagones, opt xTB direct, lu depuis output_dir/original/planarity.json)
+function renderJobOriginal(orig) {
+  const box = $("#job-original-box");
+  if (!orig) {
+    box.innerHTML = '<div class="item"><span class="muted">Non disponible (job ancien ou test non execute)</span></div>';
+    return;
+  }
+  if (!orig.success) {
+    box.innerHTML = `
+      <div class="item" style="grid-column: 1 / -1">
+        <span class="label">Erreur</span>
+        <span class="value muted" style="font-size:0.85rem;font-weight:normal">${orig.message || "echec"}</span>
+      </div>`;
+    return;
+  }
+  const badge = orig.planar
+    ? `<span class="badge plan">PLAN</span>`
+    : `<span class="badge non-plan">NON PLAN</span>`;
+  const btn3d = orig.xyz_path
+    ? `<button class="btn-3d btn-3d-orig" id="job-btn-3d-orig" title="Visualiser le benzenoide d'entree optimise">3D</button>`
+    : "";
+  box.innerHTML = `
+    <div class="item"><span class="label">Verdict</span>
+      <span class="value">${badge} ${btn3d}</span></div>
+    <div class="item"><span class="label">Angle max</span>
+      <span class="value">${orig.angle_deg != null ? orig.angle_deg.toFixed(2) + "°" : "—"}</span></div>
+    <div class="item"><span class="label">RMSD</span>
+      <span class="value">${orig.rmsd != null ? orig.rmsd.toFixed(4) : "—"}</span></div>
+    <div class="item"><span class="label">Hauteur</span>
+      <span class="value">${orig.height != null ? orig.height.toFixed(4) : "—"}</span></div>
+    <div class="item"><span class="label">Seuil</span>
+      <span class="value">${orig.threshold_deg ?? 10}°</span></div>
+  `;
+  const btn = $("#job-btn-3d-orig");
+  if (btn && orig.xyz_path) {
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      if (!window.MolViz) { alert("MolViz non charge"); return; }
+      window.MolViz.open({
+        xyz_path: orig.xyz_path,
+        title: "Benzenoide d'entree (opt xTB)",
+        subtitle: orig.planar ? "PLAN" : `NON PLAN (${(orig.angle_deg ?? 0).toFixed(1)}°)`,
+      });
+    });
+  }
+}
+
+function filteredJobSolutions() {
+  let sols = state.jobSolutions;
+  if (state.jobSolFilter !== "all") {
+    sols = sols.filter((s) => (s.verdict || "unknown") === state.jobSolFilter);
+  }
+  if (state.jobSolSearch) {
+    const q = state.jobSolSearch.toLowerCase();
+    sols = sols.filter((s) =>
+      (s.sol_idx || "").toString().includes(q) ||
+      (s.sizes || "").toLowerCase().includes(q) ||
+      (s.name || "").toLowerCase().includes(q)
+    );
+  }
+  return sols;
+}
+
+function renderJobSolTable() {
+  const wrap = $("#job-sol-table-wrap");
+  const sols = filteredJobSolutions();
+  if (sols.length === 0) {
+    if (state.jobSolutions.length === 0) {
+      wrap.innerHTML = `<div class="empty">
+        Aucune solution materialisee pour ce job.<br>
+        <span class="muted">Active "Validation xTB" pour produire les fichiers .xyz.</span>
+      </div>`;
+    } else {
+      wrap.innerHTML = `<div class="empty">Aucune solution ne correspond au filtre.</div>`;
+    }
+    return;
+  }
+
+  // Colonnes alignees sur view-mol : Sol_idx, Sizes, Verdict, Angle, RMSD,
+  // Height, Tentatives MD, Vue 3D. Verdict = plan/non_plan/md_failed/unknown.
+  let h = `<table><thead><tr>
+    <th>Sol_idx</th>
+    <th>Sizes</th>
+    <th>Verdict</th>
+    <th>Angle</th>
+    <th>RMSD</th>
+    <th>Height</th>
+    <th>Tentatives MD</th>
+    <th>Vue 3D</th>
+  </tr></thead><tbody>`;
+  for (const s of sols) {
+    const sizesDisplay = (s.sizes || "").replace(/_/g, "-") || "?";
+    let badge, rowClass = "", angleCell, rmsdCell, heightCell;
+
+    if (s.verdict === "plan") {
+      badge = `<span class="badge plan">PLAN</span>`;
+    } else if (s.verdict === "non_plan") {
+      badge = `<span class="badge non-plan">NON</span>`;
+    } else if (s.verdict === "md_failed") {
+      badge = `<span class="badge xtb-failed" title="xTB MD n'a pas converge">MD ✗</span>`;
+      rowClass = "row-xtb-failed";
+    } else {
+      badge = `<span class="badge infeasible" title="Planarite non calculee">—</span>`;
+    }
+
+    angleCell = (s.angle_deg != null) ? s.angle_deg.toFixed(3) + "°" : "—";
+    rmsdCell = (s.rmsd != null) ? s.rmsd.toFixed(4) : "—";
+    heightCell = (s.height != null) ? s.height.toFixed(4) : "—";
+    const attemptsCell = s.n_attempts != null ? s.n_attempts : "—";
+
+    const btn3d = s.best_xyz_path
+      ? `<button class="btn-3d" data-path="${s.best_xyz_path}" data-name="${s.name}" data-sizes="${sizesDisplay}" data-verdict="${s.verdict}">3D</button>`
+      : `<span class="muted">—</span>`;
+
+    h += `<tr${rowClass ? ` class="${rowClass}"` : ""}>
+      <td><strong>${s.sol_idx}</strong></td>
+      <td><code>${sizesDisplay}</code></td>
+      <td>${badge}</td>
+      <td>${angleCell}</td>
+      <td>${rmsdCell}</td>
+      <td>${heightCell}</td>
+      <td>${attemptsCell}</td>
+      <td>${btn3d}</td>
+    </tr>`;
+  }
+  h += `</tbody></table>`;
+  wrap.innerHTML = h;
+
+  wrap.querySelectorAll(".btn-3d").forEach((btn) => {
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      if (!window.MolViz) { alert("MolViz non charge"); return; }
+      window.MolViz.open({
+        xyz_path: btn.dataset.path,
+        title: `Job #${state.jobId} · ${btn.dataset.name}`,
+        subtitle: `sizes ${btn.dataset.sizes} · ${btn.dataset.verdict}`,
+      });
+    });
+  });
+}
+
 // ===== Pagination =====
 function renderPagination(container, total, page, size, onPage) {
   container.innerHTML = "";
@@ -483,8 +718,33 @@ $("#sol-pagesize").addEventListener("change", (e) => {
   fetchSolutions();
 });
 
+// Vue job designer : filtre + recherche
+let jobSearchTimer = null;
+$("#job-sol-search").addEventListener("input", (e) => {
+  state.jobSolSearch = e.target.value;
+  clearTimeout(jobSearchTimer);
+  jobSearchTimer = setTimeout(renderJobSolTable, 200);
+});
+$("#job-sol-filter").addEventListener("change", (e) => {
+  state.jobSolFilter = e.target.value;
+  renderJobSolTable();
+});
+
 // ===== Initial load =====
 (async () => {
+  // Routing : si ?job=<id>, ouvre directement la vue job sans charger
+  // les datasets (independant). On charge quand meme la liste des datasets
+  // pour que le selecteur soit utilisable si l'utilisateur navigue ailleurs.
+  const urlParams = new URLSearchParams(window.location.search);
+  const jobId = urlParams.get("job");
+  if (jobId) {
+    // Verifier que l'id ressemble a un UUID court (alpha-num 6-12 chars)
+    if (/^[a-f0-9]{6,12}$/i.test(jobId)) {
+      loadDatasets().catch(() => {});  // best-effort en background
+      loadJobView(jobId);
+      return;
+    }
+  }
   await loadDatasets();
   loadDashboard();
 })();
