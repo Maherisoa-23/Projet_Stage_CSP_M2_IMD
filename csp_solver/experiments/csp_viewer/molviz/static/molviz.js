@@ -954,5 +954,19 @@
   }
 
   // Expose
-  window.MolViz = { open, close };
+  // openSafe : wrapper qui guard l'appelant si 3Dmol.js ou molviz n'est pas
+  // charge sur la page courante. Centralise le message d'erreur pour eviter
+  // des "MolViz non charge" formules de 5 manieres differentes dans app.js
+  // et designer.js. Renvoie true si on a pu ouvrir, false sinon.
+  function openSafe(info) {
+    if (typeof $3Dmol === "undefined") {
+      alert("3Dmol.js non charge. Ajouter <script src=\".../3Dmol-min.js\"> "
+            + "avant molviz.js dans la page.");
+      return false;
+    }
+    open(info);
+    return true;
+  }
+
+  window.MolViz = { open, openSafe, close };
 })();

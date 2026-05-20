@@ -149,6 +149,37 @@ marquent dans le texte les contenus ajoutes a chaque etape.
     \textbf{Le viewer dispose desormais des 4 modes (Defaut / Kekule /
     RBO / Clar)} correspondant aux 4 indicateurs topologiques cles de
     l'aromaticite locale. \\
+  Mai 2026 (fin de mois) &
+    \textbf{Designer interactif de benzenoides + integration viewer
+    principal}. Nouveau module \texttt{designer/} avec canvas hexagonal
+    HTML5 (axial $(q, r)$, pan/zoom/clic, verification connexite live),
+    panneau de configuration CSP (7 options dynamiques chargees depuis
+    \texttt{/api/designer/configs}), import/export \texttt{.graph}
+    BenzAI (round-trip verifie sur \texttt{1.graph}), et pipeline
+    asynchrone : table SQLite \texttt{designer\_jobs} (UUID, etat,
+    stage, progress, output\_dir), thread daemon qui spawn
+    \texttt{main.py} en subprocess et parse stdout pour les stages,
+    modal de chargement avec polling 800~ms, bouton annulation.
+    \textbf{Test xTB du benzenoide d'entree (tout-hexagones) ajoute en
+    debut de pipeline} : ecrit \texttt{original/planarity.json} avec
+    angle/RMSD/hauteur. Apres MD, le runner calcule la planarite de
+    chaque \texttt{sol\_X/md\_validation/md\_final\_opt.xyz}, persiste
+    dans \texttt{sol\_X/planarity.json}. \textbf{Vue dediee
+    \texttt{view-job} dans le viewer principal} (route
+    \texttt{?job=<id>}) : meta-box avec compteurs colores, section
+    \og{}Benzenoide d'entree\fg{} avec bouton 3D, tableau des solutions
+    aux memes 8 colonnes que \texttt{view-mol}
+    (Sol\_idx, Sizes, Verdict, Angle, RMSD, Height, Tentatives, 3D).
+    Bouton \og{}Designer\fg{} ajoute dans le header de la page
+    d'accueil (gradient bleu/violet). \textbf{Refactor en passant :}
+    extraction de helpers partages dans \texttt{bonds.py}
+    (\texttt{build\_nx\_graph}, \texttt{bond\_index\_map},
+    \texttt{cycle\_edge\_indices}) utilises par kekule/clar/rbo ;
+    helpers \texttt{\_resolve\_xyz\_target} et \texttt{\_parse\_max}
+    dans \texttt{molviz/api.py} (4 endpoints passent de
+    $\sim$10 lignes a $\sim$3 chacun) ; \texttt{MolViz.openSafe()} +
+    \texttt{openMolViz()} centralisant le guard \og{}3Dmol.js non
+    charge\fg{}. 23~tests existants restent verts apres refactor. \\
   \bottomrule
 \end{tabular}
 \end{center}

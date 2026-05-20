@@ -728,3 +728,163 @@ Cache LRU 256 entrées, lazy-loadé au premier clic sur \emph{Clar}.
     \texttt{bond\_orders} $\in \{1,2\}$.
 \end{itemize}
 
+% ============================================================
+%  designer : interface de dessin de benzenoides + lancement de jobs
+% ============================================================
+\subsection{\texttt{designer} : dessin interactif et lancement de jobs CSP}
+\label{sec:designer}
+
+\dateblock{mai 2026 (fin de mois)}
+
+\textbf{Motivation.} Avant ce module, lancer le pipeline CSP demandait
+de manipuler un fichier \texttt{.graph} à la main (format DIMACS de BenzAI,
+avec coordonnées atomiques) puis d'invoquer \texttt{csp\_solver/main.py}
+en ligne de commande. Le module \texttt{designer/} reproduit l'interface
+de dessin de BenzAI (cf.~thèse Varet, fig.~6.2) directement dans notre
+viewer web, avec lancement asynchrone du pipeline complet et affichage
+des résultats en 3D.
+
+\textbf{Architecture.}
+
+\begin{lstlisting}[style=benzai]
+csp_solver/experiments/csp_viewer/designer/
+  __init__.py
+  graph_io.py     # axial (q,r) <-> format .graph BenzAI
+  jobs.py         # table designer_jobs en DB (CRUD)
+  runner.py       # wrapper subprocess de main.py + test xTB original
+                  # + calcul planarite par solution apres MD
+  api.py          # endpoints Flask /api/designer/*
+  static/
+    designer.js   # canvas hexagonal + UI panneau de config
+    designer.css  # styles (toolbar, sidebar, modals)
+\end{lstlisting}
+
+\textbf{Pipeline d'un job.}
+
+\begin{enumerate}
+  \item L'utilisateur dessine sur un canvas hexagonal (clic = toggle hex,
+    glisser-deposer = pan, molette = zoom). La connexité du benzénoïde
+    est vérifiée en temps réel (ajout/retrait refusés si non adjacent
+    ou si déconnecte le benzénoïde).
+  \item Au clic sur \og{}Lancer la génération\fg{}, le frontend
+    sérialise les hexagones (q,~r) en format .graph et envoie POST
+    \texttt{/api/designer/run} avec la config CSP (cases cochées du
+    panneau de droite).
+  \item Le backend crée une entrée \texttt{designer\_jobs} (UUID
+    court, state \texttt{pending}), spawn un thread \texttt{daemon}
+    qui exécute le pipeline en arrière-plan, et retourne immédiatement
+    \texttt{job\_id} au frontend.
+  \item Le frontend affiche un modal de chargement avec barre de
+    progression et nom du stage courant, polling
+    \texttt{/api/designer/jobs/<id>} toutes les 800~ms.
+  \item Le runner exécute en séquence :
+    \begin{enumerate}[label=\arabic*.]
+      \item \emph{original} : reconstruction tout-hexagones $\to$ xTB
+        \texttt{-{}-opt tight} $\to$ test de planarité (PCA). Persiste
+        dans \texttt{original/planarity.json}. Sert d'indicateur
+        \og{}le benzénoïde d'origine est-il plan ?\fg{}.
+      \item \emph{parse, preprocess, csp, reconstruct, md} : étapes
+        standard de \texttt{main.py} (lance comme subprocess, regex sur
+        stdout pour inférer le stage courant).
+      \item \emph{aggregate} : pour chaque \texttt{sol\_X/md\_validation/
+        md\_final\_opt.xyz}, recalcule la planarité et persiste dans
+        \texttt{sol\_X/planarity.json}.
+    \end{enumerate}
+  \item Au polling final, frontend affiche un modal de résultat avec
+    stats agrégées + liste des solutions cliquables (bouton 3D ouvre
+    \texttt{molviz}).
+\end{enumerate}
+
+\textbf{Conversion canvas $\leftrightarrow$ .graph BenzAI.} La formule
+de conversion (\texttt{graph\_io.hex\_corners}) suit exactement la
+convention de BenzAI vérifiée sur \texttt{csp\_solver/data/1.graph} :
+pour un hexagone aux coords axiales $(q, r)$, les 6 atomes ont pour
+labels $\langle 2q+r, 2r \rangle$ (bas), $\langle 2q+r+1, 2r+1 \rangle$
+(bas-droite), \ldots~La même formule est dupliquée en JavaScript
+(\texttt{designer.js::hexCorners}) pour serialisation côté client sans
+aller-retour serveur. Round-trip vérifié sur \texttt{1.graph} :
+parse $\to$ regenerate $\to$ même set d'atomes/arêtes/hexagones.
+
+\textbf{Gestion des jobs.} Table SQLite \texttt{designer\_jobs}
+(créée à la demande dans la même \texttt{db\_all.db}) avec colonnes :
+\texttt{job\_id} (UUID 8 chars, PK), \texttt{created\_at, updated\_at,
+state, current\_stage, progress, graph\_content, config\_json,
+output\_dir, error, duration\_s, pid, summary\_json}. Le cycle de vie
+est \texttt{pending~$\to$~running~$\to$~(success | failed | cancelled)}.
+
+L'annulation envoie \texttt{taskkill /F /T /PID} (Windows) ou
+\texttt{SIGTERM} puis \texttt{SIGKILL} après 2~s (Unix) sur le PID
+stocké, et marque immédiatement le job \texttt{cancelled} pour éviter
+la race avec une transition d'état du thread runner.
+
+\textbf{Imports : danse \texttt{utils/} csp\_solver vs.~non\_benzenoid\_generator.}
+Les deux dossiers ont un \texttt{utils/} package distinct, ce qui crée
+une collision sur le nom \texttt{utils} dans \texttt{sys.path}. Le
+module \texttt{runner.\_setup\_imports()} reproduit la danse de
+\texttt{csp\_solver/test.py} : (1) charger \texttt{planarity.py} via
+\texttt{importlib} sous le nom \texttt{gen\_planarity} pour éviter le
+shadowing ; (2) insérer \texttt{csp\_root} en tête de \texttt{sys.path}
+et importer \texttt{utils.parser, reconstruction.*, core.optimizer}
+(cache \texttt{utils} comme \texttt{csp\_solver/utils}) ; (3)
+re-prioriser \texttt{gen\_root} pour les imports tardifs de
+\texttt{valence\_solver} qui fait \texttt{from config import
+BOND\_LENGTH\_CH}. Cache des fonctions résolues via attribut de
+fonction pour idempotence.
+
+\textbf{Vue \texttt{view-job} dans le viewer principal.} Au-delà du
+modal résultat du designer, un nouveau type de vue (\texttt{?job=<id>}
+dans l'URL) ouvre les résultats dans la SPA principale (\texttt{app.js}
+loadJobView). Affiche : meta-box du job (statut, compteurs plans /
+non plans / MD échec, durée, config en \emph{pills}), section
+\og{}Benzenoïde d'entree\fg{} avec planarité + bouton 3D, et tableau
+des solutions aux mêmes colonnes que \texttt{view-mol}
+(Sol\_idx, Sizes, Verdict, Angle, RMSD, Height, Tentatives MD, Vue~3D)
+avec filtre par verdict.
+
+\textbf{Configuration CSP exposée au frontend.} Liste déclarative
+\texttt{CSP\_CONFIGS} dans \texttt{api.py} (7 options : validate,
+no\_freeze, no\_table, adj\_57, count\_hexagon, n\_runs, method).
+Le frontend lit \texttt{/api/designer/configs} et construit
+dynamiquement les contrôles (checkbox / int / select avec help text).
+\textbf{Ajouter une nouvelle option CSP = ajouter une entrée dans
+\texttt{CSP\_CONFIGS} + une ligne dans \texttt{\_build\_command}.}
+Pas de refactor frontend nécessaire.
+
+% ============================================================
+%  Refactor mai 2026 : helpers partages molviz/ + viewer
+% ============================================================
+\subsection{Refactorisation : helpers partagés \texttt{molviz/} et viewer}
+\label{sec:refactor-molviz-helpers}
+
+\dateblock{mai 2026 (fin de mois)}
+
+Après ajout des modules \texttt{kekule.py}, \texttt{clar.py},
+\texttt{rbo.py}, plusieurs duplications ont été identifiées et
+factorisées :
+
+\begin{itemize}
+  \item \texttt{bonds.py} expose désormais \texttt{build\_nx\_graph(mol)},
+    \texttt{bond\_index\_map(mol)}, \texttt{cycle\_edge\_indices(mol,
+    bond\_idx=None)}. Les trois modules d'analyse les réutilisent au
+    lieu de répéter la même construction NetworkX + dict
+    d'index d'arêtes.
+  \item \texttt{molviz/api.py} : deux helpers locaux dans
+    \texttt{init\_app()} --- \texttt{\_resolve\_xyz\_target()}
+    (extraction + validation du param \texttt{path}, gestion des
+    aborts 400/403/404) et \texttt{\_parse\_max(default, hard\_cap)}
+    (parse + clamp du param \texttt{max}). Les 4~endpoints
+    (\texttt{/api/mol3d}, \texttt{/api/kekule\_list},
+    \texttt{/api/clar\_list}, \texttt{/api/rbo}) passent de
+    $\sim$10 à $\sim$3 lignes chacun.
+  \item \texttt{molviz.js} expose \texttt{MolViz.openSafe(info)} qui
+    centralise le guard \og{}3Dmol.js non chargé\fg{}. Une fonction
+    \texttt{openMolViz(info)} dans \texttt{app.js} unifie l'invocation
+    sur les 4 sites de boutons~3D du viewer principal et 1 site dans le
+    designer. Plus de variations \og{}MolViz non chargé\fg{} /
+    \og{}MolViz non charge\fg{} / \og{}molviz non disponible\fg{}.
+\end{itemize}
+
+Les 23~tests existants (\texttt{test\_kekule\_enum.py},
+\texttt{test\_clar.py}, \texttt{test\_rbo.py}) passent toujours
+après refactor.
+

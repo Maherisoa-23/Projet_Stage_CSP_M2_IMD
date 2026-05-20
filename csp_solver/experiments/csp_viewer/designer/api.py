@@ -286,7 +286,6 @@ def api_job_solutions(job_id: str):
     Inclut aussi le bloc "original" depuis output_dir/original/planarity.json :
     metriques de planarite du benzenoide d'entree (tout-hexagones, opt xTB).
     """
-    import json as _json
     db_path = current_app.config["DB_PATH"]
     job = jobs.get_job(db_path, job_id)
     if job is None:
@@ -310,7 +309,7 @@ def api_job_solutions(job_id: str):
     orig_opt_xyz = orig_dir / "original_opt.xyz"
     if orig_plan.is_file():
         try:
-            original = _json.loads(orig_plan.read_text(encoding="utf-8"))
+            original = json.loads(orig_plan.read_text(encoding="utf-8"))
             if orig_opt_xyz.is_file():
                 original["xyz_path"] = orig_opt_xyz.relative_to(project_root).as_posix()
         except Exception:
@@ -333,7 +332,7 @@ def api_job_solutions(job_id: str):
         meta_file = md_dir / "md_meta.json"
         if meta_file.is_file():
             try:
-                meta = _json.loads(meta_file.read_text(encoding="utf-8"))
+                meta = json.loads(meta_file.read_text(encoding="utf-8"))
                 n_attempts = meta.get("n_attempts")
                 if meta.get("success") and meta.get("converged"):
                     md_verdict = "md_ok"
@@ -350,7 +349,7 @@ def api_job_solutions(job_id: str):
         plan_file = sol_dir / "planarity.json"
         if plan_file.is_file():
             try:
-                p = _json.loads(plan_file.read_text(encoding="utf-8"))
+                p = json.loads(plan_file.read_text(encoding="utf-8"))
                 if p.get("success"):
                     planar = p.get("planar")
                     angle_deg = p.get("angle_deg")

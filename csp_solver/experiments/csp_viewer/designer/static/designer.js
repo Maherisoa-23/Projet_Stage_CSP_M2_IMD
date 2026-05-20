@@ -878,15 +878,15 @@
         const btn = row.querySelector("button");
         if (sol.best_xyz_path) {
           btn.addEventListener("click", () => {
-            if (window.MolViz && typeof window.MolViz.open === "function") {
-              window.MolViz.open({
-                xyz_path: sol.best_xyz_path,
-                title: `Job #${jobId} · ${sol.name}`,
-                subtitle: `sizes ${sizesDisplay} · ${verdictLabel}`,
-              });
-            } else {
-              updateStatus("molviz non disponible");
-            }
+            // Utilise openSafe pour avoir un message d'erreur consistant
+            // si 3Dmol.js n'est pas charge (cf molviz.js).
+            const ok = window.MolViz && window.MolViz.openSafe
+              && window.MolViz.openSafe({
+                   xyz_path: sol.best_xyz_path,
+                   title: `Job #${jobId} · ${sol.name}`,
+                   subtitle: `sizes ${sizesDisplay} · ${verdictLabel}`,
+                 });
+            if (!ok) updateStatus("molviz non disponible");
           });
         }
         container.appendChild(row);

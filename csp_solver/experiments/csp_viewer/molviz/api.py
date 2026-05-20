@@ -192,8 +192,11 @@ def init_app(app, resolve_path_fn):
       resolve_path_fn : fonction `(rel_path: str) -> Path | None` du serveur
                         principal (deja gere le rewriting cluster<->local).
     """
-    @bp.route("/api/mol3d")
-    def api_mol3d():
+    def _resolve_xyz_target():
+        """Helper commun : extrait le param 'path', le resout, verifie que
+        c'est un .xyz. Abort proprement si invalide. Retourne le Path
+        absolu, pret pour _compute_*.
+        """
         rel = request.args.get("path", "")
         if not rel:
             abort(400, description="missing 'path' parameter")
@@ -202,62 +205,40 @@ def init_app(app, resolve_path_fn):
             abort(404)
         if target.suffix.lower() not in (".xyz",):
             abort(403, description="only .xyz supported")
+        return target
+
+    def _parse_max(default: int, hard_cap: int) -> int:
+        """Parse le param 'max' (entier, defaut + plafonnement dur).
+        Abort 400 si non-entier. Borne le resultat dans [1, hard_cap].
+        """
+        try:
+            n = int(request.args.get("max", default))
+        except ValueError:
+            abort(400, description="'max' must be an integer")
+        return max(1, min(n, hard_cap))
+
+    @bp.route("/api/mol3d")
+    def api_mol3d():
+        target = _resolve_xyz_target()
         return jsonify(_compute_mol3d(str(target.resolve())))
 
     @bp.route("/api/kekule_list")
     def api_kekule_list():
-        rel = request.args.get("path", "")
-        if not rel:
-            abort(400, description="missing 'path' parameter")
-        target = resolve_path_fn(rel)
-        if target is None:
-            abort(404)
-        if target.suffix.lower() not in (".xyz",):
-            abort(403, description="only .xyz supported")
-        try:
-            max_count = int(request.args.get("max", 200))
-        except ValueError:
-            abort(400, description="'max' must be an integer")
-        # Bornes de securite : on refuse 0/negatif et on plafonne dur a 1000
-        # pour eviter qu'un client malicieux ne fasse exploser le cache.
-        max_count = max(1, min(max_count, 1000))
+        target = _resolve_xyz_target()
+        max_count = _parse_max(default=200, hard_cap=1000)
         return jsonify(_compute_kekule_list(str(target.resolve()), max_count))
 
     @bp.route("/api/clar_list")
     def api_clar_list():
-        rel = request.args.get("path", "")
-        if not rel:
-            abort(400, description="missing 'path' parameter")
-        target = resolve_path_fn(rel)
-        if target is None:
-            abort(404)
-        if target.suffix.lower() not in (".xyz",):
-            abort(403, description="only .xyz supported")
-        try:
-            max_count = int(request.args.get("max", 200))
-        except ValueError:
-            abort(400, description="'max' must be an integer")
-        # Borne dure : 1 <= max <= 1000 (cf /api/kekule_list)
-        max_count = max(1, min(max_count, 1000))
+        target = _resolve_xyz_target()
+        max_count = _parse_max(default=200, hard_cap=1000)
         return jsonify(_compute_clar_list(str(target.resolve()), max_count))
 
     @bp.route("/api/rbo")
     def api_rbo():
-        rel = request.args.get("path", "")
-        if not rel:
-            abort(400, description="missing 'path' parameter")
-        target = resolve_path_fn(rel)
-        if target is None:
-            abort(404)
-        if target.suffix.lower() not in (".xyz",):
-            abort(403, description="only .xyz supported")
-        try:
-            max_count = int(request.args.get("max", DEFAULT_MAX_KEKULE))
-        except ValueError:
-            abort(400, description="'max' must be an integer")
-        # Borne dure : on plafonne a DEFAULT_MAX_KEKULE pour eviter de saturer
-        # cache et CPU. Si l'utilisateur demande plus, on ignore silencieusement.
-        max_count = max(1, min(max_count, DEFAULT_MAX_KEKULE))
+        target = _resolve_xyz_target()
+        max_count = _parse_max(default=DEFAULT_MAX_KEKULE,
+                                hard_cap=DEFAULT_MAX_KEKULE)
         return jsonify(_compute_rbo_payload(str(target.resolve()), max_count))
 
     app.register_blueprint(bp)

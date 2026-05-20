@@ -38,7 +38,7 @@ sextets + matching du residu) + radicaux.
 from dataclasses import dataclass, field
 from typing import List, Set, Tuple
 
-from .bonds import MolGraph
+from .bonds import MolGraph, bond_index_map, build_nx_graph, cycle_edge_indices
 
 
 @dataclass
@@ -94,28 +94,20 @@ def enumerate_clar_covers(mol: MolGraph,
     n_hex = len(hex_indices)
 
     # Graphe complet pour le matching global
-    g_full = nx.Graph()
-    g_full.add_nodes_from(range(n))
-    g_full.add_edges_from(mol.bonds)
+    g_full = build_nx_graph(mol)
     full_match = nx.max_weight_matching(g_full, maxcardinality=True, weight=None)
     # Nb de radicaux du matching max global (= min realisable)
     n_radicals_total = n - 2 * len(full_match)
 
     # Index des aretes pour conversion (u,v) -> indice dans mol.bonds
-    bond_idx = {tuple(sorted(p)): i for i, p in enumerate(mol.bonds)}
+    bond_idx = bond_index_map(mol)
 
-    # Pre-calcul : atomes et aretes de chaque hex (en indices de bonds)
+    # Pre-calcul : atomes et aretes de chaque cycle, puis on ne garde que les hex.
+    # cycle_edge_indices retourne UNE liste par cycle (dans l'ordre mol.cycles),
+    # on indexe sur hex_indices pour ne garder que les hex.
+    all_cycle_edges = cycle_edge_indices(mol, bond_idx)
     hex_atoms_set = {hi: set(mol.cycles[hi].atoms) for hi in hex_indices}
-    hex_bond_indices = {}
-    for hi in hex_indices:
-        atoms = mol.cycles[hi].atoms
-        bonds_of_hex = []
-        for k in range(len(atoms)):
-            u, v = atoms[k], atoms[(k + 1) % len(atoms)]
-            key = (min(u, v), max(u, v))
-            if key in bond_idx:
-                bonds_of_hex.append(bond_idx[key])
-        hex_bond_indices[hi] = bonds_of_hex
+    hex_bond_indices = {hi: all_cycle_edges[hi] for hi in hex_indices}
 
     best_score = 0     # au moins la couverture vide est toujours valide
     capped = False

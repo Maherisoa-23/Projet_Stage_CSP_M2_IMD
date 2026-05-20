@@ -70,6 +70,60 @@ class MolGraph:
     cycles: List["Cycle"] = field(default_factory=list)
 
 
+# ===== Helpers reutilises par kekule.py / clar.py / rbo.py =====
+
+def build_nx_graph(mol: MolGraph):
+    """Construit un networkx.Graph du squelette carbone.
+
+    Sommets = indices d'atomes (0..n-1). Aretes = mol.bonds.
+    Import local de networkx pour ne pas penaliser les imports module
+    quand on n'utilise pas cette fonction.
+    """
+    import networkx as nx
+    g = nx.Graph()
+    g.add_nodes_from(range(len(mol.atoms)))
+    g.add_edges_from(mol.bonds)
+    return g
+
+
+def bond_index_map(mol: MolGraph) -> dict:
+    """Retourne {tuple(sorted((u,v))): i} pour mol.bonds.
+
+    Utilise pour convertir une arete (u,v) en son index dans mol.bonds,
+    pour pouvoir indexer bond_orders[i].
+    """
+    return {tuple(sorted(p)): i for i, p in enumerate(mol.bonds)}
+
+
+def cycle_edge_indices(mol: MolGraph, bond_idx: dict = None):
+    """Pour chaque cycle de mol.cycles, retourne la liste des indices
+    d'aretes (dans mol.bonds) qui le composent.
+
+    Une arete d'un cycle qui n'apparait PAS dans mol.bonds est ignoree
+    silencieusement (cas pathologique : bonds.py a rate une liaison).
+
+    Args:
+        mol      : MolGraph
+        bond_idx : dict precalcule {tuple(sorted): i}. Si None, recalcule.
+
+    Returns:
+        List[List[int]] : un sous-tableau d'indices par cycle.
+    """
+    if bond_idx is None:
+        bond_idx = bond_index_map(mol)
+    out = []
+    for c in mol.cycles:
+        atoms = c.atoms
+        edges = []
+        for k in range(len(atoms)):
+            u, v = atoms[k], atoms[(k + 1) % len(atoms)]
+            key = (min(u, v), max(u, v))
+            if key in bond_idx:
+                edges.append(bond_idx[key])
+        out.append(edges)
+    return out
+
+
 def read_xyz(path) -> List[Atom]:
     """Lit un fichier XYZ standard. Retourne tous les atomes (C, H, ...)."""
     with open(path) as f:

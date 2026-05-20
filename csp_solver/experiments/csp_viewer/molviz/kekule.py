@@ -26,7 +26,7 @@ flag radical.
 from dataclasses import dataclass, field
 from typing import List, Set, Tuple
 
-from .bonds import MolGraph
+from .bonds import MolGraph, bond_index_map, build_nx_graph
 
 
 @dataclass
@@ -55,9 +55,7 @@ def assign_kekule(mol: MolGraph) -> KekuleAssignment:
     if not mol.atoms or not mol.bonds:
         return KekuleAssignment(bond_orders=[], radicals=set())
 
-    g = nx.Graph()
-    g.add_nodes_from(range(len(mol.atoms)))
-    g.add_edges_from(mol.bonds)
+    g = build_nx_graph(mol)
 
     # max_weight_matching avec maxcardinality=True garantit un matching
     # de cardinalite max (= ce qu'on veut). Les poids uniformes assurent
@@ -129,9 +127,7 @@ def enumerate_kekule(mol: MolGraph,
     if n == 0 or not mol.bonds:
         return [], True
 
-    g = nx.Graph()
-    g.add_nodes_from(range(n))
-    g.add_edges_from(mol.bonds)
+    g = build_nx_graph(mol)
 
     # Cardinalite max d'un matching (Edmonds blossom)
     max_match = nx.max_weight_matching(g, maxcardinality=True, weight=None)
@@ -142,7 +138,7 @@ def enumerate_kekule(mol: MolGraph,
     neighbors_sorted = {v: sorted(g.neighbors(v)) for v in g.nodes}
 
     # Index de chaque arete (pour construire bond_orders en sortie)
-    bond_idx = {tuple(sorted(p)): i for i, p in enumerate(mol.bonds)}
+    bond_idx = bond_index_map(mol)
 
     results: List[KekuleAssignment] = []
     capped = [False]  # flag mutable dans la closure

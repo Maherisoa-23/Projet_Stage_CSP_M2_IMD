@@ -35,7 +35,7 @@ premieres (ordre canonique de enumerate_kekule).
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from .bonds import MolGraph
+from .bonds import MolGraph, bond_index_map, cycle_edge_indices
 from .kekule import enumerate_kekule
 
 
@@ -113,22 +113,10 @@ def compute_rbo(mol: MolGraph,
     N = len(kekule_list)
 
     # Index des aretes pour les retrouver dans les cycles.
-    # mol.bonds = liste de tuples (i,j) avec i<j (cf bonds.py).
-    bond_idx = {tuple(sorted(p)): i for i, p in enumerate(mol.bonds)}
-
-    # Pre-calcule les indices d'aretes de chaque cycle (atomes consecutifs).
-    # Une arete d'un cycle qui n'est pas dans mol.bonds est ignoree
-    # (peut arriver si bonds.py a rate une liaison, mais robuste).
-    cycle_edges: List[List[int]] = []
-    for c in mol.cycles:
-        edges: List[int] = []
-        atoms = c.atoms
-        for k in range(len(atoms)):
-            u, v = atoms[k], atoms[(k + 1) % len(atoms)]
-            key = (min(u, v), max(u, v))
-            if key in bond_idx:
-                edges.append(bond_idx[key])
-        cycle_edges.append(edges)
+    # cycle_edges[i] = liste des indices d'aretes du i-eme cycle (peut etre
+    # vide si toutes les aretes ont ete filtrees par bonds.py).
+    bond_idx = bond_index_map(mol)
+    cycle_edges = cycle_edge_indices(mol, bond_idx)
 
     # Agregation en une seule passe sur les Kekule.
     double_count = [0] * n_bonds

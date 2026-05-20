@@ -310,11 +310,7 @@ function renderMolMeta(meta) {
   if (btnOrig && meta.original_xyz_path) {
     btnOrig.addEventListener("click", (ev) => {
       ev.stopPropagation();
-      if (!window.MolViz) {
-        alert("MolViz non chargé");
-        return;
-      }
-      window.MolViz.open({
+      openMolViz({
         xyz_path: meta.original_xyz_path,
         title:    "Original",
         subtitle: state.mol,
@@ -388,11 +384,7 @@ function renderSolTable(data) {
   wrap.querySelectorAll(".btn-3d").forEach((btn) => {
     btn.addEventListener("click", (ev) => {
       ev.stopPropagation();
-      if (!window.MolViz) {
-        alert("MolViz non charge");
-        return;
-      }
-      window.MolViz.open({
+      openMolViz({
         sol_idx: btn.dataset.solIdx,
         sol_dir: decodeURIComponent(btn.dataset.solDir),
         sizes:   btn.dataset.sizes,
@@ -400,6 +392,16 @@ function renderSolTable(data) {
       });
     });
   });
+}
+
+// Wrapper consistant pour ouvrir le viewer 3D. Centralise le guard
+// "MolViz non charge" pour eviter le boilerplate dans chaque handler.
+function openMolViz(info) {
+  if (!window.MolViz || typeof window.MolViz.openSafe !== "function") {
+    alert("MolViz n'est pas charge sur cette page.");
+    return false;
+  }
+  return window.MolViz.openSafe(info);
 }
 
 // ===== Designer job view (route /?job=<id>) =====
@@ -519,8 +521,7 @@ function renderJobOriginal(orig) {
   if (btn && orig.xyz_path) {
     btn.addEventListener("click", (ev) => {
       ev.stopPropagation();
-      if (!window.MolViz) { alert("MolViz non charge"); return; }
-      window.MolViz.open({
+      openMolViz({
         xyz_path: orig.xyz_path,
         title: "Benzenoide d'entree (opt xTB)",
         subtitle: orig.planar ? "PLAN" : `NON PLAN (${(orig.angle_deg ?? 0).toFixed(1)}°)`,
@@ -613,8 +614,7 @@ function renderJobSolTable() {
   wrap.querySelectorAll(".btn-3d").forEach((btn) => {
     btn.addEventListener("click", (ev) => {
       ev.stopPropagation();
-      if (!window.MolViz) { alert("MolViz non charge"); return; }
-      window.MolViz.open({
+      openMolViz({
         xyz_path: btn.dataset.path,
         title: `Job #${state.jobId} · ${btn.dataset.name}`,
         subtitle: `sizes ${btn.dataset.sizes} · ${btn.dataset.verdict}`,
