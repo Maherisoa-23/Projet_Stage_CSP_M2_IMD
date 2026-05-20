@@ -20,7 +20,7 @@ from pathlib import Path
 
 from flask import Blueprint, abort, jsonify, request, send_from_directory
 
-from .bonds import build_mol_graph
+from .bonds import build_mol_graph_from_text
 from .clar import enumerate_clar_covers
 from .kekule import assign_kekule, enumerate_kekule
 from .rbo import compute_rbo, DEFAULT_MAX_KEKULE
@@ -35,12 +35,12 @@ bp = Blueprint(
 
 
 @lru_cache(maxsize=256)
-def _compute_mol3d(xyz_path_str: str) -> dict:
-    """Calcul lourd : lecture XYZ + bonds + Kekule + cycles.
-    Cle de cache = chemin absolu du fichier.
+def _compute_mol3d(cache_key: str, xyz_text: str) -> dict:
+    """Calcul lourd : parse XYZ + bonds + Kekule + cycles.
+    Cle de cache = (rel_path, xyz_text). En pratique xyz_text est stable
+    pour une cle donnee, donc le tuple sert juste a cacher correctement.
     """
-    p = Path(xyz_path_str)
-    mol = build_mol_graph(p)
+    mol = build_mol_graph_from_text(xyz_text)
     if not mol.atoms:
         return {"error": "empty or unreadable xyz"}
 
@@ -70,21 +70,20 @@ def _compute_mol3d(xyz_path_str: str) -> dict:
             "n_cycles": len(mol.cycles),
             "n_anomaly_cycles": n_anomaly,
             "perfect_matching": bool(kekule.is_perfect),
-            "source": str(p),
+            "source": cache_key,
         },
     }
 
 
 @lru_cache(maxsize=256)
-def _compute_kekule_list(xyz_path_str: str, max_count: int) -> dict:
+def _compute_kekule_list(cache_key: str, xyz_text: str, max_count: int) -> dict:
     """Calcul d'une liste de Kekule, plafonnee a max_count.
 
-    Cle de cache = (chemin absolu, max_count). On garde une entree distincte
-    par max_count pour eviter que demander 50 puis 500 ne re-utilise le cache
-    tronque a 50.
+    Cle de cache = (rel_path, xyz_text, max_count). On garde une entree
+    distincte par max_count pour eviter que demander 50 puis 500 ne re-utilise
+    le cache tronque a 50.
     """
-    p = Path(xyz_path_str)
-    mol = build_mol_graph(p)
+    mol = build_mol_graph_from_text(xyz_text)
     if not mol.atoms:
         return {"error": "empty or unreadable xyz"}
 
@@ -104,21 +103,20 @@ def _compute_kekule_list(xyz_path_str: str, max_count: int) -> dict:
             "is_exact": bool(is_exact),
             "has_more": not is_exact,
             "max_requested": int(max_count),
-            "source": str(p),
+            "source": cache_key,
         },
     }
 
 
 @lru_cache(maxsize=256)
-def _compute_clar_list(xyz_path_str: str, max_count: int) -> dict:
+def _compute_clar_list(cache_key: str, xyz_text: str, max_count: int) -> dict:
     """Calcul des couvertures de Clar d'une molecule.
 
-    Cle de cache = (chemin absolu, max_count). Retourne la liste des
+    Cle de cache = (rel_path, xyz_text, max_count). Retourne la liste des
     couvertures de score MAXIMUM (= nombre de Clar), chacune avec ses
     sextets, bond_orders canoniques et radicaux du residu.
     """
-    p = Path(xyz_path_str)
-    mol = build_mol_graph(p)
+    mol = build_mol_graph_from_text(xyz_text)
     if not mol.atoms:
         return {"error": "empty or unreadable xyz"}
 
@@ -141,21 +139,20 @@ def _compute_clar_list(xyz_path_str: str, max_count: int) -> dict:
             "has_more": not is_exact,
             "max_requested": int(max_count),
             "clar_number": int(clar_number),
-            "source": str(p),
+            "source": cache_key,
         },
     }
 
 
 @lru_cache(maxsize=256)
-def _compute_rbo_payload(xyz_path_str: str, max_count: int) -> dict:
+def _compute_rbo_payload(cache_key: str, xyz_text: str, max_count: int) -> dict:
     """Calcul des Ring Bond Orders d'une molecule.
 
-    Cle de cache = (chemin absolu, max_count). Si la molecule est radicalaire,
-    available=False avec une raison textuelle. Sinon on renvoie les bond_orders
-    par arete et le CBO par cycle.
+    Cle de cache = (rel_path, xyz_text, max_count). Si la molecule est
+    radicalaire, available=False avec une raison textuelle. Sinon on renvoie
+    les bond_orders par arete et le CBO par cycle.
     """
-    p = Path(xyz_path_str)
-    mol = build_mol_graph(p)
+    mol = build_mol_graph_from_text(xyz_text)
     if not mol.atoms:
         return {"error": "empty or unreadable xyz"}
 
@@ -179,33 +176,41 @@ def _compute_rbo_payload(xyz_path_str: str, max_count: int) -> dict:
             "n_radicals": int(result.n_radicals),
             "max_requested": int(max_count),
             "reason": result.reason,
-            "source": str(p),
+            "source": cache_key,
         },
     }
 
 
-def init_app(app, resolve_path_fn):
+def init_app(app, resolve_path_fn, load_xyz_text_fn):
     """Branche le blueprint sur l'app Flask.
 
     Args:
-      app             : Flask app
-      resolve_path_fn : fonction `(rel_path: str) -> Path | None` du serveur
-                        principal (deja gere le rewriting cluster<->local).
+      app                : Flask app
+      resolve_path_fn    : `(rel_path: str) -> Path | None` du serveur
+                           principal (rewriting cluster<->local). Conserve
+                           pour compatibilite ; plus utilise directement ici.
+      load_xyz_text_fn   : `(rel_path: str) -> str | None`. Resout en cherchant
+                           d'abord sur le filesystem, puis en DB (table
+                           xyz_files, contenu gzippe). Centralisee dans
+                           server.py pour partager le meme comportement avec
+                           la route /file.
     """
-    def _resolve_xyz_target():
-        """Helper commun : extrait le param 'path', le resout, verifie que
-        c'est un .xyz. Abort proprement si invalide. Retourne le Path
-        absolu, pret pour _compute_*.
+    def _resolve_xyz_key_and_text():
+        """Extrait le param 'path', verifie suffix .xyz, charge le contenu
+        (fs ou DB). Retourne (cache_key, xyz_text). cache_key = chemin
+        relatif normalise (forward slashes), identique a la cle DB.
+        Abort 4xx si invalide.
         """
         rel = request.args.get("path", "")
         if not rel:
             abort(400, description="missing 'path' parameter")
-        target = resolve_path_fn(rel)
-        if target is None:
-            abort(404)
-        if target.suffix.lower() not in (".xyz",):
+        cache_key = rel.replace("\\", "/").lstrip("/")
+        if not cache_key.lower().endswith(".xyz"):
             abort(403, description="only .xyz supported")
-        return target
+        text = load_xyz_text_fn(cache_key)
+        if text is None:
+            abort(404)
+        return cache_key, text
 
     def _parse_max(default: int, hard_cap: int) -> int:
         """Parse le param 'max' (entier, defaut + plafonnement dur).
@@ -219,26 +224,26 @@ def init_app(app, resolve_path_fn):
 
     @bp.route("/api/mol3d")
     def api_mol3d():
-        target = _resolve_xyz_target()
-        return jsonify(_compute_mol3d(str(target.resolve())))
+        cache_key, text = _resolve_xyz_key_and_text()
+        return jsonify(_compute_mol3d(cache_key, text))
 
     @bp.route("/api/kekule_list")
     def api_kekule_list():
-        target = _resolve_xyz_target()
+        cache_key, text = _resolve_xyz_key_and_text()
         max_count = _parse_max(default=200, hard_cap=1000)
-        return jsonify(_compute_kekule_list(str(target.resolve()), max_count))
+        return jsonify(_compute_kekule_list(cache_key, text, max_count))
 
     @bp.route("/api/clar_list")
     def api_clar_list():
-        target = _resolve_xyz_target()
+        cache_key, text = _resolve_xyz_key_and_text()
         max_count = _parse_max(default=200, hard_cap=1000)
-        return jsonify(_compute_clar_list(str(target.resolve()), max_count))
+        return jsonify(_compute_clar_list(cache_key, text, max_count))
 
     @bp.route("/api/rbo")
     def api_rbo():
-        target = _resolve_xyz_target()
+        cache_key, text = _resolve_xyz_key_and_text()
         max_count = _parse_max(default=DEFAULT_MAX_KEKULE,
                                 hard_cap=DEFAULT_MAX_KEKULE)
-        return jsonify(_compute_rbo_payload(str(target.resolve()), max_count))
+        return jsonify(_compute_rbo_payload(cache_key, text, max_count))
 
     app.register_blueprint(bp)

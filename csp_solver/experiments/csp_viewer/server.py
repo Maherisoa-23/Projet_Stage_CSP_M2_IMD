@@ -18,11 +18,12 @@ Puis ouvrir http://127.0.0.1:8765 dans le navigateur.
 """
 
 import argparse
+import gzip
 import re
 import sqlite3
 import sys
 from pathlib import Path
-from flask import Flask, abort, jsonify, render_template, request, send_file
+from flask import Flask, Response, abort, jsonify, render_template, request, send_file
 
 # Permet d'importer molviz comme un sous-module
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -324,11 +325,43 @@ def _resolve_local_path(rel):
     return None
 
 
+def _load_xyz_text(rel: str) -> str | None:
+    """Charge le contenu d'un xyz par chemin relatif (depuis project_root).
+    Strategie : filesystem d'abord (via _resolve_local_path qui gere les
+    reecritures cluster <-> local), DB en fallback (table xyz_files).
+
+    Retourne le contenu texte (str), ou None si introuvable des deux cotes.
+    Utilise par /file (suffix .xyz) et par molviz (api.py) pour eviter de
+    dependre du filesystem quand le repertoire output a ete supprime apres
+    ingestion en DB.
+    """
+    rel_norm = rel.replace("\\", "/").lstrip("/")
+    target = _resolve_local_path(rel_norm)
+    if target is not None and target.is_file():
+        try:
+            return target.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            pass
+    with db() as conn:
+        row = conn.execute(
+            "SELECT content_gz FROM xyz_files WHERE rel_path = ?", (rel_norm,)
+        ).fetchone()
+    if not row:
+        return None
+    try:
+        return gzip.decompress(row["content_gz"]).decode("utf-8", errors="replace")
+    except (OSError, ValueError):
+        return None
+
+
 @app.route("/file")
 def serve_file():
     """Sert un fichier (xyz, json, ...) reference par chemin relatif depuis
     le project root. Securite : verifie que le chemin reste sous project_root
     et a une extension textuelle attendue.
+
+    Pour les .xyz : fallback DB via xyz_files (gzippe). Pour les autres
+    extensions (.json/.inp/.log/.txt) : filesystem uniquement.
 
     Path rewriting automatique : si la DB a ete buildee sur le cluster, ses
     chemins commencent par '_hN_run/output/hN/...' qui n'existe pas en local.
@@ -336,11 +369,18 @@ def serve_file():
     rel = request.args.get("path", "")
     if not rel:
         abort(400)
-    target = _resolve_local_path(rel)
+    rel_norm = rel.replace("\\", "/").lstrip("/")
+    suffix = Path(rel_norm).suffix.lower()
+    if suffix not in (".xyz", ".json", ".inp", ".log", ".txt"):
+        abort(403)
+    if suffix == ".xyz":
+        text = _load_xyz_text(rel_norm)
+        if text is None:
+            abort(404)
+        return Response(text, mimetype="text/plain")
+    target = _resolve_local_path(rel_norm)
     if target is None:
         abort(404)
-    if target.suffix.lower() not in (".xyz", ".json", ".inp", ".log", ".txt"):
-        abort(403)
     return send_file(str(target), mimetype="text/plain")
 
 
@@ -356,9 +396,10 @@ def main():
     ap.add_argument("--debug", action="store_true")
     args = ap.parse_args()
     app.config["DB_PATH"] = args.db
-    # Branche le blueprint molviz (endpoint /api/mol3d). Il reutilise
-    # _resolve_local_path pour gerer les chemins cluster<->local.
-    molviz_api.init_app(app, _resolve_local_path)
+    # Branche le blueprint molviz (endpoint /api/mol3d). Il recoit deux
+    # callbacks : _resolve_local_path (fs avec reecritures cluster<->local)
+    # et _load_xyz_text (fs first + fallback DB xyz_files gzippe).
+    molviz_api.init_app(app, _resolve_local_path, _load_xyz_text)
     # Branche le blueprint designer (page /designer, endpoints /api/designer/*).
     # Cree au passage la table designer_jobs et le dossier de sortie.
     designer_api.init_app(app)

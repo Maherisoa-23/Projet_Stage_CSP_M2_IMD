@@ -68,3 +68,15 @@ CREATE TABLE IF NOT EXISTS solutions (
 CREATE INDEX IF NOT EXISTS idx_sol_mol ON solutions(h, config, mol);
 CREATE INDEX IF NOT EXISTS idx_sol_verdict ON solutions(h, config, mol, verdict);
 CREATE INDEX IF NOT EXISTS idx_sol_angle ON solutions(h, config, mol, angle_deg);
+
+-- Stockage embarque des fichiers xyz (md_final_opt.xyz et *_original_opt.xyz).
+-- Cle = chemin relatif depuis project_root, identique au sol_dir/<file>
+-- (ou au mol_dir/<mol>_original_opt.xyz pour la geometrie d'origine).
+-- Le contenu est gzip-compresse (ratio ~2.5x sur xyz ASCII). Permet de servir
+-- les xyz sans dependre du filesystem local. Le viewer tente fs en premier,
+-- puis fallback DB.
+CREATE TABLE IF NOT EXISTS xyz_files (
+    rel_path   TEXT PRIMARY KEY,
+    content_gz BLOB NOT NULL,
+    size_raw   INTEGER NOT NULL    -- taille decompressee (debug / stats)
+);

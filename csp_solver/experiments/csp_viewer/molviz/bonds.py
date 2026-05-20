@@ -124,10 +124,9 @@ def cycle_edge_indices(mol: MolGraph, bond_idx: dict = None):
     return out
 
 
-def read_xyz(path) -> List[Atom]:
-    """Lit un fichier XYZ standard. Retourne tous les atomes (C, H, ...)."""
-    with open(path) as f:
-        lines = f.readlines()
+def read_xyz_text(text: str) -> List[Atom]:
+    """Parse un XYZ standard depuis une string. Retourne tous les atomes."""
+    lines = text.splitlines()
     if len(lines) < 3:
         return []
     try:
@@ -149,6 +148,12 @@ def read_xyz(path) -> List[Atom]:
         except ValueError:
             continue
     return atoms
+
+
+def read_xyz(path) -> List[Atom]:
+    """Lit un fichier XYZ standard. Retourne tous les atomes (C, H, ...)."""
+    with open(path) as f:
+        return read_xyz_text(f.read())
 
 
 def detect_bonds(atoms: List[Atom],
@@ -313,23 +318,11 @@ def _compute_cycles_sssr(n_atoms: int,
     return cycles
 
 
-def build_mol_graph(xyz_path) -> MolGraph:
-    """Charge un XYZ, garde uniquement les C, construit liaisons + cycles.
-
-    Workflow :
-      1. Detection des bonds C-C par seuil de distance (1.20-1.65 A).
-      2. Calcul du SSSR (Smallest Set of Smallest Rings) via
-         nx.minimum_cycle_basis : pour un graphe planaire 2-connecte c'est
-         equivalent aux faces internes du plongement.
-      3. Filtrage des bonds parasites : on supprime ceux qui n'appartiennent
-         a aucun cycle de la base de taille raisonnable (<= 8). Cible les
-         "chord bonds" qui apparaissent dans les structures tendues quand
-         deux atomes non-adjacents s'approchent < 1.65 A.
-      4. Recalcul du SSSR sur le graphe nettoye -> cycles finaux.
-         Tout cycle dont la taille n'est pas dans {5,6,7} est conserve mais
-         flagge `anomaly=True` (signal visuel cote viewer).
+def _build_mol_graph_from_atoms(raw_atoms: List[Atom]) -> MolGraph:
+    """Logique commune : a partir d'une liste d'atomes brute (C + H + ...),
+    construit le squelette carbone + bonds + cycles. Partagee entre
+    build_mol_graph(path) et build_mol_graph_from_text(text).
     """
-    raw_atoms = read_xyz(Path(xyz_path))
     if not raw_atoms:
         return MolGraph()
 
@@ -366,3 +359,31 @@ def build_mol_graph(xyz_path) -> MolGraph:
         cycles_final = _compute_cycles_sssr(len(carbons), cleaned_bonds)
 
     return MolGraph(atoms=carbons, bonds=cleaned_bonds, cycles=cycles_final)
+
+
+def build_mol_graph(xyz_path) -> MolGraph:
+    """Charge un XYZ depuis un fichier, garde uniquement les C, construit
+    liaisons + cycles.
+
+    Workflow :
+      1. Detection des bonds C-C par seuil de distance (1.20-1.65 A).
+      2. Calcul du SSSR (Smallest Set of Smallest Rings) via
+         nx.minimum_cycle_basis : pour un graphe planaire 2-connecte c'est
+         equivalent aux faces internes du plongement.
+      3. Filtrage des bonds parasites : on supprime ceux qui n'appartiennent
+         a aucun cycle de la base de taille raisonnable (<= 8). Cible les
+         "chord bonds" qui apparaissent dans les structures tendues quand
+         deux atomes non-adjacents s'approchent < 1.65 A.
+      4. Recalcul du SSSR sur le graphe nettoye -> cycles finaux.
+         Tout cycle dont la taille n'est pas dans {5,6,7} est conserve mais
+         flagge `anomaly=True` (signal visuel cote viewer).
+    """
+    return _build_mol_graph_from_atoms(read_xyz(Path(xyz_path)))
+
+
+def build_mol_graph_from_text(xyz_text: str) -> MolGraph:
+    """Idem build_mol_graph mais depuis une string xyz (ex. contenu lu depuis
+    la DB plutot que depuis le filesystem). Utile pour le mode "DB-backed"
+    du viewer ou les xyz sont stockes embarques dans la table xyz_files.
+    """
+    return _build_mol_graph_from_atoms(read_xyz_text(xyz_text))
