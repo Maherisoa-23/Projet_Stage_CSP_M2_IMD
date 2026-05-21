@@ -98,6 +98,60 @@
     return NEIGHBOR_OFFSETS.map(([dq, dr]) => ({ q: q + dq, r: r + dr }));
   }
 
+  // Detecte les "trous" internes du dessin (positions vides totalement
+  // enclavees par des hexagones existants) et les ajoute automatiquement.
+  // Un benzenoide polycyclique ne peut pas avoir de trou interne : tout
+  // hexagone vide entoure de pleins doit appartenir a la molecule.
+  //
+  // Algorithme :
+  //  1. Calculer la bounding box (q,r) des hex existants, etendue de 1.
+  //  2. BFS depuis le coin (forcement vide) sur les cases vides : marque
+  //     la composante "externe" (= face infinie discretisee).
+  //  3. Toute case vide dans la bbox non visitee par ce BFS est un trou
+  //     interne -> on l'ajoute a grid.hexes.
+  //
+  // Retourne le nombre d'hex ajoutes (0 si aucun trou detecte).
+  function fillHoles() {
+    if (grid.hexes.size === 0) return 0;
+    let qmin = Infinity, qmax = -Infinity, rmin = Infinity, rmax = -Infinity;
+    for (const k of grid.hexes) {
+      const { q, r } = parseKey(k);
+      if (q < qmin) qmin = q;
+      if (q > qmax) qmax = q;
+      if (r < rmin) rmin = r;
+      if (r > rmax) rmax = r;
+    }
+    qmin--; qmax++; rmin--; rmax++;
+    // BFS sur la composante externe (cases vides accessibles depuis le coin)
+    const externalEmpty = new Set();
+    const stack = [hexKey(qmin, rmin)];
+    while (stack.length) {
+      const k = stack.pop();
+      if (externalEmpty.has(k)) continue;
+      externalEmpty.add(k);
+      const { q, r } = parseKey(k);
+      for (const n of neighbors(q, r)) {
+        if (n.q < qmin || n.q > qmax || n.r < rmin || n.r > rmax) continue;
+        const nk = hexKey(n.q, n.r);
+        if (grid.hexes.has(nk)) continue;
+        if (externalEmpty.has(nk)) continue;
+        stack.push(nk);
+      }
+    }
+    // Trous = cases vides dans la bbox mais hors composante externe
+    let added = 0;
+    for (let q = qmin; q <= qmax; q++) {
+      for (let r = rmin; r <= rmax; r++) {
+        const k = hexKey(q, r);
+        if (grid.hexes.has(k)) continue;
+        if (externalEmpty.has(k)) continue;
+        grid.hexes.add(k);
+        added++;
+      }
+    }
+    return added;
+  }
+
   // Verifie la connexite du set d'hexes courant
   function isConnected() {
     if (grid.hexes.size <= 1) return true;
@@ -400,6 +454,11 @@
   // ====================================================================
 
   function onHexesChanged() {
+    const filled = fillHoles();
+    if (filled > 0) {
+      const s = filled > 1 ? "s" : "";
+      updateStatus(`${filled} hexagone${s} ajouté${s} automatiquement (trou${s} interne${s} fermé${s})`);
+    }
     updateCounters();
     updateRunButton();
     updateHelpCardVisibility();
