@@ -65,9 +65,10 @@ CSP_CONFIGS = [
     },
     {
         "key": "adj_57", "type": "bool", "default": False,
-        "label": "Adjacence 5-7 interdite (C5)",
-        "help": "Si active, interdit qu'un pentagone et un heptagone soient "
-                "adjacents (suspecte instable chimiquement).",
+        "label": "Forcer l'adjacence 5-7 (C5)",
+        "help": "Si active, chaque pentagone doit avoir au moins un voisin "
+                "heptagone (et inversement). Favorise les motifs azuleniques, "
+                "suspectes plus stables chimiquement.",
     },
     {
         "key": "count_hexagon", "type": "bool", "default": False,
