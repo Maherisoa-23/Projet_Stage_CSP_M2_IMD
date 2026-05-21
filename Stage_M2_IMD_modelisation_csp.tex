@@ -1,0 +1,1851 @@
+% ============================================================
+%  Stage_M2_IMD_modelisation_csp.tex
+%  Chapitre 1 du rapport de stage M2 IMD --- AMU
+%  Modelisation par graphes et CSP du probleme de generation
+%  de molecules non-benzenoides.
+% ============================================================
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+\usepackage{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{colortbl}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{tcolorbox}
+\usepackage{listings}
+\usepackage{parskip}
+\usepackage{longtable}
+\usepackage{tikz}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{hyperref}
+
+\usetikzlibrary{calc,positioning,arrows.meta,shapes.geometric,backgrounds}
+\tcbuselibrary{skins,breakable}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!50!black,
+  citecolor=blue!50!black,
+  urlcolor=blue!50!black,
+}
+
+\geometry{
+  top=2.5cm, bottom=2.5cm,
+  left=3.0cm, right=2.5cm,
+  headheight=15pt
+}
+
+\definecolor{bleuTitre}{RGB}{31,56,100}
+\definecolor{bleuSection}{RGB}{31,92,153}
+\definecolor{bleuSub}{RGB}{46,117,182}
+\definecolor{grisNote}{RGB}{245,244,240}
+\definecolor{codebg}{RGB}{248,246,240}
+\definecolor{codecomment}{RGB}{100,100,90}
+\definecolor{vertOk}{RGB}{30,120,50}
+\definecolor{rougeAlert}{RGB}{180,40,20}
+\definecolor{grisLigne}{RGB}{235,235,230}
+\definecolor{jaunePent}{RGB}{254,215,170}
+\definecolor{grisHex}{RGB}{203,213,225}
+\definecolor{indigoHept}{RGB}{165,180,252}
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\fancyhead[L]{\small\textit{Chapitre 1 -- Mod\'elisation CSP}}
+\fancyhead[R]{\small\textit{Stage M2 IMD}}
+\fancyfoot[C]{\thepage}
+
+\titleformat{\section}
+  {\large\bfseries\color{bleuTitre}}
+  {\thesection.}{0.6em}{}[\vspace{-4pt}\rule{\linewidth}{0.6pt}]
+\titleformat{\subsection}
+  {\normalsize\bfseries\color{bleuSection}}
+  {\thesubsection}{0.6em}{}
+\titleformat{\subsubsection}
+  {\normalsize\itshape\bfseries}
+  {\thesubsubsection}{0.6em}{}
+
+\theoremstyle{definition}
+\newtheorem{definition}{D\'efinition}[section]
+\newtheorem{propriete}[definition]{Propri\'et\'e}
+\newtheorem{contrainte}[definition]{Contrainte}
+\newtheorem{theoreme}[definition]{Th\'eor\`eme}
+\newtheorem{lemme}[definition]{Lemme}
+\newtheorem{corollaire}[definition]{Corollaire}
+\theoremstyle{remark}
+\newtheorem{remarque}[definition]{Remarque}
+\newtheorem{exemple}[definition]{Exemple}
+
+\newtcolorbox{notebox}[1][]{
+  enhanced, breakable,
+  colback=grisNote,
+  colframe=bleuSection,
+  leftrule=4pt, toprule=0.4pt, bottomrule=0.4pt, rightrule=0.4pt,
+  arc=2pt,
+  fonttitle=\bfseries\small\color{bleuSection},
+  title={#1},
+  before upper={\setlength{\parskip}{4pt}},
+}
+
+\lstdefinestyle{benzai}{
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  framesep=6pt,
+  rulecolor=\color{bleuSection!40},
+  xleftmargin=12pt,
+  xrightmargin=6pt,
+  commentstyle=\color{codecomment}\itshape,
+  morecomment=[l]{\#},
+  showstringspaces=false,
+}
+
+\lstdefinestyle{pseudo}{
+  backgroundcolor=\color{codebg!60},
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=leftline,
+  framesep=4pt,
+  rulecolor=\color{bleuSection!60},
+  xleftmargin=10pt,
+  commentstyle=\color{codecomment}\itshape,
+  showstringspaces=false,
+  mathescape=true,
+}
+
+% ── Macros ─────────────────────────────────────────────────
+\newcommand{\B}{\mathcal{B}}
+\newcommand{\GD}{G_{\!D}}
+\newcommand{\GB}{G_{\!\B}}
+\newcommand{\VD}{V_{\!D}}
+\newcommand{\ED}{E_{\!D}}
+\newcommand{\xv}{x_v}
+\newcommand{\degv}{\deg(v)}
+\newcommand{\Tn}{\mathcal{T}(n)}
+\newcommand{\ncinq}{n_5}
+\newcommand{\nsept}{n_7}
+\newcommand{\nhex}{n_6}
+\newcommand{\posIn}[2]{\hat{p}_{#1}(#2)}
+\newcommand{\pat}[1]{\mathtt{#1}}
+\newcommand{\Aut}{\mathrm{Aut}}
+\newcommand{\dom}{\mathrm{dom}}
+\newcommand{\NN}{\mathcal{N}}
+\newcommand{\bigO}{\mathcal{O}}
+
+\renewcommand{\algorithmicrequire}{\textbf{Entr\'ee :}}
+\renewcommand{\algorithmicensure}{\textbf{Sortie :}}
+
+% ────────────────────────────────────────────────────────────
+\begin{document}
+
+% ============================================================
+%  Page de titre du chapitre
+% ============================================================
+\begin{center}
+  {\LARGE\bfseries\color{bleuTitre}
+    Chapitre 1\\[6pt]
+    Mod\'elisation par graphes et CSP\\[4pt]
+    du probl\`eme de g\'en\'eration de mol\'ecules non-benz\'eno\"ides}\\[18pt]
+  {\large\itshape
+    Approche th\'eorique, alg\'ebrique et algorithmique}\\[14pt]
+  {\small Rapport de stage --- Master 2 Informatique et Math\'ematiques Discr\`etes}\\[2pt]
+  {\small Aix-Marseille Universit\'e --- \today}
+\end{center}
+
+\vspace{8pt}
+\rule{\linewidth}{1pt}
+\vspace{4pt}
+
+\tableofcontents
+
+\vspace{10pt}
+\rule{\linewidth}{0.4pt}
+\vspace{8pt}
+
+\begin{notebox}[R\'esum\'e du chapitre]
+Nous d\'ecrivons dans ce chapitre la mod\'elisation th\'eorique du probl\`eme
+combinatoire qui sous-tend l'ensemble du stage : \'enum\'erer toutes les
+mol\'ecules \emph{non-benz\'eno\"ides} obtenues en substituant certains cycles
+hexagonaux d'un benz\'eno\"ide par des cycles pentagonaux ou heptagonaux,
+tout en conservant le nombre total de carbones. Notre approche repose sur
+trois objets math\'ematiques compl\'ementaires : le \emph{graphe de
+carbone} pour repr\'esenter l'entr\'ee, le \emph{graphe dual} pour
+formuler le probl\`eme, et un \emph{probl\`eme de satisfaction de
+contraintes} (CSP) pour le r\'esoudre. Nous \'etablissons les propri\'et\'es
+structurelles du graphe dual qui permettent un pr\'e-traitement efficace,
+formulons six contraintes (cinq fixes plus une optionnelle) avec leurs
+justifications, puis \'etudions les algorithmes de parcours et d'isomorphisme
+n\'ecessaires \`a la reconstruction tridimensionnelle des structures
+\'enum\'er\'ees. Une attention particuli\`ere est port\'ee aux liens entre la
+\textbf{th\'eorie des graphes planaires} (th\'eor\`eme de Whitney,
+2-connexit\'e) et la \textbf{combinatoire des cycles d'un benz\'eno\"ide}.
+\end{notebox}
+
+% ════════════════════════════════════════════════════════════
+\section{Introduction et probl\'ematique}
+% ════════════════════════════════════════════════════════════
+
+\subsection{Cadre chimique et motivation}
+
+Un \textbf{hydrocarbure benz\'eno\"ide} $\B$ est une mol\'ecule plane
+constitu\'ee de cycles hexagonaux fusionn\'es, chaque sommet
+repr\'esentant un atome de carbone et chaque ar\^ete une liaison covalente
+C--C. Cette famille comprend de nombreux \emph{hydrocarbures aromatiques
+polycycliques} (HAP) tels que le napht\'al\`ene, l'anthrac\`ene ou le
+coron\`ene. Les benz\'eno\"ides poss\`edent une structure r\'eguli\`ere :
+les angles internes valent~$120^\circ$ et toutes les liaisons C--C sont
+sensiblement de m\^eme longueur ($\approx 1{,}40$~\AA{} en environnement
+aromatique).
+
+Nous nous int\'eressons \`a une famille \'elargie de mol\'ecules :
+celles obtenues en \emph{rempla\c{c}ant} certains cycles hexagonaux par des
+cycles \textbf{pentagonaux} (5~carbones) ou \textbf{heptagonaux}
+(7~carbones), \`a nombre total d'atomes de carbone constant. Ces structures
+\og non-benz\'eno\"ides \fg{} pr\'esentent un int\'er\'et chimique majeur :
+\begin{itemize}
+  \item l'introduction de cycles \`a 5~ou~7~atomes brise la planarit\'e
+        \emph{a priori} de la mol\'ecule (\og courbure de Gauss \fg{}
+        positive en pr\'esence de pentagones, n\'egative pour les
+        heptagones) ;
+  \item lorsque pentagones et heptagones apparaissent en paires
+        adjacentes (\emph{motif azul\'enique}), leurs courbures se
+        compensent et la mol\'ecule peut retrouver une g\'eom\'etrie plane,
+        avec des propri\'et\'es \'electroniques distinctes ;
+  \item certaines de ces structures sont des \textbf{biradicaux} stables
+        (le c\'el\`ebre \emph{triangul\`ene} de Clar) ou des candidats
+        pour de nouveaux mat\'eriaux semi-conducteurs organiques.
+\end{itemize}
+
+\subsection{Formulation du probl\`eme}
+
+\noindent\textbf{Probl\`eme.} \'Etant donn\'e un benz\'eno\"ide $\B$
+\`a $h$~hexagones, \'enum\'erer toutes les substitutions admissibles
+$(x_1, x_2, \ldots, x_h) \in \{5, 6, 7\}^h$ des tailles de ses cycles, telles
+que :
+\begin{enumerate}[label=(\roman*),leftmargin=*]
+  \item le nombre total d'atomes de carbone soit conserv\'e ;
+  \item la mol\'ecule r\'esultante reste r\'ealisable g\'eom\'etriquement ;
+  \item chaque configuration locale (cycle central + voisins) appartienne
+        \`a un catalogue de configurations \og physiquement plausibles \fg{}
+        pr\'e-calcul\'e par dynamique mol\'eculaire ;
+  \item les solutions \og structurellement \'equivalentes \fg{} (li\'ees
+        par une sym\'etrie du benz\'eno\"ide d'entr\'ee) ne soient
+        \'enum\'er\'ees qu'une fois.
+\end{enumerate}
+
+\subsection{Approche : CSP sur le graphe dual}
+
+Une \'enum\'eration na\"ive sur $\{5,6,7\}^h$ pose deux probl\`emes :
+\begin{enumerate}[leftmargin=*]
+  \item la taille de l'espace ($3^h$) cro\^it exponentiellement avec
+        le nombre d'hexagones : $3^{20} \approx 3{,}5 \cdot 10^9$
+        configurations \`a tester ;
+  \item la majorit\'e des configurations sont \emph{trivialement
+        invalides} (non-conservation du carbone, voisinages topologiquement
+        infaisables, doublons par sym\'etrie).
+\end{enumerate}
+
+Nous adoptons une approche par \textbf{satisfaction de contraintes}
+(CSP, \emph{Constraint Satisfaction Problem}) formul\'ee sur le
+\emph{graphe dual} du benz\'eno\"ide : chaque hexagone devient un sommet,
+chaque ar\^ete partag\'ee devient une ar\^ete duale, et la taille de chaque
+cycle devient une variable enti\`ere \`a domaine $\{5,6,7\}$. Cette
+formulation permet :
+\begin{itemize}
+  \item d'exploiter la structure d'incidence du benz\'eno\"ide comme
+        donn\'ee d'entr\'ee (le graphe dual n'est pas une inconnue) ;
+  \item de filtrer agressivement les domaines par pr\'e-traitement
+        avant la r\'esolution ;
+  \item de tirer parti des outils \'eprouv\'es de la litt\'erature CSP
+        (PyCSP3 pour la mod\'elisation, ACE pour la r\'esolution,
+        \textsc{nauty}/VF2 pour le calcul d'automorphismes).
+\end{itemize}
+
+\subsection{Plan du chapitre}
+
+La suite du chapitre est organis\'ee comme suit. La
+section~\ref{sec:notations} fixe les notations et d\'efinitions
+pr\'eliminaires. La section~\ref{sec:modelisation-graphe} introduit la
+mod\'elisation par graphes : graphe de carbone, graphe dual, patterns
+d'occupation, positions d'ar\^etes. La section~\ref{sec:propstructurelles}
+\'etablit les propri\'et\'es structurelles utilis\'ees en pr\'e-traitement,
+en particulier la caract\'erisation des hexagones \emph{gel\'es}. La
+section~\ref{sec:csp} pr\'esente le mod\`ele CSP complet avec ses
+contraintes C1 \`a~C5 et leurs preuves. La section~\ref{sec:symetrie}
+traite de la rupture de sym\'etrie via le th\'eor\`eme de Whitney et les
+contraintes lex-leader. La section~\ref{sec:reconstruction} d\'ecrit les
+algorithmes de graphe (parcours BFS sur le dual, contraction/insertion)
+utilis\'es pour la reconstruction tridimensionnelle des solutions
+\'enum\'er\'ees par le CSP. La section~\ref{sec:pipeline} synth\'etise le
+pipeline exp\'erimental et les complexit\'es. La
+section~\ref{sec:conclusion} conclut.
+
+% ════════════════════════════════════════════════════════════
+\section{Notations et d\'efinitions pr\'eliminaires}
+\label{sec:notations}
+% ════════════════════════════════════════════════════════════
+
+Nous fixons ici le vocabulaire utilis\'e dans tout le chapitre. Les notions
+abord\'ees rel\`event de la \textbf{th\'eorie des graphes planaires} et
+de la combinatoire \'el\'ementaire ; les lecteurs familiers peuvent
+parcourir cette section rapidement.
+
+\subsection{Graphes : rappels}
+
+\begin{definition}[Graphe planaire]
+Un graphe $G = (V, E)$ est \emph{planaire} s'il admet un plongement dans
+le plan euclidien tel que les ar\^etes ne se croisent qu'en leurs
+extr\'emit\'es. Un \emph{plongement planaire} d\'efinit un ensemble de
+\emph{faces}, dont l'une (la face \emph{externe}) est non born\'ee.
+\end{definition}
+
+\begin{theoreme}[Formule d'Euler]
+Pour tout graphe planaire connexe avec $V$ sommets, $E$ ar\^etes
+et $F$ faces (face externe incluse) :
+\[
+  V - E + F = 2.
+\]
+\end{theoreme}
+
+\begin{definition}[$k$-connexit\'e]
+Un graphe $G$ est \emph{$k$-connexe} si $|V(G)| > k$ et si la suppression
+de tout ensemble de $k-1$ sommets le laisse connexe. Un graphe est
+\emph{2-connexe} (= connexe sans point d'articulation) si toute paire de
+sommets distincts est connect\'ee par au moins deux chemins
+sommet-disjoints.
+\end{definition}
+
+\subsection{Benz\'eno\"ides et substitution de cycles}
+
+\begin{definition}[Benz\'eno\"ide]
+Un \emph{benz\'eno\"ide} $\B$ est un sous-graphe fini, planaire, connexe
+et 2-connexe du r\'eseau hexagonal r\'egulier, dont toutes les faces
+internes sont des hexagones et dont chaque sommet a un degr\'e dans
+$\{2, 3\}$.
+\end{definition}
+
+Nous notons :
+\begin{itemize}
+  \item $h$ : le nombre d'hexagones (= faces internes) de $\B$ ;
+  \item $V$, $E$ : le nombre de sommets (atomes de carbone) et
+        d'ar\^etes (liaisons C--C) de $\B$ ;
+  \item $\ncinq$, $\nhex$, $\nsept$ : les nombres de cycles
+        respectivement pentagonaux, hexagonaux, heptagonaux apr\`es
+        substitution.
+\end{itemize}
+
+\begin{definition}[Substitution admissible]
+Une \emph{substitution admissible} de $\B$ est une assignation
+$\alpha : F(\B) \to \{5, 6, 7\}$ associant \`a chaque face hexagonale
+interne une nouvelle taille de cycle, telle que la mol\'ecule r\'esultante
+respecte la conservation des atomes de carbone et les contraintes
+topologiques (d\'etaill\'ees au fil de ce chapitre).
+\end{definition}
+
+\subsection{Notations alg\'ebriques}
+
+Le tableau~\ref{tab:notations} r\'esume les notations utilis\'ees.
+
+\begin{table}[!ht]
+\centering
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}lp{10.5cm}@{}}
+\toprule
+\textbf{Notation} & \textbf{Signification} \\
+\midrule
+$\B$ & Benz\'eno\"ide d'entr\'ee \\
+$\GB = (V_\B, E_\B, F_\B)$ & Graphe de carbone de $\B$ : sommets, ar\^etes, faces \\
+$\GD = (\VD, \ED)$ & Graphe dual de $\B$ \\
+$h = |\VD|$ & Nombre d'hexagones du benz\'eno\"ide \\
+$\xv$ & Variable taille du cycle $v \in \VD$, $\xv \in \{5,6,7\}$ \\
+$\sigma(v) \in \{0,1\}^6$ & Pattern (motif d'occupation) des c\^ot\'es de $v$ \\
+$\posIn{v}{e} \in \{0,\ldots,5\}$ & Position de l'ar\^ete $e$ dans le cycle $v$ \\
+$\NN(v)$ & Voisinage de $v$ dans $\GD$ \\
+$\degv$ & Degr\'e de $v$ dans $\GD$, $1 \leq \degv \leq 6$ \\
+$b(v)$ & Nombre de blocs cycliques de z\'eros dans $\sigma(v)$ \\
+$I(v)$ & Ensemble des sommets int\'erieurs libres de $v$ \\
+$\Tn$ & Table des configurations de voisinage admissibles pour cycle de taille $n$ \\
+$\Lambda(v)$ & Configuration locale de $v$ : $(\xv, x_{u_1}, \ldots, x_{u_k})$ \\
+$\Aut(\GD)$ & Groupe des automorphismes de $\GD$ \\
+$\dom(\xv)$ & Domaine courant de la variable $\xv$ \\
+\bottomrule
+\end{tabular}
+\caption{Principales notations utilis\'ees dans ce chapitre.}
+\label{tab:notations}
+\end{table}
+
+% ════════════════════════════════════════════════════════════
+\section{Mod\'elisation par graphes}
+\label{sec:modelisation-graphe}
+% ════════════════════════════════════════════════════════════
+
+Trois objets graph-th\'eoriques sont mis en jeu : le \emph{graphe de
+carbone} $\GB$ (structure physique de la mol\'ecule), le \emph{graphe dual}
+$\GD$ (objet central du mod\`ele CSP) et, plus tard, des graphes
+auxiliaires utilis\'es pour la reconstruction 3D.
+
+\subsection{Le graphe de carbone : entr\'ee}
+\label{sec:graphe-carbone}
+
+\subsubsection{D\'efinition formelle}
+
+\begin{definition}[Graphe de carbone]
+Soit $\B$ un benz\'eno\"ide. Le \emph{graphe de carbone} de $\B$ est le
+triplet $\GB = (V_\B,\, E_\B,\, F_\B)$ o\`u :
+\begin{itemize}
+  \item $V_\B$ est l'ensemble des atomes de carbone ;
+  \item $E_\B \subseteq \binom{V_\B}{2}$ est l'ensemble des liaisons C--C ;
+  \item $F_\B$ est l'ensemble des hexagones (faces internes), chacun
+        d\'ecrit par une suite ordonn\'ee de 6~sommets adjacents par paires.
+\end{itemize}
+\end{definition}
+
+\begin{propriete}
+Le graphe de carbone $\GB$ d'un benz\'eno\"ide est planaire, connexe,
+2-connexe, biparti et de degr\'e maximum 3.
+\end{propriete}
+
+\subsubsection{Format d'entr\'ee Benzai}
+
+Le format d'entr\'ee (\og Benzai \fg{}, inspir\'e de DIMACS) encode
+$\GB$ sous forme textuelle. Le listing~\ref{lst:benzai} pr\'esente
+l'exemple \texttt{first.graph}, un benz\'eno\"ide lin\'eaire \`a
+3~hexagones (= 14 carbones).
+
+\begin{lstlisting}[style=benzai,
+  caption={Fichier Benzai d'un benz\'eno\"ide \`a 3 hexagones lin\'eaires.},
+  label={lst:benzai}]
+p DIMACS 14 16 3
+e 0_0 1_1
+e 0_0 -1_1
+e 1_1 1_2
+e -1_1 -1_2
+e 1_2 0_3
+...
+h 0_0 1_1 1_2 0_3 -1_2 -1_1
+h -1_2 0_3 0_4 -1_5 -2_4 -2_3
+h -2_4 -1_5 -1_6 -2_7 -3_6 -3_5
+\end{lstlisting}
+
+\begin{itemize}
+  \item Ligne \texttt{p DIMACS $V$ $E$ $F$} : ent\^ete avec
+        $V$~sommets, $E$~ar\^etes, $F$~faces hexagonales ;
+  \item Lignes \texttt{e $s_1$ $s_2$} : ar\^ete entre les sommets
+        $s_1$ et $s_2$. Les identifiants $x\_y$ sont des coordonn\'ees
+        dans le r\'eseau hexagonal ;
+  \item Lignes \texttt{h $s_1$ $s_2$ $\ldots$ $s_6$} : hexagone d\'ecrit
+        par ses 6~sommets dans l'\textbf{ordre cyclique}.
+\end{itemize}
+
+L'ordre cyclique des sommets dans chaque ligne \texttt{h} est crucial :
+il fournit implicitement la \emph{num\'erotation} des c\^ot\'es de
+l'hexagone (le c\^ot\'e $i$ est l'ar\^ete $(s_i, s_{i+1})$ modulo~6).
+
+\begin{figure}[!ht]
+\centering
+\begin{tikzpicture}[scale=0.85, every node/.style={font=\small}]
+  % Hexagone v0
+  \foreach \i in {0,...,5} {
+    \coordinate (A\i) at ({cos(60*\i+30)*1.2}, {sin(60*\i+30)*1.2});
+  }
+  \draw[thick,fill=grisHex] (A0) -- (A1) -- (A2) -- (A3) -- (A4) -- (A5) -- cycle;
+  \node at (0,0) {\textbf{$v_0$}};
+  \foreach \i in {0,...,5} {\fill (A\i) circle (2pt);}
+  % Hexagone v1
+  \foreach \i in {0,...,5} {
+    \coordinate (B\i) at ({cos(60*\i+30)*1.2 + 2*1.2*cos(30)}, {sin(60*\i+30)*1.2});
+  }
+  \draw[thick,fill=grisHex] (B0) -- (B1) -- (B2) -- (B3) -- (B4) -- (B5) -- cycle;
+  \node at ({2*1.2*cos(30)},0) {\textbf{$v_1$}};
+  \foreach \i in {0,...,5} {\fill (B\i) circle (2pt);}
+  % Hexagone v2
+  \foreach \i in {0,...,5} {
+    \coordinate (C\i) at ({cos(60*\i+30)*1.2 + 4*1.2*cos(30)}, {sin(60*\i+30)*1.2});
+  }
+  \draw[thick,fill=grisHex] (C0) -- (C1) -- (C2) -- (C3) -- (C4) -- (C5) -- cycle;
+  \node at ({4*1.2*cos(30)},0) {\textbf{$v_2$}};
+  \foreach \i in {0,...,5} {\fill (C\i) circle (2pt);}
+\end{tikzpicture}
+\caption{Le benz\'eno\"ide \texttt{first.graph} (3 hexagones lin\'eaires,
+14 carbones). Chaque sommet noir est un atome de carbone ; chaque ar\^ete
+est une liaison C--C. Les hexagones $v_0$, $v_1$, $v_2$ sont nos
+\emph{faces} d'int\'er\^et.}
+\label{fig:first-graph}
+\end{figure}
+
+\subsection{Le graphe dual}
+\label{sec:dual}
+
+\subsubsection{Construction et propri\'et\'es}
+
+Le \textbf{graphe dual} est l'objet central de notre mod\'elisation. Il
+encode la \emph{topologie de fusion} des hexagones et oublie les
+coordonn\'ees individuelles des atomes.
+
+\begin{definition}[Graphe dual]
+\label{def:dual}
+Soit $\GB = (V_\B, E_\B, F_\B)$ le graphe de carbone d'un benz\'eno\"ide
+$\B$. Le \emph{graphe dual} $\GD = (\VD, \ED)$ est d\'efini par :
+\begin{itemize}
+  \item $\VD = \{0, 1, \ldots, h-1\}$, un sommet par hexagone de $F_\B$ ;
+  \item $\{u, v\} \in \ED$ si et seulement si les hexagones $u$ et $v$
+        partagent une ar\^ete dans $E_\B$.
+\end{itemize}
+\end{definition}
+
+\begin{figure}[!ht]
+\centering
+\begin{tikzpicture}[scale=1, every node/.style={font=\small}]
+  \node[circle,draw,thick,fill=bleuSub!15,minimum size=8mm] (v0) at (0,0) {$v_0$};
+  \node[circle,draw,thick,fill=bleuSub!15,minimum size=8mm] (v1) at (2.5,0) {$v_1$};
+  \node[circle,draw,thick,fill=bleuSub!15,minimum size=8mm] (v2) at (5,0) {$v_2$};
+  \draw[thick] (v0) -- (v1);
+  \draw[thick] (v1) -- (v2);
+\end{tikzpicture}
+\caption{Graphe dual $\GD$ du benz\'eno\"ide \texttt{first.graph} :
+un chemin $v_0 - v_1 - v_2$. Le sommet $v_1$, de degr\'e~2, est le seul
+hexagone partageant deux c\^ot\'es avec ses voisins.}
+\label{fig:dual-first}
+\end{figure}
+
+\begin{propriete}[Propri\'et\'es du graphe dual]
+\label{prop:dual}
+Pour tout benz\'eno\"ide $\B$, son graphe dual $\GD$ satisfait :
+\begin{enumerate}[label=(\roman*),leftmargin=*]
+  \item $\GD$ est planaire ;
+  \item le degr\'e de tout sommet $v \in \VD$ v\'erifie $1 \leq \degv \leq 6$ ;
+  \item $\GD$ est connexe ssi $\B$ est connexe ;
+  \item $\GD$ est un sous-graphe induit du graphe dual du \emph{pavage
+        hexagonal infini} (lui-m\^eme isomorphe au \emph{r\'eseau
+        triangulaire}).
+\end{enumerate}
+\end{propriete}
+
+\begin{proof}
+(i) Tout graphe est planaire ssi il est sous-graphe d'un graphe planaire ;
+le pavage hexagonal infini est planaire, son graphe dual l'est aussi.
+(ii)~Un hexagone du pavage admet au plus 6~voisins (un par c\^ot\'e), et
+au moins~1 dans un benz\'eno\"ide connexe \`a $h \geq 2$ hexagones.
+(iii)~\'Equivalence \'el\'ementaire entre connexit\'e de $\B$ et de
+$\GD$. (iv)~D\'ecoule de la d\'efinition du dual du pavage hexagonal :
+ses sommets sont les centres d'hexagones, et deux centres sont adjacents
+ssi les hexagones partagent une ar\^ete. C'est pr\'ecis\'ement le
+r\'eseau triangulaire.
+\end{proof}
+
+\subsubsection{Algorithme de construction}
+
+La construction du dual proc\`ede par double boucle sur les paires
+d'hexagones, avec test d'intersection des ensembles d'ar\^etes. La
+complexit\'e est $\bigO(h^2 \cdot c)$ o\`u $c$ est le co\^ut de
+l'intersection (constant si l'on indexe les ar\^etes par hash).
+Pour $h \leq 20$ (cas de nos exp\'eriences), c'est instantan\'e.
+
+\begin{algorithm}[!ht]
+\caption{Construction du graphe dual $\GD$ depuis $\GB$.}
+\label{alg:dual}
+\begin{algorithmic}[1]
+\Require Graphe de carbone $\GB = (V_\B, E_\B, F_\B)$, hexagones num\'erot\'es
+$0, \ldots, h-1$ avec leurs listes d'ar\^etes $E(v)$.
+\Ensure Graphe dual $\GD = (\VD, \ED)$ et positions $\posIn{\cdot}{\cdot}$.
+\State $\VD \gets \{0, \ldots, h-1\}$ ;\quad $\ED \gets \emptyset$
+\For{$u = 0$ \textbf{to} $h-1$}
+  \For{$v = u+1$ \textbf{to} $h-1$}
+    \State $S \gets E(u) \cap E(v)$ \Comment{ar\^etes partag\'ees}
+    \If{$S \neq \emptyset$}
+      \State $e_\text{shared} \gets$ choisir un \'el\'ement de $S$
+      \State $\ED \gets \ED \cup \{(u, v)\}$
+      \State $\posIn{u}{(u,v)} \gets$ position de $e_\text{shared}$ dans la s\'equence de $u$
+      \State $\posIn{v}{(u,v)} \gets$ position de $e_\text{shared}$ dans la s\'equence de $v$
+    \EndIf
+  \EndFor
+\EndFor
+\State \Return $\GD, \posIn{\cdot}{\cdot}$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Patterns d'occupation et positions d'ar\^etes}
+\label{sec:patterns}
+
+Le graphe dual capture la topologie globale, mais la d\'ecision \og ce
+c\^ot\'e de l'hexagone est-il partag\'e ? \fg{} requiert une information
+\emph{locale} suppl\'ementaire : le \emph{pattern d'occupation}.
+
+\begin{definition}[Pattern d'occupation]
+\label{def:pattern}
+Pour chaque sommet $v \in \VD$, le \emph{pattern d'occupation}
+$\sigma(v) = (\sigma_0, \sigma_1, \ldots, \sigma_5) \in \{0, 1\}^6$
+est d\'efini par
+\[
+  \sigma_i = \begin{cases}
+    1 & \text{si le c\^ot\'e $i$ de $v$ est partag\'e avec un voisin dans $\GD$,}\\
+    0 & \text{sinon.}
+  \end{cases}
+\]
+\end{definition}
+
+Le pattern $\sigma(v)$ est consid\'er\'e \emph{cycliquement} : les positions
+$0, 1, 2, 3, 4, 5$ sont arrang\'ees autour de l'hexagone dans le sens
+horaire, et la rotation $\sigma_i \mapsto \sigma_{i+1 \bmod 6}$ correspond
+\`a une rotation g\'eom\'etrique de l'hexagone.
+
+\begin{definition}[Position d'une ar\^ete]
+Pour chaque ar\^ete $e = (u, v) \in \ED$, les fonctions
+$\posIn{u}{e} \in \{0, \ldots, 5\}$ et $\posIn{v}{e} \in \{0, \ldots, 5\}$
+indiquent les c\^ot\'es respectifs des hexagones $u$ et $v$ qui forment
+l'ar\^ete physique partag\'ee.
+\end{definition}
+
+\begin{exemple}
+Pour le benz\'eno\"ide \texttt{first.graph} :
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{ccl}
+\toprule
+Hexagone & $\degv$ & Pattern $\sigma(v)$ \\
+\midrule
+$v_0$ & 1 & $(0, 0, 0, 1, 0, 0)$ \\
+$v_1$ & 2 & $(1, 0, 0, 1, 0, 0)$ \\
+$v_2$ & 1 & $(1, 0, 0, 0, 0, 0)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+$v_0$ et $v_2$ sont des \og hexagones de bord \fg{} (un seul voisin).
+$v_1$ est le seul hexagone central avec deux c\^ot\'es partag\'es.
+\end{exemple}
+
+\begin{propriete}[Consistance aux jonctions]
+\label{prop:consistance}
+Pour toute ar\^ete $e = (u, v) \in \ED$, les positions
+$\posIn{u}{e}$ et $\posIn{v}{e}$ d\'eterminent une ar\^ete physique unique de
+$\GB$. R\'eciproquement, deux hexagones $u, v$ adjacents dans $\GD$
+partagent \emph{exactement une} ar\^ete dans $\GB$.
+\end{propriete}
+
+Cette propri\'et\'e est cruciale : elle implique que le \emph{nombre
+d'ar\^etes du dual} \'egale le \emph{nombre d'ar\^etes partag\'ees}
+dans le benz\'eno\"ide, et nous l'utilisons dans la preuve de la
+contrainte~C1.
+
+\subsection{Blocs cycliques et structure du voisinage}
+
+Le pattern $\sigma(v)$ se d\'ecompose naturellement en \emph{blocs} de
+positions cons\'ecutives valant~$0$ (c\^ot\'es libres) ou~$1$ (c\^ot\'es
+partag\'es). Ces blocs jouent un r\^ole central dans la caract\'erisation
+des hexagones immobiles (section~\ref{sec:propstructurelles}).
+
+\begin{definition}[Blocs de z\'eros]
+\label{def:blocs}
+Soit $\sigma(v) \in \{0,1\}^6$. Un \emph{bloc de z\'eros} de $\sigma(v)$
+est une sous-suite cyclique maximale de positions cons\'ecutives
+valant~$0$. On note $b(v)$ le nombre de tels blocs.
+\end{definition}
+
+\begin{exemple}
+\begin{itemize}
+  \item $\sigma = (1, 1, 0, 0, 0, 0)$ : un seul bloc de 4~z\'eros,
+        $b = 1$.
+  \item $\sigma = (1, 0, 0, 1, 0, 0)$ : deux blocs de 2~z\'eros chacun
+        ($\sigma_1\sigma_2$ et $\sigma_4\sigma_5$), $b = 2$.
+  \item $\sigma = (1, 0, 1, 0, 1, 0)$ : trois blocs de 1~z\'ero,
+        $b = 3$.
+  \item $\sigma = (1, 1, 1, 1, 1, 1)$ : aucun z\'ero, $b = 0$.
+\end{itemize}
+\end{exemple}
+
+L'algorithme~\ref{alg:blocs} calcule $b(v)$ en temps lin\'eaire en partant
+d'une position partag\'ee (afin de ne pas couper un bloc cyclique).
+
+\begin{algorithm}[!ht]
+\caption{Calcul du nombre de blocs de z\'eros $b(v)$.}
+\label{alg:blocs}
+\begin{algorithmic}[1]
+\Require Pattern $\sigma(v) \in \{0,1\}^6$ tel que $\degv \geq 1$.
+\Ensure $b(v) \in \{0, 1, 2, 3\}$.
+\State $start \gets$ premier indice $i$ tel que $\sigma_i = 1$
+\State $blocs \gets 0$ ;\quad $in\_zero \gets \mathrm{faux}$
+\For{$\text{offset} = 0$ \textbf{to} $5$}
+  \State $idx \gets (start + \text{offset}) \bmod 6$
+  \If{$\sigma_{idx} = 0$ \textbf{et} $\lnot in\_zero$}
+    \State $blocs \gets blocs + 1$ ;\quad $in\_zero \gets \mathrm{vrai}$
+  \ElsIf{$\sigma_{idx} = 1$}
+    \State $in\_zero \gets \mathrm{faux}$
+  \EndIf
+\EndFor
+\State \Return $blocs$
+\end{algorithmic}
+\end{algorithm}
+
+% ════════════════════════════════════════════════════════════
+\section{Propri\'et\'es structurelles et pr\'e-traitement}
+\label{sec:propstructurelles}
+% ════════════════════════════════════════════════════════════
+
+Avant de poser le mod\`ele CSP complet, nous \'etablissons trois familles
+de propri\'et\'es \og locales \fg{} qui permettent de \textbf{r\'eduire
+les domaines des variables avant la r\'esolution}. Ces propri\'et\'es
+sont calcul\'ees en \emph{temps constant} par sommet, \`a partir du seul
+pattern $\sigma(v)$. Elles incarnent l'avantage central de notre
+mod\'elisation : exploiter la g\'eom\'etrie de l'entr\'ee pour all\'eger
+le travail du solveur.
+
+\subsection{Hexagones int\'erieurs : la r\`egle $\degv = 6$}
+
+\begin{propriete}[Hexagone enti\`erement entour\'e]
+\label{prop:degre6}
+Si $\degv = 6$, alors $\sigma(v) = (1,1,1,1,1,1)$ et le cycle $v$ ne peut
+\^etre substitu\'e : on doit avoir $\xv = 6$.
+\end{propriete}
+
+\begin{proof}
+$\degv = 6$ signifie que les six c\^ot\'es de $v$ sont partag\'es. Toute
+substitution par un pentagone (contraction d'un sommet) ou un heptagone
+(insertion d'un sommet) toucherait n\'ecessairement \`a un c\^ot\'e
+partag\'e, donc cassait la topologie d'un cycle voisin. La seule
+op\'eration compatible est l'identit\'e (cycle reste hexagonal).
+\end{proof}
+
+\subsection{Hexagones \`a blocs s\'epar\'es : la r\`egle $b(v) \geq 2$}
+
+\begin{propriete}[Hexagone fig\'e par $b(v) \geq 2$]
+\label{prop:b2}
+Si $b(v) \geq 2$, alors le cycle $v$ ne peut \^etre substitu\'e : on doit
+avoir $\xv = 6$.
+\end{propriete}
+
+\begin{proof}
+Supposons $b(v) \geq 2$. Le bord de $v$ se d\'ecompose en au moins deux
+blocs disjoints d'ar\^etes libres, s\'epar\'es par des blocs d'ar\^etes
+partag\'ees. La cha\^ine cyclique des ar\^etes alterne donc :
+\[
+  [\text{partag\'ees}_1] - [\text{libres}_1] - [\text{partag\'ees}_2]
+  - [\text{libres}_2] - \cdots
+\]
+Substituer $v$ par un pentagone n\'ecessite de \emph{contracter}
+exactement un sommet (perte d'une ar\^ete libre) ; cela r\'eduirait la
+longueur d'\emph{un seul} bloc libre tout en pr\'eservant la position
+relative des autres ar\^etes partag\'ees. Or les blocs partag\'es sont
+\emph{verrouill\'es} aux positions impos\'ees par les cycles voisins :
+les distances cycliques entre eux sont fix\'ees. R\'eduire la longueur
+totale du bord (de 6~\`a~5) sans changer ces distances est arithm\'etiquement
+impossible.
+
+Sym\'etriquement, substituer $v$ par un heptagone ajouterait une ar\^ete
+libre dans un seul bloc, augmentant la longueur d'un seul intervalle mais
+laissant les autres inchang\'es. Or la nouvelle somme des longueurs
+(=~7) doit \^etre coh\'erente avec un polygone r\'egulier, ce qui force
+toutes les distances cycliques \`a \^etre celles d'un heptagone. Impossible
+si $b(v) \geq 2$.
+
+Dans le cas $b(v) = 1$, en revanche, toutes les ar\^etes libres forment
+un \emph{unique} intervalle cyclique : on peut l'agrandir (heptagone) ou
+le r\'eduire (pentagone) sans violer la position des c\^ot\'es partag\'es.
+\end{proof}
+
+\begin{remarque}
+Le crit\`ere $\degv = 6 \lor b(v) \geq 2$ est purement structurel : il se
+d\'eduit du seul pattern $\sigma(v)$ et peut \^etre \'evalu\'e en
+$\bigO(1)$ par sommet. C'est un cas typique de \emph{propagation
+unaire} en CSP : la variable est r\'eduite \`a un singleton avant m\^eme
+le lancement du solveur.
+\end{remarque}
+
+\subsection{R\'ealisabilit\'e topologique : sommets int\'erieurs et c\^ot\'es libres}
+\label{sec:c2bis-prep}
+
+Les propri\'et\'es ci-dessus ne suffisent pas. Sur des benz\'eno\"ides
+\`a partir de $h \geq 6$ hexagones, nous avons observ\'e \emph{empiriquement}
+que de nombreuses assignations satisfaisant C1+C2+C3+C4 produisaient des
+\'echecs lors de la phase de reconstruction tridimensionnelle (\og
+solutions g\'eom\'etriquement infaisables \fg{}, jusqu'\`a 75~\% sur
+certaines mol\'ecules de $h_9$). Cela r\'ev\`ele une condition n\'ecessaire
+\emph{suppl\'ementaire}, encod\'ee par les notions suivantes.
+
+\begin{definition}[Sommet int\'erieur libre]
+\label{def:interieur}
+Soit $v \in \VD$ et $\sigma(v) = (\sigma_0, \ldots, \sigma_5)$. Un
+\emph{sommet int\'erieur libre} de $v$ est un indice $i \in \{0,\ldots,5\}$
+de l'hexagone tel que les deux ar\^etes incidentes (positions $i-1$
+et~$i$, modulo~6) soient toutes deux libres :
+\[
+  \sigma_{(i-1) \bmod 6} = 0 \;\text{ et }\; \sigma_i = 0.
+\]
+On note $I(v) \subseteq \{0, \ldots, 5\}$ l'ensemble de ces sommets.
+\end{definition}
+
+\begin{definition}[C\^ot\'e libre]
+Un \emph{c\^ot\'e libre} de $v$ est un indice $i$ tel que $\sigma_i = 0$.
+L'ensemble des c\^ot\'es libres est $F_v = \{i : \sigma_i = 0\}$.
+\end{definition}
+
+\begin{propriete}[Condition n\'ecessaire de substitution]
+\label{prop:c2bis}
+Pour tout sommet $v \in \VD$ non gel\'e par les
+Propri\'et\'es~\ref{prop:degre6}--\ref{prop:b2} :
+\begin{enumerate}[label=(\alph*)]
+  \item $\xv = 5$ est topologiquement r\'ealisable
+        \emph{seulement si} $I(v) \neq \emptyset$ ;
+  \item $\xv = 7$ est topologiquement r\'ealisable
+        \emph{seulement si} $F_v \neq \emptyset$.
+\end{enumerate}
+\end{propriete}
+
+\begin{proof}
+\textbf{(a)} La substitution $\xv = 6 \to \xv = 5$ se r\'ealise
+g\'eom\'etriquement par \emph{contraction} d'un sommet de l'hexagone :
+on identifie deux sommets adjacents, ce qui revient \`a fusionner
+deux ar\^etes incidentes en une seule. Pour que cette fusion ne casse
+aucun cycle voisin, il faut que les \emph{deux} ar\^etes \`a fusionner
+soient libres (i.e. non partag\'ees). Cela revient \`a exiger l'existence
+d'un sommet $i \in I(v)$.
+
+R\'eciproquement, si $I(v) \neq \emptyset$, soit $i \in I(v)$ ; la
+contraction de ce sommet d\'efinit un pentagone bien form\'e dont les
+c\^ot\'es partag\'es de $v$ restent inchang\'es. La phase de placement
+g\'eom\'etrique (section~\ref{sec:reconstruction}) construit alors une
+g\'eom\'etrie valide.
+
+\textbf{(b)} La substitution $\xv = 6 \to \xv = 7$ se r\'ealise par
+\emph{insertion} d'un nouveau sommet \emph{au milieu} d'une ar\^ete.
+Cette insertion ne touche pas aux cycles voisins ssi l'ar\^ete choisie
+est libre. La condition $F_v \neq \emptyset$ est donc n\'ecessaire et
+suffisante.
+\end{proof}
+
+\begin{exemple}[Pattern $\sigma = (1,1,1,1,1,0)$]
+$\degv = 5$, $b(v) = 1$, donc non gel\'e par C2. Mais :
+\begin{itemize}
+  \item L'unique $0$ est en position~5, et ses deux voisins cycliques
+        (positions 4 et 0) valent~1. Donc $I(v) = \emptyset$.
+  \item $F_v = \{5\}$, donc $F_v \neq \emptyset$.
+\end{itemize}
+Conclusion : $\dom(\xv) = \{6, 7\}$ ; le pentagone est interdit par
+notre Propri\'et\'e~\ref{prop:c2bis}.
+\end{exemple}
+
+\subsection{Calcul des domaines}
+
+L'algorithme~\ref{alg:domaines} combine les trois r\`egles pour produire
+le \emph{domaine initial} de chaque variable. Sa complexit\'e est
+$\bigO(h)$.
+
+\begin{algorithm}[!ht]
+\caption{Calcul des domaines initiaux $\dom(\xv)$.}
+\label{alg:domaines}
+\begin{algorithmic}[1]
+\Require Graphe dual $\GD$, patterns $\sigma(v)$, indicateur \texttt{freeze\_b2}.
+\Ensure Domaines $\dom(\xv)$ pour tout $v \in \VD$.
+\For{$v \in \VD$}
+  \If{$\degv = 6$} \Comment{R\`egle 1 : enti\`erement entour\'e}
+    \State $\dom(\xv) \gets \{6\}$
+  \ElsIf{$\texttt{freeze\_b2} \land b(v) \geq 2$} \Comment{R\`egle 2}
+    \State $\dom(\xv) \gets \{6\}$
+  \Else \Comment{R\`egle 3 : C2bis}
+    \State $\dom(\xv) \gets \{6\}$
+    \If{$I(v) \neq \emptyset$}
+      \State $\dom(\xv) \gets \dom(\xv) \cup \{5\}$
+    \EndIf
+    \If{$F_v \neq \emptyset$}
+      \State $\dom(\xv) \gets \dom(\xv) \cup \{7\}$
+    \EndIf
+  \EndIf
+\EndFor
+\State \Return $\{\dom(\xv) : v \in \VD\}$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Tables de voisinage : structure et filtrage}
+
+Les tables $\mathcal{T}(5)$, $\mathcal{T}(6)$, $\mathcal{T}(7)$
+constituent une donn\'ee \emph{externe} au CSP, pr\'e-calcul\'ee par
+validation g\'eom\'etrique de toutes les configurations \og cycle central
++ voisins \fg{} possibles. Leur construction est document\'ee dans le
+pipeline g\'en\'eral (annexe du rapport principal) ; nous en r\'esumons
+ici les caract\'eristiques.
+
+\begin{definition}[Table de voisinage]
+Pour $n \in \{5, 6, 7\}$, la table $\mathcal{T}(n)$ est l'ensemble des
+tuples $(n, s_1, s_2, \ldots, s_n) \in \{5,6,7\}^{n+1}$ tels qu'il existe
+une g\'eom\'etrie 3D \emph{planaire} d'un cycle central de taille $n$
+entour\'e des cycles de tailles $s_1, \ldots, s_n$ (modulo rotation et
+r\'eflexion du voisinage).
+\end{definition}
+
+Les tailles obtenues exp\'erimentalement, apr\`es validation
+g\'eom\'etrique par xTB et test de planarit\'e, sont r\'ecapitul\'ees dans
+le tableau~\ref{tab:tables-tailles}.
+
+\begin{table}[!ht]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{lrr}
+\toprule
+Cycle central $n$ & $|\mathcal{T}(n)|$ (protocole xTB \texttt{--opt}) & $|\mathcal{T}(n)|$ (protocole MD + opt) \\
+\midrule
+5 &  92 &  63 \\
+6 & 412 & 280 \\
+7 & 699 & 367 \\
+\midrule
+\textbf{Total} & \textbf{1203} & \textbf{710} \\
+\bottomrule
+\end{tabular}
+\caption{Tailles des tables de voisinage selon le protocole de validation.}
+\label{tab:tables-tailles}
+\end{table}
+
+\subsubsection{Filtrage par pattern}
+
+Pour chaque sommet $v$ du benz\'eno\"ide d'entr\'ee, la table \og
+brute \fg{} $\mathcal{T}(n)$ contient beaucoup d'entr\'ees \emph{non
+compatibles} avec la topologie locale de $v$ (i.e. avec son pattern
+$\sigma(v)$). Nous restreignons donc la table \`a une \emph{table
+locale} $\mathcal{T}_v(n)$.
+
+\begin{definition}[Table restreinte]
+$\mathcal{T}_v(n) \subseteq \mathcal{T}(n)$ est l'ensemble des tuples
+$(n, s_1, \ldots, s_n) \in \mathcal{T}(n)$ tels que :
+\begin{enumerate}[label=(\roman*)]
+  \item le nombre de positions $i$ avec $s_i \neq 0$ vaut $\degv$ ;
+  \item les positions $i$ avec $s_i \neq 0$ forment un bloc consécutif
+        cyclique (puisque $b(v) = 1$ pour les sommets non gel\'es) ;
+  \item les valeurs $s_i$ aux positions partag\'ees sont compatibles avec
+        les domaines courants $\dom(x_{u_j})$ des voisins $u_j$ de $v$.
+\end{enumerate}
+\end{definition}
+
+\subsubsection{Arc-consistance et propagation}
+
+Les tables restreintes alimentent un calcul d'\emph{arc-consistance binaire}
+classique : pour chaque ar\^ete $(u, v) \in \ED$, on \'elimine de
+$\mathcal{T}_v$ toute entr\'ee dont la valeur \`a la position de $u$ n'est
+pas dans $\dom(x_u)$, et r\'eciproquement. Ce processus se propage jusqu'\`a
+point fixe.
+
+\begin{propriete}[Complexit\'e du filtrage AC]
+La proc\'edure d'arc-consistance binaire sur le couple
+$(\GD, \mathcal{T})$ termine en temps
+$\bigO(|\ED| \cdot |\mathcal{T}|_{\max})$
+o\`u $|\mathcal{T}|_{\max} = \max_n |\mathcal{T}(n)|$.
+\end{propriete}
+
+% ════════════════════════════════════════════════════════════
+\section{Le mod\`ele CSP}
+\label{sec:csp}
+% ════════════════════════════════════════════════════════════
+
+\subsection{Structure g\'en\'erale du mod\`ele}
+
+Le mod\`ele CSP est d\'efini par un triplet $(X, D, C)$ o\`u $X$ est
+l'ensemble des variables, $D$ leurs domaines, et $C$ l'ensemble des
+contraintes. Pour notre probl\`eme :
+\[
+  X = \{\xv : v \in \VD\}, \qquad
+  D = \{\dom(\xv) \subseteq \{5, 6, 7\} : v \in \VD\}, \qquad
+  C = \{C1, C2, C2\text{bis}, C3, C4, C5\}.
+\]
+
+\subsection{Variables et domaines}
+
+\begin{definition}[Variables]
+Pour chaque sommet $v \in \VD$, nous d\'efinissons une variable
+$\xv$ \`a domaine $\dom(\xv) \subseteq \{5, 6, 7\}$, repr\'esentant la
+\emph{taille} du cycle au sommet $v$ apr\`es substitution.
+\end{definition}
+
+L'ensemble des variables est $\mathbf{X} = (\xv)_{v \in \VD}$ avec
+$|\mathbf{X}| = h$.
+
+\subsection{Contrainte C1 : conservation du carbone}
+
+\begin{contrainte}[Conservation]
+\label{c:carbone}
+\[
+  \sum_{v \in \VD} \xv \;=\; 6\,h.
+\]
+\end{contrainte}
+
+Cette contrainte exprime la conservation du nombre total d'atomes de
+carbone au cours d'une substitution. Sa justification rigoureuse passe
+par la formule d'Euler.
+
+\begin{propriete}[Formule d'Euler appliqu\'ee \`a $\GB$]
+\label{prop:euler}
+Pour un syst\`eme fusionn\'e de $h$~cycles formant un graphe planaire
+connexe avec $V$ sommets et $E$ ar\^etes :
+\[
+  V \;=\; \sum_{v \in \VD} \xv \;-\; |\ED| \;-\; h \;+\; 1,
+\]
+o\`u $|\ED|$ est le nombre d'ar\^etes du graphe dual.
+\end{propriete}
+
+\begin{proof}
+La formule d'Euler pour un graphe planaire connexe avec $V$ sommets,
+$E$ ar\^etes et $F$ faces (face externe incluse) s'\'ecrit
+$V - E + F = 2$. Nous avons $F = h + 1$ (les $h$ cycles internes plus
+la face externe), donc
+\[
+  V = E - h + 1.
+\]
+Il reste \`a exprimer $E$ en fonction des tailles des cycles. Chaque
+cycle $v$ poss\`ede $\xv$ ar\^etes ; mais une ar\^ete \emph{partag\'ee}
+entre deux cycles est compt\'ee deux fois dans la somme
+$\sum_{v} \xv$. Par la Propri\'et\'e~\ref{prop:consistance}, le nombre
+d'ar\^etes partag\'ees \'egale $|\ED|$. Une ar\^ete \emph{de bord} (non
+partag\'ee) est compt\'ee une seule fois. Donc :
+\[
+  \sum_{v \in \VD} \xv \;=\; E + |\ED|,
+  \qquad\text{soit}\qquad
+  E \;=\; \sum_{v \in \VD} \xv - |\ED|.
+\]
+Substituant dans $V = E - h + 1$ : $V = \sum \xv - |\ED| - h + 1$.
+\end{proof}
+
+\begin{corollaire}[\'Equivalence C1 $\Leftrightarrow$ $\ncinq = \nsept$]
+La contrainte C1 est \'equivalente \`a $\ncinq = \nsept$.
+\end{corollaire}
+
+\begin{proof}
+Posant $\ncinq + \nhex + \nsept = h$ et
+$\sum \xv = 5\ncinq + 6\nhex + 7\nsept$, l'\'egalit\'e
+$\sum \xv = 6h$ \'equivaut \`a
+$5\ncinq + 6\nhex + 7\nsept = 6(\ncinq + \nhex + \nsept)$,
+soit $-\ncinq + \nsept = 0$.
+\end{proof}
+
+\begin{remarque}[Conservation des atomes]
+Puisque $|\ED|$ et $h$ sont des \emph{constantes} du benz\'eno\"ide
+d'entr\'ee, la Propri\'et\'e~\ref{prop:euler} montre que
+$V_{\text{substituant}} = V_{\text{original}}$ ssi
+$\sum \xv = 6h$. C'est la formulation chimique de C1 : conservation
+du nombre de carbones lors de la substitution.
+\end{remarque}
+
+\subsection{Contrainte C2 : hexagones gel\'es}
+
+\begin{contrainte}[Gel des hexagones immobiles]
+\label{c:gele}
+\[
+  \forall v \in \VD,\quad
+  [\, \degv = 6 \;\lor\; b(v) \geq 2 \,]
+  \;\Longrightarrow\; \xv = 6.
+\]
+\end{contrainte}
+
+La justification compl\`ete est fournie par les
+Propri\'et\'es~\ref{prop:degre6} et~\ref{prop:b2} de la
+section~\ref{sec:propstructurelles}. Concr\`etement, l'impl\'ementation
+n'ajoute pas une contrainte au sens classique : elle \emph{r\'eduit le
+domaine} de la variable \`a $\{6\}$ avant le lancement du solveur.
+
+\subsection{Contrainte C2bis : filtrage topologique du domaine}
+
+\begin{contrainte}[Filtrage topologique]
+\label{c:c2bis}
+Pour tout $v \in \VD$ non gel\'e par C2 :
+\[
+  5 \in \dom(\xv) \;\Longleftrightarrow\; I(v) \neq \emptyset,
+  \qquad
+  7 \in \dom(\xv) \;\Longleftrightarrow\; F_v \neq \emptyset.
+\]
+\end{contrainte}
+
+Cette contrainte, justifi\'ee par la Propri\'et\'e~\ref{prop:c2bis},
+est appliqu\'ee comme C2 par r\'eduction de domaine au pr\'e-traitement
+en $\bigO(h)$.
+
+\subsection{Contrainte C3 : voisinage admissible}
+
+\begin{definition}[Configuration locale]
+La \emph{configuration locale} de $v$ est le tuple
+\[
+  \Lambda(v) \;=\; \bigl(\xv,\, x_{u_1}, x_{u_2}, \ldots, x_{u_k}\bigr),
+\]
+o\`u $(u_1, \ldots, u_k)$ est la suite ordonn\'ee des voisins de $v$
+dans $\GD$ selon les positions $\posIn{v}{e}$ croissantes.
+\end{definition}
+
+\begin{contrainte}[Voisinage admissible]
+\label{c:voisinage}
+\[
+  \forall v \in \VD,\quad \Lambda(v) \in \mathcal{T}(\xv).
+\]
+\end{contrainte}
+
+C3 est une \textbf{contrainte extensionnelle} (au sens CSP) : elle
+\'enum\`ere explicitement les tuples valides. Sa propagation est
+efficace dans les solveurs CSP modernes (algorithme GAC-4, etc.).
+
+\begin{remarque}[Sommets de degr\'e 1]
+La table $\mathcal{T}(n)$ est construite avec un voisinage minimum de
+2~cycles. Pour les sommets $v \in \VD$ de degr\'e 1, la contrainte C3
+n'est pas appliqu\'ee : un cycle isol\'e d'un seul c\^ot\'e est toujours
+g\'eom\'etriquement admissible.
+\end{remarque}
+
+\subsection{Contrainte C4 : brisure de sym\'etrie}
+
+\begin{contrainte}[Lex-leader]
+\label{c:lex}
+Pour chaque g\'en\'erateur $\pi$ du groupe d'automorphismes
+$\Aut(\GD)$ :
+\[
+  (\xv)_{v \in \VD}
+  \;\leq_{\mathrm{lex}}\;
+  (x_{\pi(v)})_{v \in \VD}.
+\]
+\end{contrainte}
+
+La justification compl\`ete de cette contrainte (Th\'eor\`eme de
+Whitney + caract\'erisation des redondances) est d\'evelopp\'ee
+\`a la section~\ref{sec:symetrie}.
+
+\subsection{Contrainte C5 : adjacence 5--7 (optionnelle)}
+
+Cette contrainte est \emph{exp\'erimentale}, motiv\'ee par l'observation
+chimique selon laquelle les pentagones et heptagones tendent \`a appara\^itre
+en paires adjacentes (\emph{motifs azul\'eniques}).
+
+\begin{contrainte}[Adjacence 5--7]
+\label{c:adj57}
+\[
+  \forall v \in \VD,\quad
+  \xv = 5 \;\Longrightarrow\; \exists u \in \NN(v),\; x_u = 7
+\]
+\[
+  \forall v \in \VD,\quad
+  \xv = 7 \;\Longrightarrow\; \exists u \in \NN(v),\; x_u = 5.
+\]
+\end{contrainte}
+
+C5 \emph{n'interdit pas} les paires 5--5 ou 7--7 ; elle exige seulement
+la pr\'esence d'au moins un voisin compl\'ementaire. Elle est
+d\'esactiv\'ee par d\'efaut.
+
+\subsection{R\'ecapitulatif du mod\`ele}
+
+\begin{table}[!ht]
+\centering
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{@{}cll@{}}
+\toprule
+\textbf{Code} & \textbf{Nom} & \textbf{Formulation} \\
+\midrule
+C1 & Conservation du carbone &
+  $\sum_{v \in \VD} \xv = 6h \;\Leftrightarrow\; \ncinq = \nsept$ \\
+C2 & Hexagones gel\'es &
+  $[\degv = 6 \lor b(v) \geq 2] \Rightarrow \xv = 6$ \\
+C2bis & Filtrage topologique &
+  $5 \in \dom(\xv) \Leftrightarrow I(v) \neq \emptyset$ \\
+   & du domaine &
+  $7 \in \dom(\xv) \Leftrightarrow F_v \neq \emptyset$ \\
+C3 & Voisinage admissible &
+  $\Lambda(v) \in \mathcal{T}(\xv)$ \\
+C4 & Brisure de sym\'etrie &
+  $\mathbf{x} \leq_{\mathrm{lex}} \pi(\mathbf{x})$ pour chaque g\'en\'erateur $\pi$ \\
+C5 & Adjacence 5--7 &
+  Implications d'existence d'un voisin de type compl\'ementaire \\
+   & (optionnelle) & \\
+\bottomrule
+\end{tabular}
+\caption{R\'ecapitulatif des contraintes du mod\`ele CSP.}
+\label{tab:contraintes}
+\end{table}
+
+\subsection{Complexit\'e du mod\`ele et r\'esolution}
+
+\subsubsection{Taille du probl\`eme}
+
+\begin{itemize}
+  \item Variables : $|\mathbf{X}| = h$, typiquement entre 2 et 20 dans
+        nos exp\'eriences.
+  \item Domaines : $|\dom(\xv)| \leq 3$ ; apr\`es pr\'e-traitement,
+        souvent $\leq 2$ ou r\'eduit \`a un singleton.
+  \item Espace de recherche brut : $\leq 3^h \approx 3{,}5 \cdot 10^9$
+        pour $h = 20$.
+\end{itemize}
+
+\subsubsection{Choix du solveur}
+
+Nous utilisons \textbf{PyCSP3} (biblioth\`eque Python g\'en\'erant des
+fichiers XCSP3) coupl\'e \`a \textbf{ACE} (solveur Java tournant en
+\emph{boite noire}). Le choix est motiv\'e par :
+\begin{itemize}
+  \item l'int\'egration native Python (pr\'e/post-traitement dans le m\^eme
+        \'ecosyst\`eme) ;
+  \item le format XCSP3 standardis\'e (interchangeabilit\'e des solveurs) ;
+  \item le support des contraintes extensionnelles (C3) et lex (C4) en
+        natif.
+\end{itemize}
+
+\subsubsection{Strat\'egie de propagation recommand\'ee}
+
+L'ordre suivant minimise la taille de l'espace de recherche transmis au
+solveur :
+\[
+  \text{C1} \to \text{C2} \to \text{C2bis} \to \text{AC}(\text{C3}) \to \text{C4} \to (\text{C5}).
+\]
+C1 globalise les contraintes de comptage ; C2 et C2bis r\'eduisent les
+domaines \emph{une fois} en pr\'e-traitement ; l'arc-consistance sur C3
+propage les r\'eductions de voisinage ; C4 \'elimine les doublons par
+sym\'etrie ; C5 (optionnelle) restreint au motif azul\'enique.
+
+% ════════════════════════════════════════════════════════════
+\section{Sym\'etrie : automorphismes et brisure}
+\label{sec:symetrie}
+% ════════════════════════════════════════════════════════════
+
+\subsection{Probl\`eme des solutions redondantes}
+
+Le graphe dual $\GD$ admet en g\'en\'eral des \textbf{automorphismes}
+non triviaux : permutations de ses sommets qui pr\'eservent l'adjacence.
+Par exemple, un benz\'eno\"ide lin\'eaire \`a $h = 3$ hexagones admet un
+unique automorphisme non identit\'e (la r\'eflexion qui \'echange les
+deux hexagones de bord).
+
+Si $\pi \in \Aut(\GD)$ et $\alpha : \VD \to \{5,6,7\}$ est une solution
+du CSP, alors la solution $\beta = \pi \cdot \alpha$ d\'efinie par
+$\beta(v) = \alpha(\pi^{-1}(v))$ d\'ecrit la \emph{m\^eme structure
+mol\'eculaire} (\`a rotation et r\'eflexion pr\`es). Ces solutions ne
+doivent \^etre compt\'ees qu'une fois.
+
+La question \emph{th\'eorique} est : \og les automorphismes de $\GD$
+capturent-ils toutes les redondances, et \emph{seulement} elles ? \fg{}
+La r\'eponse est positive, et nous l'\'etablissons rigoureusement
+ci-dessous.
+
+\subsection{Groupe d'automorphismes}
+
+\begin{definition}[Automorphisme du dual]
+Un \emph{automorphisme} de $\GD$ est une bijection $\pi : \VD \to \VD$
+telle que pour tout couple $(u, v)$ :
+\[
+  \{u, v\} \in \ED \;\Longleftrightarrow\; \{\pi(u), \pi(v)\} \in \ED.
+\]
+L'ensemble des automorphismes, muni de la composition, forme le
+\emph{groupe d'automorphismes} $\Aut(\GD)$.
+\end{definition}
+
+\begin{definition}[Action sur les solutions]
+$\Aut(\GD)$ agit sur l'ensemble des solutions par
+$(\pi \cdot \alpha)(v) = \alpha(\pi^{-1}(v))$. Les \emph{orbites} de
+cette action sont des classes d'\'equivalence de solutions
+\og structurellement \'equivalentes \fg{}.
+\end{definition}
+
+\subsubsection{Calcul des automorphismes}
+
+Calculer $\Aut(\GD)$ revient \`a r\'esoudre le probl\`eme d'\emph{
+isomorphisme de graphes} sur $(\GD, \GD)$. C'est un probl\`eme classique
+de complexit\'e \emph{quasi-polynomiale} (Babai, 2016) ; en pratique des
+algorithmes tr\`es efficaces existent :
+\begin{itemize}
+  \item \textbf{VF2} (Cordella et al., 2004), impl\'ement\'e dans
+        NetworkX : exploration par retour arri\`ere avec coupes par
+        invariants (degr\'e, voisinage). Suffisant pour $h \leq 30$.
+  \item \textbf{\textsc{nauty}/\textsc{bliss}} : exhaustif et tr\`es
+        rapide en pratique (algorithme de partition par raffinement).
+\end{itemize}
+
+Pour les benz\'eno\"ides exp\'erimentaux ($h \leq 20$), VF2 est
+suffisant. Notre impl\'ementation utilise l'API
+\texttt{GraphMatcher.isomorphisms\_iter()} de NetworkX.
+
+\subsubsection{G\'en\'erateurs du groupe}
+
+Plut\^ot que d'\'enum\'erer tout $\Aut(\GD)$ (potentiellement
+exponentiel en $h$), il suffit de calculer un \emph{ensemble
+g\'en\'erateur} $G \subseteq \Aut(\GD)$ : un sous-ensemble dont les
+compositions engendrent tout le groupe. Le th\'eor\`eme de Cayley
+garantit qu'un tel ensemble de taille $\bigO(\log |\Aut(\GD)|)$
+existe ; nous l'extrayons par une proc\'edure gloutonne classique.
+
+\subsection{Th\'eor\`eme de caract\'erisation}
+
+\begin{theoreme}[\'Equivalence redondance--automorphisme]
+\label{thm:sym}
+Soient $\alpha, \beta : \VD \to \{5, 6, 7\}$ deux solutions du CSP. Les
+mol\'ecules associ\'ees \`a $\alpha$ et $\beta$ sont \emph{isomorphes en
+tant que graphes de carbone} si et seulement s'il existe $\pi \in
+\Aut(\GD)$ tel que $\beta = \pi \cdot \alpha$.
+\end{theoreme}
+
+\begin{proof}
+\textbf{(}$\Leftarrow$\textbf{)} Soit $\pi \in \Aut(\GD)$ avec
+$\beta = \pi \cdot \alpha$. L'automorphisme $\pi$ pr\'eserve l'adjacence
+dans $\GD$, donc envoie chaque face $v$ d'$\GB$ sur la face $\pi(v)$ ;
+de plus, $\beta(\pi(v)) = \alpha(v)$, donc les tailles sont pr\'eserv\'ees.
+Les ar\^etes partag\'ees entre faces adjacentes le sont \'egalement.
+On en d\'eduit que $\pi$ induit un isomorphisme entre $G_\alpha$ et
+$G_\beta$ (les graphes de carbone respectifs).
+
+\textbf{(}$\Rightarrow$\textbf{)} Supposons $G_\alpha \cong G_\beta$
+via un isomorphisme $\varphi : V(G_\alpha) \to V(G_\beta)$.
+
+\begin{enumerate}[label=(\arabic*),leftmargin=*]
+  \item \textbf{2-connexit\'e.}
+        Dans un benz\'eno\"ide \emph{et toute structure substitu\'ee},
+        deux cycles adjacents partagent exactement une ar\^ete
+        (= 2~atomes). Aucun sommet n'est point d'articulation : le
+        graphe de carbone est 2-connexe.
+  \item \textbf{Unicit\'e du plongement planaire (Whitney).}
+        Le th\'eor\`eme de Whitney (1933) affirme que tout graphe
+        planaire 2-connexe admet un \emph{unique plongement planaire
+        combinatoire} (\`a r\'eflexion pr\`es). Cela signifie que
+        $\varphi$ pr\'eserve (ou inverse) l'ordre cyclique des ar\^etes
+        autour de chaque sommet.
+  \item \textbf{Pr\'eservation des faces.}
+        L'unicit\'e du plongement implique que $\varphi$ envoie les
+        faces de $G_\alpha$ sur les faces de $G_\beta$. Les faces
+        internes \'etant exactement les cycles de la mol\'ecule, $\varphi$
+        induit une bijection $\pi : \VD \to \VD$.
+  \item \textbf{$\pi \in \Aut(\GD)$.}
+        Deux faces sont adjacentes dans $\GD$ ssi elles partagent une
+        ar\^ete dans le graphe de carbone. Comme $\varphi$ pr\'eserve
+        l'adjacence des ar\^etes, $\pi$ pr\'eserve l'adjacence du dual.
+  \item \textbf{$\beta = \pi \cdot \alpha$.}
+        La taille d'une face est un invariant d'isomorphisme : la face
+        $v$ de $G_\alpha$ (de taille $\alpha(v)$) est envoy\'ee sur la face
+        $\pi(v)$ de $G_\beta$ (de m\^eme taille). Donc
+        $\beta(\pi(v)) = \alpha(v)$, c'est-\`a-dire $\beta = \pi \cdot
+        \alpha$.
+        \qedhere
+\end{enumerate}
+\end{proof}
+
+\begin{corollaire}
+Les contraintes lex-leader (C4) sur $\Aut(\GD)$ sont \emph{exactes} :
+elles \'eliminent toutes les solutions redondantes et seulement elles.
+Aucune structure mol\'eculairement distincte n'est perdue.
+\end{corollaire}
+
+\subsection{Contraintes lex-leader}
+
+\begin{definition}[Lex-leader]
+Pour un ordre fix\'e $(v_1, v_2, \ldots, v_h)$ des sommets et un
+automorphisme $\pi \in \Aut(\GD)$, la contrainte lex-leader associ\'ee
+\`a $\pi$ est :
+\[
+  (x_{v_1}, x_{v_2}, \ldots, x_{v_h})
+  \;\leq_{\mathrm{lex}}\;
+  (x_{\pi(v_1)}, x_{\pi(v_2)}, \ldots, x_{\pi(v_h)}).
+\]
+\end{definition}
+
+Une solution est dite \emph{lex-leader de son orbite} si elle satisfait
+cette in\'egalit\'e pour \emph{tous} les $\pi \in \Aut(\GD)$. Il suffit
+en pratique d'imposer la contrainte pour un \emph{ensemble g\'en\'erateur}
+de $\Aut(\GD)$, ce qui r\'eduit consid\'erablement le nombre de
+contraintes ajout\'ees au mod\`ele.
+
+\begin{exemple}
+Pour \texttt{first.graph} ($h = 3$, dual = chemin $v_0 - v_1 - v_2$),
+l'unique automorphisme non identit\'e est la r\'eflexion
+$\pi : v_0 \leftrightarrow v_2,\; v_1 \mapsto v_1$. La contrainte
+lex-leader est :
+\[
+  (x_{v_0}, x_{v_1}, x_{v_2}) \;\leq_{\mathrm{lex}}\;
+  (x_{v_2}, x_{v_1}, x_{v_0}).
+\]
+La solution $(5, 6, 7)$ est accept\'ee ; son sym\'etrique $(7, 6, 5)$ est
+rejet\'e. Tableau des paires d'orbites :
+\begin{center}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{ccc}
+\toprule
+Orbite & Lex-leader & Rejet\'ee \\
+\midrule
+$\{(5,6,7), (7,6,5)\}$ & $(5,6,7)$ & $(7,6,5)$ \\
+$\{(6,6,6)\}$ & $(6,6,6)$ & --- (orbite singleton) \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{exemple}
+
+\subsection{Justification du traitement en amont}
+
+Le solveur ACE op\`ere en \og boite noire \fg{} : nous lui transmettons
+un mod\`ele complet (variables, domaines, contraintes) au format XCSP3
+et il retourne les solutions. Il n'y a pas d'acc\`es \`a l'\'etat interne
+pendant la r\'esolution (pas de callback, pas d'injection de
+\emph{nogoods} \`a la vol\'ee).
+
+C'est pourquoi la rupture de sym\'etrie doit \^etre enti\`erement encod\'ee
+\emph{dans le mod\`ele}, avant la r\'esolution :
+\begin{enumerate}[leftmargin=*]
+  \item Calculer $\Aut(\GD)$ et ses g\'en\'erateurs en Python (NetworkX).
+  \item Pour chaque g\'en\'erateur $\pi$, ajouter une contrainte
+        \texttt{LexIncreasing} au mod\`ele PyCSP3.
+  \item Transmettre le mod\`ele complet au solveur.
+\end{enumerate}
+
+Par le Th\'eor\`eme~\ref{thm:sym}, cette approche garantit l'obtention
+de toutes les structures distinctes, sans doublon.
+
+% ════════════════════════════════════════════════════════════
+\section{Algorithmes de graphe pour la reconstruction 3D}
+\label{sec:reconstruction}
+% ════════════════════════════════════════════════════════════
+
+Le solveur CSP retourne des assignations $\alpha : \VD \to \{5, 6, 7\}$.
+Pour les confronter \`a la validation chimique (xTB) et au test de
+planarit\'e, nous devons \textbf{mat\'erialiser} chaque solution en une
+g\'eom\'etrie 3D explicite : c'est la phase de \emph{reconstruction}.
+
+Cette phase repose sur trois algorithmes de graphe coupl\'es :
+\begin{enumerate}[leftmargin=*]
+  \item modification topologique des cycles (contraction d'un sommet
+        pour pentagone, insertion d'un sommet pour heptagone) ;
+  \item parcours en largeur (BFS) sur le graphe dual pour placer les
+        cycles \og un par un \fg{} dans le plan ;
+  \item couplage maximum (Blossom) pour l'attribution des liaisons
+        doubles ($\pi$-syst\`eme).
+\end{enumerate}
+
+Nous d\'ecrivons ici les deux premiers, qui rel\`event de la
+combinatoire des graphes ; le troisi\`eme est une application classique
+de la th\'eorie du matching et est mentionn\'e \`a la
+section~\ref{sec:pipeline}.
+
+\subsection{Phase A : modifications topologiques}
+
+\begin{definition}[Op\'eration de contraction]
+\label{def:contraction}
+Soit $C$ un cycle (= une face) du graphe de carbone, et $w \in V(C)$
+un sommet du cycle. La \emph{contraction} de $w$ dans $C$ identifie
+$w$ avec l'un de ses voisins sur $C$, fusionnant les deux ar\^etes
+incidentes en une seule. La longueur du cycle d\'ecroit de~1.
+\end{definition}
+
+\begin{definition}[Op\'eration d'insertion]
+\label{def:insertion}
+Soit $C$ un cycle et $e \in E(C)$ une ar\^ete du cycle. L'\emph{insertion}
+sur $e$ subdivise $e$ en deux ar\^etes via un nouveau sommet. La longueur
+du cycle augmente de~1.
+\end{definition}
+
+\subsubsection{Conditions de l\'egalit\'e d'une op\'eration}
+
+L'invariant clef de la phase topologique est : \emph{les ar\^etes
+partag\'ees entre deux cycles sont inviolables.}
+
+\begin{lemme}[L\'egalit\'e d'une contraction]
+\label{lem:contraction}
+Une contraction du sommet $w$ dans le cycle $v$ est \emph{l\'egale}
+ssi les deux ar\^etes incidentes \`a $w$ dans $v$ sont libres
+(non partag\'ees). En notations : $w \in I(v)$.
+\end{lemme}
+
+\begin{lemme}[L\'egalit\'e d'une insertion]
+\label{lem:insertion}
+Une insertion sur l'ar\^ete $e$ du cycle $v$ est l\'egale ssi $e$ est
+libre (non partag\'ee) : $e$ correspond \`a une position $i$ avec
+$\sigma_i = 0$.
+\end{lemme}
+
+Ces lemmes formalisent les conditions C2bis (Propri\'et\'e~\ref{prop:c2bis})
+au niveau de la reconstruction : ce sont les m\^emes pr\'edicats
+$I(v) \neq \emptyset$ et $F_v \neq \emptyset$.
+
+\subsubsection{Algorithme de la phase A}
+
+\begin{algorithm}[!ht]
+\caption{Phase A : modifications topologiques par cycle.}
+\label{alg:topo}
+\begin{algorithmic}[1]
+\Require Graphe de carbone $\GB$, assignation $\alpha : \VD \to \{5,6,7\}$,
+patterns $\sigma(\cdot)$.
+\Ensure Graphe modifi\'e $\GB'$ avec cycles de tailles $\alpha(v)$.
+\State $\GB' \gets \GB$ \Comment{copie modifiable}
+\For{$v \in \VD$}
+  \If{$\alpha(v) = 6$}
+    \State \textbf{continuer} \Comment{cycle inchang\'e}
+  \ElsIf{$\alpha(v) = 5$}
+    \State Choisir $w \in I(v)$
+    \State Contracter $w$ dans le cycle $v$ de $\GB'$
+  \ElsIf{$\alpha(v) = 7$}
+    \State Choisir $i$ avec $\sigma_i = 0$
+    \State Ins\'erer un nouveau sommet sur le c\^ot\'e $i$ de $v$
+  \EndIf
+\EndFor
+\State \Return $\GB'$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{propriete}[Terminaison et invariant]
+L'algorithme~\ref{alg:topo} termine en $\bigO(h)$ op\'erations
+\'el\'ementaires, et maintient l'invariant : toute ar\^ete partag\'ee
+$e = (u, v) \in \ED$ reste pr\'esente apr\`es modification, avec ses
+deux cycles incidents toujours adjacents par $e$.
+\end{propriete}
+
+\subsection{Phase B : placement g\'eom\'etrique par parcours BFS}
+
+Une fois la topologie modifi\'ee, il faut placer chaque cycle dans le
+plan euclidien comme un \textbf{polygone r\'egulier}, en respectant les
+incidences via les ar\^etes partag\'ees. Notre approche est un
+\textbf{parcours en largeur} (BFS) sur $\GD$.
+
+\subsubsection{Polygones r\'eguliers : g\'eom\'etrie de base}
+
+\begin{definition}[Polygone r\'egulier]
+Le polygone r\'egulier \`a $n$ c\^ot\'es de longueur $a$ a pour
+\emph{rayon} (distance centre--sommet) et \emph{apoth\`eme} (distance
+centre--milieu de c\^ot\'e) :
+\[
+  R(n) \;=\; \frac{a}{2 \sin(\pi/n)},
+  \qquad
+  r(n) \;=\; \frac{a}{2 \tan(\pi/n)}.
+\]
+\end{definition}
+
+Avec $a = 1{,}40$~\AA{} (longueur C--C aromatique typique), nous avons :
+\begin{center}
+\begin{tabular}{cccc}
+\toprule
+$n$ & 5 & 6 & 7 \\
+\midrule
+$R(n)$ (\AA) & 1{,}19 & 1{,}40 & 1{,}61 \\
+$r(n)$ (\AA) & 0{,}96 & 1{,}21 & 1{,}45 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsubsection{Algorithme BFS de placement}
+
+L'id\'ee est de :
+\begin{enumerate}[leftmargin=*]
+  \item choisir une \emph{racine} $r \in \VD$ (par exemple le sommet
+        de plus haut degr\'e, pour ancrer la mol\'ecule sur la zone la
+        plus contrainte) ;
+  \item placer le cycle $r$ comme polygone r\'egulier centr\'e \`a
+        l'origine ;
+  \item parcourir $\GD$ en BFS \`a partir de $r$ : pour chaque sommet
+        enfant $c$ d\'ecouvert via une ar\^ete partag\'ee $e = (p, c)$
+        avec son parent $p$, placer le cycle $c$ en \og collant \fg{}
+        son c\^ot\'e $\posIn{c}{e}$ sur le c\^ot\'e $\posIn{p}{e}$ de $p$.
+\end{enumerate}
+
+\begin{algorithm}[!ht]
+\caption{Phase B : placement g\'eom\'etrique par BFS sur $\GD$.}
+\label{alg:bfs-placement}
+\begin{algorithmic}[1]
+\Require Graphe dual $\GD$, assignation $\alpha$, positions $\posIn{\cdot}{\cdot}$.
+\Ensure Coordonn\'ees 3D pour chaque atome (z = 0).
+\State $r \gets \arg\max_{v \in \VD} \degv$ \Comment{racine = sommet de degr\'e max}
+\State Placer le cycle $r$ comme polygone r\'egulier centr\'e \`a l'origine, orient\'e $\theta_r = 0$
+\State $Q \gets$ file FIFO contenant $r$
+\State $\text{visit\'e} \gets \{r\}$
+\While{$Q \neq \emptyset$}
+  \State $p \gets Q.\text{d\'efiler}()$
+  \For{$c \in \NN(p)$ avec $c \notin \text{visit\'e}$}
+    \State $e \gets (p, c)$
+    \State Soit $M$ le milieu du c\^ot\'e $\posIn{p}{e}$ de $p$ (d\'ej\`a plac\'e)
+    \State $\theta_c \gets$ orientation telle que le c\^ot\'e $\posIn{c}{e}$ co\"incide avec $M$
+    \State Placer le cycle $c$ comme polygone r\'egulier de taille $\alpha(c)$, centre \`a apoth\`eme $r(\alpha(c))$ de $M$, orient\'e $\theta_c$
+    \State $\text{visit\'e} \gets \text{visit\'e} \cup \{c\}$
+    \State $Q.\text{enfiler}(c)$
+  \EndFor
+\EndWhile
+\State \Return Coordonn\'ees de tous les atomes
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Coh\'erence du parcours BFS}
+
+\begin{lemme}[Existence d'un placement]
+\label{lem:bfs-existence}
+Soit $\alpha$ une solution du CSP. L'algorithme~\ref{alg:bfs-placement}
+termine et produit un plongement g\'eom\'etrique \emph{valide} (sans
+recouvrement des cycles) ssi la condition C2bis
+(Propri\'et\'e~\ref{prop:c2bis}) est satisfaite \emph{et} la configuration
+locale autour de chaque sommet appartient \`a la table $\Tn$
+(contrainte~C3).
+\end{lemme}
+
+\begin{proof}[Esquisse]
+Le BFS visite chaque sommet exactement une fois ($\bigO(h)$). Pour chaque
+sommet plac\'e, la coh\'erence g\'eom\'etrique repose sur :
+\begin{itemize}
+  \item la longueur des ar\^etes : $a = 1{,}40$~\AA{} pour tous les
+        polygones (h\'eritage du r\'eseau aromatique) ;
+  \item l'orientation : impos\'ee par le placement du parent et la
+        position $\posIn{c}{e}$.
+\end{itemize}
+Si tous les voisinages appartiennent \`a $\Tn$, alors localement la
+configuration est connue plane (par construction de la table). La somme
+des d\'eviations angulaires autour de chaque sommet est nulle (formule
+d'Euler discr\'etis\'ee). En l'absence d'incompatibilit\'es globales, le
+plongement BFS produit un plongement valide.
+\end{proof}
+
+\begin{remarque}[Cas d'\'echec g\'eom\'etrique]
+M\^eme avec C2bis et C3 satisfaites, il peut subsister des solutions
+\og localement valides mais globalement infaisables \fg{} sur les
+benz\'eno\"ides \`a fortes contraintes (h9 en mode
+\texttt{--no-freeze --no-table}). Ces \'echecs proviennent de
+discr\'epances angulaires cumul\'ees sur des \emph{cycles longs} de
+$\GD$, et constituent un probl\`eme ouvert (cf. courbure de Gauss
+discr\`ete sur surfaces polygonales).
+\end{remarque}
+
+\subsubsection{Illustration : un cas \`a 4 hexagones substitu\'e}
+
+\begin{figure}[!ht]
+\centering
+\begin{tikzpicture}[scale=0.7, every node/.style={font=\small}]
+  % Pentagone (rouge clair)
+  \begin{scope}[shift={(0,0)}]
+  \foreach \i in {0,...,4} {
+    \coordinate (P\i) at ({cos(72*\i+90)*1.19}, {sin(72*\i+90)*1.19});
+  }
+  \draw[thick,fill=jaunePent] (P0) -- (P1) -- (P2) -- (P3) -- (P4) -- cycle;
+  \node at (0,0) {\small 5};
+  \foreach \i in {0,...,4} {\fill (P\i) circle (1.5pt);}
+  \end{scope}
+  % Hexagone (gris)
+  \begin{scope}[shift={(2.42,0)}]
+  \foreach \i in {0,...,5} {
+    \coordinate (H\i) at ({cos(60*\i+30)*1.40}, {sin(60*\i+30)*1.40});
+  }
+  \draw[thick,fill=grisHex] (H0) -- (H1) -- (H2) -- (H3) -- (H4) -- (H5) -- cycle;
+  \node at (0,0) {\small 6};
+  \foreach \i in {0,...,5} {\fill (H\i) circle (1.5pt);}
+  \end{scope}
+  % Heptagone (indigo)
+  \begin{scope}[shift={(5.30,0)}]
+  \foreach \i in {0,...,6} {
+    \coordinate (G\i) at ({cos(51.43*\i+90)*1.61}, {sin(51.43*\i+90)*1.61});
+  }
+  \draw[thick,fill=indigoHept] (G0) -- (G1) -- (G2) -- (G3) -- (G4) -- (G5) -- (G6) -- cycle;
+  \node at (0,0) {\small 7};
+  \foreach \i in {0,...,6} {\fill (G\i) circle (1.5pt);}
+  \end{scope}
+\end{tikzpicture}
+\caption{Trois polygones r\'eguliers (pentagone, hexagone, heptagone) de
+m\^eme longueur de c\^ot\'e $a = 1{,}40$~\AA{}, fusionn\'es par leurs
+c\^ot\'es partag\'es. Les rayons $R(n)$ diff\`erent (1{,}19 / 1{,}40 /
+1{,}61~\AA{}), induisant une distorsion locale absorb\'ee par le
+voisinage.}
+\label{fig:trois-polygones}
+\end{figure}
+
+\subsection{Le graphe dual r\'esolu : graphe de placement}
+
+Une fois le BFS termin\'e, chaque sommet $v$ de $\GD$ est annot\'e par :
+\begin{itemize}
+  \item ses coordonn\'ees cart\'esiennes 2D (centre $c_v$ et orientation
+        $\theta_v$) ;
+  \item la liste de ses sommets de polygone (= positions des atomes de
+        carbone).
+\end{itemize}
+
+L'ensemble de ces annotations forme le \emph{graphe de placement} : une
+structure interm\'ediaire entre le mod\`ele topologique (le dual) et la
+g\'eom\'etrie atomique (le graphe de carbone enrichi par les
+coordonn\'ees).
+
+\subsection{Synth\`ese : pipeline reconstruction}
+
+\begin{figure}[!ht]
+\centering
+\begin{tikzpicture}[
+  node distance=12mm,
+  every node/.style={font=\small},
+  box/.style={draw,thick,rounded corners=2pt,fill=bleuSub!10,minimum width=27mm,minimum height=10mm,align=center},
+  arr/.style={->,thick,>=Stealth}
+]
+  \node[box] (csp) {Solution CSP\\$\alpha : \VD \to \{5,6,7\}$};
+  \node[box, right=of csp] (topo) {Phase A\\Modifications\\topologiques};
+  \node[box, right=of topo] (bfs) {Phase B\\BFS placement\\($\GD$)};
+  \node[box, below=of topo] (assemble) {Phase C\\Assemblage\\Blossom matching};
+  \node[box, right=of assemble] (xyz) {Fichier XYZ\\(3D + H)};
+
+  \draw[arr] (csp) -- (topo);
+  \draw[arr] (topo) -- (bfs);
+  \draw[arr] (bfs) -- ($(assemble.north)+(0,0)$);
+  \draw[arr] (assemble) -- (xyz);
+\end{tikzpicture}
+\caption{Pipeline de reconstruction 3D depuis une solution CSP. Les
+phases A et B (topologie + BFS) sont d\'ecrites en
+section~\ref{sec:reconstruction} ; la phase C (couplage maximum pour
+liaisons doubles, ajout des hydrog\`enes) est trait\'ee dans le rapport
+principal.}
+\label{fig:reconstruction-pipeline}
+\end{figure}
+
+% ════════════════════════════════════════════════════════════
+\section{Pipeline exp\'erimental et complexit\'e globale}
+\label{sec:pipeline}
+% ════════════════════════════════════════════════════════════
+
+\subsection{Vue d'ensemble du pipeline}
+
+Le pipeline complet, depuis un fichier \texttt{.graph} Benzai jusqu'aux
+g\'eom\'etries 3D valid\'ees, comprend les \'etapes suivantes :
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{Parsing} (\texttt{parser.py}) : lecture du fichier
+        Benzai, construction de $\GB$ et $\GD$, calcul de
+        $\sigma(\cdot)$, $b(\cdot)$, $I(\cdot)$, $F_\cdot$.
+        Complexit\'e : $\bigO(|V_\B| + |E_\B| + h^2)$.
+  \item \textbf{Pr\'e-traitement CSP} (\texttt{preprocessing.py}) :
+        application de C2 et C2bis, filtrage des tables, calcul des
+        automorphismes. Complexit\'e : $\bigO(h^2 + h \cdot |\Tn|)$ pour
+        le filtrage ; $\bigO(\text{poly}(h))$ en pratique pour
+        $\Aut(\GD)$ via VF2.
+  \item \textbf{Compilation XCSP3} (\texttt{model.py}) : g\'en\'eration
+        du fichier \texttt{model.xml} via PyCSP3. Lin\'eaire en taille
+        du mod\`ele.
+  \item \textbf{R\'esolution} (ACE) : appel\'e en sous-processus, ACE
+        \'enum\`ere toutes les solutions satisfaisant C1+C3+C4. Les
+        contraintes C2/C2bis sont d\'ej\`a int\'egr\'ees comme
+        r\'eductions de domaine.
+  \item \textbf{Reconstruction 3D} (\texttt{reconstruction/}) : phases
+        A, B, C de la section~\ref{sec:reconstruction}.
+  \item \textbf{Validation xTB + planarit\'e} : optimisation
+        g\'eom\'etrique semi-empirique et test ACP des plans de cycles.
+\end{enumerate}
+
+\subsection{Complexit\'es \'etape par \'etape}
+
+\begin{table}[!ht]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{@{}llp{6.5cm}@{}}
+\toprule
+\textbf{\'Etape} & \textbf{Complexit\'e} & \textbf{Comm.} \\
+\midrule
+Parsing Benzai & $\bigO(|V_\B| + |E_\B|)$ & lecture lin\'eaire \\
+Construction $\GD$ & $\bigO(h^2)$ & double boucle sur hexagones \\
+Calcul $\sigma, b, I, F$ & $\bigO(h)$ & temps constant par sommet \\
+Pr\'e-traitement C2/C2bis & $\bigO(h)$ & r\'eduction de domaines \\
+Filtrage tables & $\bigO(h \cdot |\Tn|_{\max})$ & filtrage par pattern \\
+Arc-consistance & $\bigO(|\ED| \cdot |\Tn|_{\max})$ & propagation \\
+Calcul $\Aut(\GD)$ & $\bigO(\text{poly}(h))$ & VF2 (quasi-poly th\'eorique) \\
+R\'esolution ACE & $\bigO(3^h)$ pire cas & exponentielle dans $h$, ex\'ecution sous-seconde en pratique pour $h \leq 6$ \\
+Reconstruction (par sol) & $\bigO(h)$ & topologie + BFS \\
+Validation xTB & $\bigO(N^3)$--$\bigO(N^4)$ & $N$ = nombre d'atomes ; dominant en temps r\'eel \\
+\bottomrule
+\end{tabular}
+\caption{Complexit\'es des \'etapes du pipeline. Toutes les \'etapes
+hors r\'esolution CSP et validation xTB sont polynomiales en $h$.}
+\label{tab:complexites}
+\end{table}
+
+\subsection{R\'esultats exp\'erimentaux}
+
+Les benz\'eno\"ides de notre jeu de tests vont de $h = 2$ \`a $h = 20$
+hexagones. Les performances mesur\'ees :
+\begin{itemize}
+  \item \textbf{Pr\'e-traitement complet} : $< 100$~ms pour $h \leq 20$ ;
+  \item \textbf{R\'esolution ACE} : $< 1$~seconde pour $h \leq 16$
+        (\texttt{second.graph}, 41 solutions \'enum\'er\'ees) ;
+  \item \textbf{Reconstruction + validation xTB} : 10--60~secondes
+        par solution selon la taille (\'etape dominante).
+\end{itemize}
+
+Pour des benz\'eno\"ides plus grands ($h_8$, $h_9$), la r\'esolution
+reste sous-seconde gr\^ace au pr\'e-traitement agressif, mais le
+volume de solutions \`a valider explose (jusqu'\`a $\sim 1{,}5 \cdot 10^6$
+sur $h_9$), n\'ecessitant un d\'eploiement sur cluster.
+
+\subsection{Comparaison aux approches alternatives}
+
+\subsubsection{\'Enum\'eration na\"ive}
+
+Sur l'espace brut $\{5,6,7\}^h$, l'\'enum\'eration na\"ive teste $3^h$
+configurations. M\^eme avec un test rapide (C1 + C2 en $\bigO(h)$), pour
+$h = 20$ cela repr\'esente $\sim 3{,}5 \cdot 10^9$ tests, soit
+$\sim 1$ heure \`a $10^6$ tests/seconde. Notre approche CSP r\'esout en
+$< 1$ seconde gr\^ace au pr\'e-traitement et \`a la propagation.
+
+\subsubsection{Approche de Varet (2022)}
+
+La th\`ese de Varet utilise Choco-Solver (Java) avec injection
+dynamique de \emph{nogoods} pour la rupture de sym\'etrie. Notre
+approche par lex-leader est plus simple \`a impl\'ementer (compatible
+\og boite noire \fg{}) et offre les m\^emes garanties th\'eoriques
+(Th\'eor\`eme~\ref{thm:sym}). En contrepartie, le solveur ne peut pas
+exploiter les nogoods dynamiques pour acc\'el\'erer le retour arri\`ere ;
+mais la diff\'erence est marginale sur nos tailles.
+
+% ════════════════════════════════════════════════════════════
+\section{Conclusion du chapitre}
+\label{sec:conclusion}
+% ════════════════════════════════════════════════════════════
+
+Nous avons pr\'esent\'e dans ce chapitre une mod\'elisation compl\`ete
+du probl\`eme de g\'en\'eration de mol\'ecules non-benz\'eno\"ides comme
+un probl\`eme de satisfaction de contraintes sur le graphe dual du
+benz\'eno\"ide d'entr\'ee. Les contributions th\'eoriques principales
+sont :
+\begin{enumerate}[leftmargin=*]
+  \item Une caract\'erisation rigoureuse des \emph{hexagones immobiles}
+        en termes du seul pattern $\sigma(v)$
+        (Propri\'et\'es~\ref{prop:degre6} et~\ref{prop:b2}), permettant
+        une r\'eduction de domaine en $\bigO(h)$.
+  \item L'introduction d'une condition n\'ecessaire suppl\'ementaire
+        de r\'ealisabilit\'e topologique
+        (Propri\'et\'e~\ref{prop:c2bis} : sommets int\'erieurs libres
+        pour pentagones, c\^ot\'es libres pour heptagones), qui filtre
+        jusqu'\`a 75~\% des solutions infaisables sur les benz\'eno\"ides
+        d'ordre $\geq 8$.
+  \item La preuve compl\`ete de la conservation du carbone via la
+        formule d'Euler appliqu\'ee au graphe de carbone
+        (Propri\'et\'e~\ref{prop:euler}).
+  \item La preuve que les automorphismes du graphe dual \emph{captent
+        exactement} les redondances entre solutions, en s'appuyant sur
+        la 2-connexit\'e des benz\'eno\"ides et le th\'eor\`eme
+        d'unicit\'e du plongement planaire de Whitney
+        (Th\'eor\`eme~\ref{thm:sym}).
+  \item Un parcours BFS sur le graphe dual pour la reconstruction
+        g\'eom\'etrique des solutions, avec preuve d'existence d'un
+        placement valide (Lemme~\ref{lem:bfs-existence}).
+\end{enumerate}
+
+Du point de vue algorithmique, le pipeline construit allie th\'eorie
+des graphes (automorphismes, parcours BFS, propri\'et\'es structurelles
+du dual), th\'eorie des CSP (contraintes extensionnelles,
+arc-consistance, lex-leader) et th\'eorie du matching (couplage maximum
+pour les liaisons doubles, mentionn\'e en \ref{sec:pipeline}). Le tout
+est polynomial en $h$ \`a l'exception du c\oe ur de la r\'esolution CSP
+(exponentiel dans le pire cas, mais sub-seconde en pratique gr\^ace au
+pr\'e-traitement).
+
+\paragraph{Perspectives th\'eoriques.}
+Plusieurs questions restent ouvertes :
+\begin{itemize}
+  \item \textbf{Contraintes globales de planarit\'e} : nos contraintes
+        actuelles sont \emph{locales} (par sommet + voisinage imm\'ediat).
+        Pour les grands benz\'eno\"ides, un \og d\'eficit angulaire
+        cumul\'e \fg{} peut emp\^echer la planarit\'e globale, sans
+        \^etre d\'etect\'e par C2/C2bis/C3. Une formulation en termes
+        de \emph{courbure de Gauss discr\`ete} (somme des d\'eficits
+        angulaires) reste \`a explorer.
+  \item \textbf{Sym\'etries dynamiques} : la rupture lex-leader est
+        statique. Des sym\'etries qui n'apparaissent qu'apr\`es certaines
+        affectations (\emph{sym\'etries conditionnelles}) ne sont pas
+        captur\'ees ; cela pourrait gagner un facteur sur les tr\`es
+        grands benz\'eno\"ides.
+  \item \textbf{D\'enombrement direct} : peut-on calculer le nombre
+        de solutions \emph{sans} les \'enum\'erer (fonction
+        g\'en\'eratrice, comptage par orbites \`a la Burnside) ? Cela
+        permettrait des \'etudes statistiques sur les classes de
+        benz\'eno\"ides.
+\end{itemize}
+
+Le chapitre suivant aborde la phase \emph{aval} du pipeline : validation
+physico-chimique par xTB, test de planarit\'e par analyse en composantes
+principales, et statistiques sur les structures \'enum\'er\'ees.
+
+\end{document}
