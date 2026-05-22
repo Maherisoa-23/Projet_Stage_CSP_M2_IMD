@@ -1,0 +1,1 @@
+"""Rapport HTML statique navigable."""

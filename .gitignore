@@ -29,3 +29,7 @@ implementation_csp/
 _run_v2/
 VISUALISATION_3D.md
 *.log
+
+# Dossier tmp/ : scripts temporaires et fichiers intermediaires (rebuild DB,
+# count cluster, sync checks, etc.). Tout ce qui est jetable apres run.
+tmp/
