@@ -1,0 +1,184 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{enumitem}
+
+\title{Experiments v2 : contraintes structurelles pour ameliorer le taux de planarite}
+\author{Stage M2 IMD --- Generateur non-benzenoides}
+\date{Mai 2026}
+
+\begin{document}
+\maketitle
+
+\section{Motivation}
+
+L'analyse statistique de \texttt{db\_v2} (8 configurations CSP existantes,
+toutes valeurs de $h$) a fait apparaitre deux regularites empiriques
+robustes sur le statut de planarite des molecules generees :
+
+\begin{enumerate}[leftmargin=*,itemsep=2pt]
+  \item \textbf{Symetrie 5/7.} Les molecules dont le nombre de pentagones
+        et d'heptagones sont proches ($|n_5 - n_7| \le 1$) atteignent un
+        taux de planarite de 25--43~\%, contre 0--7~\% quand l'ecart
+        depasse 1.
+  \item \textbf{Pentagones en bord.} Le taux de planarite chute de
+        59~\% (zero pentagone en bord) a 2~\% (cinq ou plus pentagones
+        en bord du squelette).
+\end{enumerate}
+
+L'objectif d'\texttt{experiments\_v2} est de \emph{traduire ces lois
+empiriques en contraintes CSP a priori}, pour generer directement des
+molecules de meilleure qualite plutot que de filtrer a posteriori.
+
+\section{Formalisation}
+
+Soit $G = (V,E)$ le squelette hexagonal d'une molecule cible, ou chaque
+sommet $v \in V$ represente un hexagone. La variable de decision
+$x_v \in \{5,6,7\}$ donne la taille du cycle assignee a $v$. Un sommet
+est qualifie \emph{de bord} (\texttt{boundary}) si son degre dans le
+graphe dual est strictement inferieur a 6 ; sinon il est interieur.
+Notons $B \subset V$ l'ensemble des sommets de bord.
+
+Les nouvelles contraintes ajoutees sont parametrees par des bornes
+entieres positives :
+
+\begin{align*}
+  \text{(C-SYM)} \quad & \left| \textstyle\sum_v \mathbf{1}[x_v=5] - \sum_v \mathbf{1}[x_v=7] \right| \le K_{\text{sym}} \\
+  \text{(C-PB)}  \quad & \sum_{v \in B} \mathbf{1}[x_v=5] \le K_{\text{pb}} \\
+  \text{(C-HB)}  \quad & \sum_{v \in B} \mathbf{1}[x_v=7] \le K_{\text{hb}}
+\end{align*}
+
+Ces trois contraintes sont injectees dans le modele PyCSP3 existant
+(\texttt{csp\_model.py}) en plus des contraintes geometriques deja
+presentes (frequences globales, adjacences 5--7 interdites, etc.). Le
+solveur ACE reste inchange.
+
+\section{Pipeline et infrastructure}
+
+L'arborescence \texttt{experiments\_v2/} duplique \texttt{experiments/}
+pour eviter toute regression sur le pipeline historique. Sept presets
+sont definis dans \texttt{configs.py} :
+\texttt{baseline\_v2}, \texttt{sym1} ($K_{\text{sym}}{=}1$),
+\texttt{pb2} ($K_{\text{pb}}{=}2$), \texttt{sym1\_pb2},
+\texttt{all\_strict} ($K_{\text{sym}}{=}0,\ K_{\text{pb}}{=}2,\ K_{\text{hb}}{=}3$),
+\texttt{pb1}, \texttt{pb0}.
+
+\paragraph{Mode DB-only.} Pour eviter les millions de fichiers \texttt{.xyz}
+sur le NFS, chaque worker ecrit directement une mini base SQLite
+(\texttt{worker\_dbs/<h>\_\_<config>\_\_<mol>.db}) contenant les
+geometries en \texttt{BLOB gzip}. Un script \texttt{finalize.py}
+fusionne ces bases en une seule \texttt{db\_v3.db} via
+\texttt{ATTACH DATABASE} et \texttt{INSERT OR REPLACE} (idempotent). La
+table \texttt{configs} est reconstruite globalement en post-merge.
+
+\paragraph{Deploiement cluster.} Le pipeline reutilise l'infrastructure
+SSH existante (\texttt{experiments/cluster/dispatcher.py}) en pointant
+sur \texttt{experiments\_v2/cluster/worker.py}. Les 16 machines du
+cluster COALA executent jusqu'a 20 jobs en parallele chacune. Toute
+l'orchestration (claims atomiques sur NFS, timeouts, recuperation)
+reste celle deja eprouvee.
+
+\section{Resultats}
+
+Les experimentations ont porte sur les graphes $h \in \{6,7,8,9\}$ de
+\texttt{benzdb}, avec les flags \texttt{no-freeze} et \texttt{no-table}
+actives (notre meilleur regime CSP de base). Le tableau 1 resume le
+taux de planarite et le volume de solutions planaires obtenu pour les
+trois contraintes \texttt{pb} testees sur tous les $h$.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+$h$ & \multicolumn{2}{c}{\texttt{pb2}} & \multicolumn{2}{c}{\texttt{pb1}} & \multicolumn{2}{c}{\texttt{pb0}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+    & \%plan & \#plans & \%plan & \#plans & \%plan & \#plans \\
+\midrule
+h6 & 68.5 & 2\,095   & \textbf{80.5} & 645    & --- (UNSAT) & 0 \\
+h7 & 53.6 & 10\,443  & \textbf{68.9} & 2\,418 & --- (UNSAT) & 0 \\
+h8 & 44.6 & 52\,799  & \textbf{61.7} & 9\,391 & --- (UNSAT) & 0 \\
+h9 & 23.0 & 305\,605 & \textbf{31.3} & 40\,852 & --- (UNSAT) & 0 \\
+\bottomrule
+\end{tabular}
+\caption{Taux de planarite et volume de solutions planaires par
+configuration et par $h$ (no-freeze, no-table).}
+\end{table}
+
+Pour $h = 7$ specifiquement, la comparaison croisee des 7 presets a
+egalement ete realisee :
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lrr}
+\toprule
+Configuration & \#sols total & \%plan \\
+\midrule
+\texttt{baseline\_v2}                       & 29\,663 & 50.5 \\
+\texttt{sym1}                                & 29\,663 & 50.5 \\
+\texttt{pb2} / \texttt{sym1\_pb2} / \texttt{all\_strict} & 19\,478 & 53.6 \\
+\texttt{pb1}                                 & 3\,510  & \textbf{68.9} \\
+\texttt{pb0}                                 & 0       & UNSAT \\
+\bottomrule
+\end{tabular}
+\caption{Croisement complet sur $h = 7$ (126 graphes).}
+\end{table}
+
+\section{Discussion}
+
+\paragraph{La symetrie 5/7 n'apporte rien dans ce regime.}
+Les configurations \texttt{baseline\_v2} et \texttt{sym1} donnent
+exactement les memes resultats sur $h = 7$ (29\,663 sols, 50.5~\%). Le
+filtrage CSP en amont (notamment via les flags no-freeze + no-table)
+produit deja des compositions globalement equilibrees en pentagones et
+heptagones ; le cap C-SYM est donc redondant. La loi empirique observee
+sur \texttt{db\_v2} reflete une correlation, pas une marge de
+manoeuvre exploitable a ce stade du pipeline.
+
+\paragraph{La contrainte pent-en-bord est le levier principal.}
+\texttt{pb1} domine systematiquement sur tous les $h$, avec un gain de
++8 a +17 points de taux de planarite par rapport a \texttt{pb2}. Le
+choix $K_{\text{pb}} = 1$ s'avere optimal : \texttt{pb2} (laxiste) ne
+filtre pas assez, \texttt{pb0} (strict) rend le probleme insatisfiable
+sur tous les $h$ testes.
+
+\paragraph{Trade-off volume / qualite.}
+\texttt{pb1} divise environ par 7 le nombre absolu de solutions
+generees par rapport a \texttt{pb2}, mais multiplie le taux de
+planarite par 1.3--1.5. Pour un usage aval avec validation manuelle, le
+ratio signal/bruit de \texttt{pb1} est nettement preferable. Le volume
+total de plans pb1 sur $h \in \{6,...,9\}$ reste de l'ordre de
+53\,000 molecules, largement suffisant pour la suite.
+
+\paragraph{Decroissance avec $h$.}
+Le taux pb1 passe de 80.5~\% ($h{=}6$) a 31.3~\% ($h{=}9$). Au-dela de
+l'effet combinatoire bord/interieur, des facteurs purement geometriques
+(courbure cumulee, frustration sterique) prennent le pas pour les
+grosses molecules. La contrainte structurelle seule ne suffit plus a
+elle seule a ces tailles ; une iteration future pourrait combiner C-PB
+avec un critere geometrique a priori (par exemple sur la distribution
+des angles dieder).
+
+\section{Conclusion}
+
+L'experimentation valide quantitativement la deuxieme loi empirique
+identifiee par le data mining : le nombre de pentagones en bord est un
+predicteur causal du taux de planarite, et le serrer en amont via une
+contrainte CSP ($K_{\text{pb}} = 1$) ameliore directement la qualite
+des molecules generees, sans degrader le volume au point de le rendre
+inexploitable. La premiere loi (symetrie 5/7) s'avere en revanche non
+actionnable a ce stade du pipeline : elle est deja satisfaite par les
+contraintes existantes.
+
+Le pipeline DB-only complet (worker DB SQLite + merge idempotent)
+fonctionne sans erreur sur les 16 noeuds du cluster (0 echec sur
+8\,514 jobs en production), et constitue une base reutilisable pour
+les iterations suivantes.
+
+\end{document}
