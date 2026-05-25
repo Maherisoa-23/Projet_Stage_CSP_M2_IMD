@@ -58,6 +58,14 @@ CONFIGS = {
         "K_hb": None,
         "K_tot": None,
     },
+    "pb1_adj57": {
+        # Meme K_pb=1 que pb1 ; le drapeau adj-57 est passe via --extra-flag
+        # (le label different sert juste a separer ces resultats dans la DB).
+        "K_sym": None,
+        "K_pb": 1,
+        "K_hb": None,
+        "K_tot": None,
+    },
 }
 
 

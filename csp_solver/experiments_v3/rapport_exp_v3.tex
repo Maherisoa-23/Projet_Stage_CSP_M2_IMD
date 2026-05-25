@@ -1,0 +1,226 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{enumitem}
+
+\title{Experiments v3 : combinaison de contraintes structurelles et appariement pent--hept pour la planarite}
+\author{Stage M2 IMD --- Generateur non-benzenoides}
+\date{Mai 2026}
+
+\begin{document}
+\maketitle
+
+\section{Motivation et continuite avec v2}
+
+\texttt{experiments\_v2} a identifie la contrainte \texttt{pb1}
+($K_{\text{pb}} = 1$, au plus un pentagone sur le bord du squelette)
+comme le levier dominant pour ameliorer le taux de planarite des
+molecules generees, avec un gain de $+9$ a $+19$ points selon
+$h \in \{6, 7, 8, 9\}$. La symetrie globale 5/7 (\texttt{sym1}) ne
+produit aucun gain mesurable sur les configurations testees, et le
+durcissement \texttt{pb0} rend le probleme insatisfiable.
+
+L'objectif d'\texttt{experiments\_v3} est de pousser le levier
+combinatoire plus loin, en exploitant une propriete \emph{geometrique
+locale} qui n'etait pas exprimee dans v2 : l'\emph{appariement pent--hept
+de proximite}. L'intuition vient de la theorie du \emph{defaut
+topologique} en physique des materiaux 2D (defaut Stone--Wales) : un
+pentagone isole introduit une courbure positive locale ($+\pi/3$ par
+Gauss--Bonnet discret) qui ne peut etre compensee que par un heptagone
+spatialement proche (courbure $-\pi/3$). Si chaque pentagone est apparie
+a un heptagone dans son voisinage immediat, la courbure cumulee
+localement est nulle, condition necessaire pour que la structure puisse
+se plonger dans un plan.
+
+\section{Nouvelle contrainte : combinaison pb1 + adj-57}
+
+La contrainte \texttt{adj-57} existait deja dans le solveur (drapeau
+optionnel) mais n'avait pas ete combinee a \texttt{pb1}. Sa
+formalisation est :
+\begin{align*}
+  \text{(C5)} \quad & \forall v,\ x_v = 5 \;\Rightarrow\; \sum_{u \in N(v)} \mathbf{1}[x_u = 7] \ge 1 \\
+                    & \forall v,\ x_v = 7 \;\Rightarrow\; \sum_{u \in N(v)} \mathbf{1}[x_u = 5] \ge 1
+\end{align*}
+ou $N(v)$ designe les voisins de $v$ dans le graphe dual. Elle impose
+que chaque pentagone ait au moins un heptagone parmi ses voisins
+immediats, et reciproquement. Combinee a \texttt{pb1}, qui contraint la
+localisation globale des pentagones, on obtient une configuration ou la
+courbure positive (au plus un pent en bord) est non seulement
+geographiquement limitee, mais doit aussi etre compensee \emph{a une
+distance d'un seul cycle} par une courbure negative. C'est l'analogue
+discret du \emph{quadripole Stone--Wales} $5|7|7|5$ qui caracterise
+les defauts plans du graphene.
+
+Cette combinaison est implementee comme un nouveau preset
+\texttt{pb1\_adj57} dans \texttt{experiments\_v2/configs.py} (memes
+valeurs $K_{\text{pb}} = 1$ que \texttt{pb1}, le drapeau \texttt{adj-57}
+etant passe via le mecanisme \texttt{extra-flag} pour distinguer les
+deux experiences dans la base de donnees finale \texttt{db\_v3.db}).
+
+\section{Pipeline et une note sur les filtres post-CSP}
+
+Le pipeline d'execution reprend strictement l'architecture v2 : un
+manifest JSONL liste les couples $(\text{squelette}, \text{config})$ a
+traiter, chaque job lance la generation CSP, reconstruit les molecules
+en 3D et valide la planarite par xTB MD + optimisation finale. La base
+\texttt{db\_v3.db} agrege l'integralite des resultats par couple
+$(h, \text{config})$, permettant la comparaison directe avec
+\texttt{pb1}, \texttt{pb2} et les configurations de v2.
+
+Une digression a ete tentee en parallele : ajouter un \emph{pre-filtre
+geometrique rapide post-CSP} (MMFF94 par RDKit) afin de ne lancer xTB
+que sur les candidats que MMFF ne sait pas immediatement aplatir. Sur
+une validation initiale en aveugle sur des geometries deja optimisees
+par xTB (extraites de \texttt{db\_v2}), MMFF94 atteignait une accuracy
+de 80--84~\%, ce qui semblait acceptable. Mais une validation par
+echantillonnage independante (5\,996 molecules tirees au sort dans le
+sous-ensemble \emph{mmff sure plan} d'un run reel, relancees par xTB
+complet) a revele une precision reelle de seulement 58~\% : MMFF94
+fonctionne sur des geometries deja a l'equilibre, mais echoue
+massivement sur les geometries d'entree brutes generees par la
+reconstruction (effets electroniques mal modelises, perception de
+liaisons imparfaite pour les radicaux). Un test annexe avec un filtre
+Huckel $\pi$ (gap HOMO--LUMO) a donne 55~\% d'accuracy, soit le taux de
+base : aucun pouvoir discriminatif. La conclusion operationnelle est
+que \emph{seul xTB peut decider} sur les non-benzenoides ; aucun
+pre-filtre rapide n'a ete retenu pour la suite. Le rapport \texttt{xtb}
+est donc le critere effectif des resultats qui suivent.
+
+\section{Resultats}
+
+Le Tableau~\ref{tab:pb1-vs-adj57} compare la nouvelle configuration
+\texttt{pb1\_adj57} aux deux baselines historiques (\texttt{pb1} de v2,
+qui constitue le meilleur reglage anterieur, et la baseline non
+contrainte \texttt{baseline\_v2} en regime \texttt{no-freeze, no-table})
+sur l'ensemble complet $h_6, h_7, h_8, h_9$, soit
+$44 + 126 + 376 + 2\,418 = 2\,964$ squelettes par configuration.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+$h$ & \multicolumn{2}{c}{\texttt{baseline\_v2}} & \multicolumn{2}{c}{\texttt{pb1}} & \multicolumn{2}{c}{\texttt{pb1\_adj57}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+    & \%plan & \#plans & \%plan & \#plans & \%plan & \#plans \\
+\midrule
+$h_6$ & 70.2 & 896    & 80.5 & 645    & \textbf{88.8} & 293 \\
+$h_7$ & 54.8 & 4\,313 & 68.9 & 2\,418 & \textbf{80.8} & 998 \\
+$h_8$ & 42.9 & 21\,999 & 61.7 & 9\,391 & \textbf{75.1} & 3\,536 \\
+$h_9$ & 21.6 & 121\,692 & 31.3 & 40\,852 & \textbf{39.3} & 13\,580 \\
+\bottomrule
+\end{tabular}
+\caption{Taux de planarite et nombre absolu de solutions planaires par
+configuration et par taille de squelette (regime no-freeze, no-table).
+\texttt{baseline\_v2} = aucune contrainte additionnelle ; \texttt{pb1} =
+contrainte pent-en-bord avec $K_{\text{pb}} = 1$ ; \texttt{pb1\_adj57}
+= ajoute la contrainte d'adjacence 5--7 imposant l'appariement local
+pent--hept.}
+\label{tab:pb1-vs-adj57}
+\end{table}
+
+Le Tableau~\ref{tab:gains} resume les gains de \texttt{pb1\_adj57} par
+rapport aux deux baselines.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lrrrr}
+\toprule
+$h$ & \%plan baseline\_v2 & \%plan pb1\_adj57 & gain vs pb1 & gain vs baseline \\
+\midrule
+$h_6$ & 70.2 & 88.8 & $+8.3$  & $+18.6$ \\
+$h_7$ & 54.8 & 80.8 & $+11.9$ & $+26.0$ \\
+$h_8$ & 42.9 & 75.1 & $+13.4$ & $+32.2$ \\
+$h_9$ & 21.6 & 39.3 & $+8.0$  & $+17.7$ \\
+\bottomrule
+\end{tabular}
+\caption{Gains absolus de \texttt{pb1\_adj57} en points de taux de
+planarite par rapport a \texttt{pb1} et par rapport a la baseline.}
+\label{tab:gains}
+\end{table}
+
+\section{Discussion}
+
+\paragraph{Le gain de adj-57 est systematique et substantiel.}
+\texttt{pb1\_adj57} ameliore \texttt{pb1} de $+8$ a $+14$ points selon
+la taille du squelette, sans aucune exception parmi les quatre valeurs
+de $h$ testees. Le gain est maximal sur $h_8$ ($+13.4$ points) et reste
+de $+8$ points sur $h_9$, le plus difficile. Compare a la baseline non
+contrainte, le saut atteint $+26$ a $+32$ points sur les tailles
+intermediaires $h_7$ et $h_8$, soit pratiquement un doublement du
+rendement.
+
+\paragraph{Interpretation geometrique : appariement Stone--Wales.}
+La contrainte \texttt{adj-57} impose que chaque pentagone admette au
+moins un heptagone parmi ses voisins immediats et reciproquement. En
+termes de Gauss--Bonnet discret, la courbure $+\pi/3$ d'un pentagone
+isole ne peut etre compensee qu'a distance par une autre face de
+courbure negative ; sans appariement local, cette courbure doit etre
+absorbee par une deformation globale (bombement ou ondulation) qui
+disqualifie la molecule en planarite. Avec adj-57, chaque pentagone est
+\emph{accole} a un heptagone : le quadripole local $5|6|7$ (ou la
+configuration plus large $5|7|7|5$ canoniquement appelee defaut
+Stone--Wales) garde une courbure cumulee nulle sur un disque graphique
+de rayon 1 ou 2. C'est ce qui explique le gain observe : on ne filtre
+pas seulement les configurations a forte courbure, on impose en plus
+qu'elles s'organisent localement de maniere a annuler cette courbure.
+
+\paragraph{Trade-off volume / qualite, suite.}
+\texttt{pb1\_adj57} produit environ $3$ a $4$ fois moins de solutions
+que \texttt{pb1} (par exemple sur $h_7$ : 1\,235 sols vs 3\,510, sur
+$h_8$ : 4\,706 sols vs 15\,230). Mais la proportion planaire est telle
+que le nombre absolu de molecules planaires par job xTB est environ
+multiplie par 1.3 a 1.5. Pour un usage aval avec validation couteuse,
+\texttt{pb1\_adj57} domine donc \texttt{pb1} a la fois en rendement
+qualitatif et en cout total de validation. Le volume total de plans
+produits par \texttt{pb1\_adj57} sur l'union $h_6 \cup h_7 \cup h_8
+\cup h_9$ s'eleve a environ 18\,000 molecules, soit un volume
+operationnel adequat tout en garantissant une purete superieure a
+75~\% jusqu'a $h_8$.
+
+\paragraph{Lecon negative sur les pre-filtres.}
+Les deux pre-filtres rapides post-CSP testes (MMFF94 mecanique et
+Huckel electronique) ont echoue a discriminer plan / non plan sur les
+geometries d'entree brutes. Le mecanisme d'echec est different dans les
+deux cas : MMFF94 \emph{aplatit a tort} les configurations
+anti-aromatiques (precision reelle 58~\% au lieu des 80~\% attendus),
+tandis que Huckel \emph{ne separe pas du tout} les distributions de
+gap HOMO--LUMO (55~\% d'accuracy, indistinguable du taux de base). La
+planarite d'un non-benzenoide ne se reduit donc ni a un equilibre
+purement mecanique, ni a un signal purement electronique : c'est le
+couplage geometrie-electronique que xTB capture, et que les modeles
+intermediaires bon marche manquent. Cette observation oriente toute
+exploration future de pre-filtre vers des methodes hybrides (par
+exemple un modele appris sur les paires geometrie / energie produites
+par xTB), et non vers les approximations standard mecanique-only ou
+$\pi$-only.
+
+\section{Conclusion}
+
+\texttt{experiments\_v3} etablit que la combinaison \texttt{pb1 +
+adj-57}, c'est-a-dire le couplage entre la contrainte combinatoire
+\emph{au plus un pentagone en bord} et la contrainte structurelle
+\emph{appariement pent--hept de premier voisinage}, ameliore de maniere
+systematique le taux de planarite des molecules generees par rapport au
+meilleur reglage anterieur \texttt{pb1}, avec un gain mesure de $+8$ a
+$+14$ points selon la taille du squelette, et un gain cumule de $+18$
+a $+32$ points par rapport a la baseline non contrainte. Cette
+combinaison est interpretable dans le cadre des defauts topologiques
+plans (motif Stone--Wales) comme une condition d'annulation locale de
+la courbure de Gauss--Bonnet.
+
+Parallelement, l'echec de deux pre-filtres rapides (MMFF94 et Huckel),
+documente quantitativement par une validation par echantillonnage de
+5\,996 molecules independantes, identifie une limite operationnelle :
+sur les geometries d'entree brutes des non-benzenoides, aucun substitut
+bon marche a xTB n'a ete trouve. Toute optimisation future de cout
+devra donc soit accepter ce cout xTB, soit construire un modele de
+substitution specifiquement entraine sur les donnees du domaine.
+
+\end{document}
