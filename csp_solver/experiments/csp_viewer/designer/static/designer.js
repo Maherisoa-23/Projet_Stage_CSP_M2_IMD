@@ -575,7 +575,13 @@
   function renderConfigPanel() {
     const panel = document.getElementById("config-panel");
     panel.innerHTML = "";
+    // Si un preset != "custom" est actif, on masque les toggles marques
+    // csp_constraint (ils sont alors imposes par le preset).
+    const presetActive = configState.preset && configState.preset !== "custom";
     for (const c of configSchema) {
+      if (c.csp_constraint && presetActive) {
+        continue;  // masque les contraintes CSP individuelles
+      }
       const row = document.createElement("div");
       row.className = "dz-config-row";
 
@@ -614,8 +620,16 @@
           if (opt.value === configState[c.key]) o.selected = true;
           input.appendChild(o);
         }
+        // Capture la cle pour la closure (sinon 'c' est partage par toutes
+        // les iterations).
+        const ck = c.key;
         input.addEventListener("change", () => {
-          configState[c.key] = input.value;
+          configState[ck] = input.value;
+          // Le changement de preset peut masquer/afficher des toggles
+          // marques csp_constraint : on re-rend le panneau.
+          if (ck === "preset") {
+            renderConfigPanel();
+          }
         });
         label.style.flexDirection = "column";
         label.style.alignItems = "flex-start";

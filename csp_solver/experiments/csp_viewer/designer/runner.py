@@ -230,9 +230,43 @@ _STAGE_MARKERS = [
 ]
 
 
+def _resolve_preset_flags(config: Dict) -> Dict:
+    """Transforme un preset (config['preset']) en flags concrets.
+
+    Si preset == 'custom' (ou absent), garde les toggles individuels
+    fournis dans config. Sinon, REMPLACE les flags CSP (adj_57, K_sym,
+    K_pb, K_hb, K_tot) par ceux du preset.
+
+    Returns:
+        Un nouveau dict de config avec les flags resolus. Les options
+        orthogonales au CSP (validate, no_freeze, no_table, method,
+        n_runs, count_hexagon) sont preservees telles quelles.
+    """
+    # Import differe pour eviter le couplage circulaire
+    try:
+        from .api import CSP_PRESETS
+    except ImportError:
+        from csp_solver.experiments.csp_viewer.designer.api import CSP_PRESETS
+
+    preset_key = (config.get("preset") or "custom").lower()
+    if preset_key not in CSP_PRESETS:
+        preset_key = "custom"
+
+    resolved = dict(config)  # copie
+    if preset_key == "custom":
+        return resolved
+
+    # Mode preset : on efface les overrides CSP individuels, puis on injecte
+    for csp_flag in ("adj_57", "K_sym", "K_pb", "K_hb", "K_tot"):
+        resolved.pop(csp_flag, None)
+    resolved.update(CSP_PRESETS[preset_key]["flags"])
+    return resolved
+
+
 def _build_command(python_exe: str, main_py: Path, graph_path: Path,
                    output_dir: Path, config: Dict) -> list:
     """Construit la commande subprocess depuis le dict de config."""
+    config = _resolve_preset_flags(config)
     cmd = [python_exe, str(main_py), str(graph_path)]
     if config.get("validate", True):
         cmd.append("--validate")
@@ -244,6 +278,15 @@ def _build_command(python_exe: str, main_py: Path, graph_path: Path,
         cmd.append("--adj-57")
     if config.get("count_hexagon"):
         cmd.append("--count-hexagon")
+    # Nouveaux flags CSP issus des presets v2/v3
+    if config.get("K_sym") is not None:
+        cmd.extend(["--sym", str(int(config["K_sym"]))])
+    if config.get("K_pb") is not None:
+        cmd.extend(["--pb", str(int(config["K_pb"]))])
+    if config.get("K_hb") is not None:
+        cmd.extend(["--hb", str(int(config["K_hb"]))])
+    if config.get("K_tot") is not None:
+        cmd.extend(["--tot", str(int(config["K_tot"]))])
     cmd.extend(["--output-dir", str(output_dir)])
     n_runs = config.get("n_runs")
     if n_runs and int(n_runs) > 1:

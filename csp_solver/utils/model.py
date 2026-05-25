@@ -28,7 +28,8 @@ def _find_ace_jar():
 
 
 def build_and_solve(graph, preprocessed, enumerate_all=True,
-                    adj_57=False, no_table=False, count_hexagon=False):
+                    adj_57=False, no_table=False, count_hexagon=False,
+                    K_sym=None, K_pb=None, K_hb=None, K_tot=None):
     """Construit le modele CSP, genere le XML, et appelle ACE.
 
     Args:
@@ -43,6 +44,10 @@ def build_and_solve(graph, preprocessed, enumerate_all=True,
             d'enumerer les substitutions non-benzenoides. Le benzenoide
             d'origine reste teste separement par test.py (champ "original"
             du data.json).
+        K_sym: si non-None, contrainte C-SYM |n_pent - n_hept| <= K_sym
+        K_pb : si non-None, contrainte C-PB nb_pent_au_bord <= K_pb
+        K_hb : si non-None, contrainte C-HB nb_hept_au_bord <= K_hb
+        K_tot: si non-None, contrainte C-TOT nb_pent + nb_hept <= K_tot
 
     Returns:
         Liste de solutions, chaque solution est un dict {v: taille}
@@ -93,6 +98,29 @@ def build_and_solve(graph, preprocessed, enumerate_all=True,
                 satisfy(
                     If(x[v] == 7, Then=Sum(x[u] == 5 for u in neighbors_v) >= 1)
                 )
+
+    # --- Contraintes additionnelles (issues d'experiments_v2/v3) ---
+    # Sommets de bord = sommets de degre dual < 6 (non entoures par 6 voisins)
+    boundary = sorted(v for v in range(h) if graph.degree(v) < 6)
+
+    if K_sym is not None and K_sym >= 0:
+        # |n_pent - n_hept| <= K_sym
+        n_pent_global = Sum(x[v] == 5 for v in range(h))
+        n_hept_global = Sum(x[v] == 7 for v in range(h))
+        satisfy(n_pent_global - n_hept_global <= K_sym)
+        satisfy(n_hept_global - n_pent_global <= K_sym)
+
+    if K_pb is not None and boundary:
+        # nb_pent_au_bord <= K_pb
+        satisfy(Sum(x[v] == 5 for v in boundary) <= K_pb)
+
+    if K_hb is not None and boundary:
+        # nb_hept_au_bord <= K_hb
+        satisfy(Sum(x[v] == 7 for v in boundary) <= K_hb)
+
+    if K_tot is not None:
+        # nb_pent + nb_hept <= K_tot (= au moins (h - K_tot) hexagones)
+        satisfy(Sum(x[v] != 6 for v in range(h)) <= K_tot)
 
     # --- Generer le XML ---
     xml_path = str(Path.cwd() / "model.xml")

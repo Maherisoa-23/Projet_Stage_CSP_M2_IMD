@@ -38,10 +38,72 @@ bp = Blueprint(
 #  Options CSP exposees au frontend
 # =====================================================================
 
+# =====================================================================
+#  Presets CSP (depuis experiments_v3 -- rapport_exp_v3.tex)
+# =====================================================================
+# Chaque preset = un ensemble de flags additionnels. Le runner les
+# traduit en arguments de ligne de commande. Le preset "custom" laisse
+# l'utilisateur configurer manuellement les toggles individuels.
+#
+# Les presets non-custom IGNORENT les toggles individuels CSP (adj_57,
+# K_pb, etc.) ; seuls validate/no_freeze/no_table/method/n_runs restent
+# pris en compte.
+CSP_PRESETS = {
+    "custom": {
+        "label": "Custom (configurer manuellement)",
+        "flags": {},
+        "help": "Utiliser les toggles individuels ci-dessous.",
+    },
+    "baseline": {
+        "label": "Baseline (aucune contrainte)",
+        "flags": {},  # aucun flag CSP additionnel
+        "help": "Aucune contrainte additionnelle. Reference pour comparaison.",
+    },
+    "pb1": {
+        "label": "pb1 (au plus 1 pent en bord)",
+        "flags": {"K_pb": 1},
+        "help": "Cap C-PB=1 : au plus un pentagone au bord du squelette. "
+                "+9 a +19 pts de taux de planarite vs baseline.",
+    },
+    "pb1_adj57": {
+        "label": "pb1 + adj-57 (recommande)",
+        "flags": {"K_pb": 1, "adj_57": True},
+        "help": "Combinaison gagnante de v3 : pb1 + adjacence 5-7. "
+                "+17 a +32 pts vs baseline (motif Stone-Wales).",
+    },
+    "sym1": {
+        "label": "sym1 (equilibre 5/7)",
+        "flags": {"K_sym": 1},
+        "help": "|n_pent - n_hept| <= 1. Effet marginal en pratique.",
+    },
+    "sym1_pb2": {
+        "label": "sym1 + pb2",
+        "flags": {"K_sym": 1, "K_pb": 2},
+        "help": "Symetrie + cap pent en bord moyen.",
+    },
+    "all_strict": {
+        "label": "all_strict (sym=0, pb=2, hb=3)",
+        "flags": {"K_sym": 0, "K_pb": 2, "K_hb": 3},
+        "help": "Equilibre strict + caps bord. Plus restrictif.",
+    },
+}
+
+
 # Liste declarative des configs CSP disponibles. Le frontend lit ce JSON
 # pour construire dynamiquement le panneau de configuration. Ajouter une
 # option = ajouter une entree ici (puis l'utiliser dans runner._build_command).
 CSP_CONFIGS = [
+    {
+        "key": "preset", "type": "select", "default": "pb1_adj57",
+        "options": [
+            {"value": k, "label": v["label"], "help": v["help"]}
+            for k, v in CSP_PRESETS.items()
+        ],
+        "label": "Preset CSP",
+        "help": "Choisit un ensemble de contraintes. Les toggles "
+                "individuels CSP (adj-57, etc.) sont ignores sauf en mode "
+                "'Custom'. Recommande : pb1 + adj-57.",
+    },
     {
         "key": "validate", "type": "bool", "default": True,
         "label": "Validation xTB (MD + opt)",
@@ -69,6 +131,7 @@ CSP_CONFIGS = [
         "help": "Si active, chaque pentagone doit avoir au moins un voisin "
                 "heptagone (et inversement). Favorise les motifs azuleniques, "
                 "suspectes plus stables chimiquement.",
+        "csp_constraint": True,  # masque quand un preset != custom est actif
     },
     {
         "key": "count_hexagon", "type": "bool", "default": False,

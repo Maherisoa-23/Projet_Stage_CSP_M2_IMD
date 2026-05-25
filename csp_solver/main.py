@@ -59,6 +59,26 @@ if "--method" in _own_argv:
 # (plus rapide mais runs non-reproductibles -- xTB n'a pas de seed pour MD).
 md_deterministic = "--md-no-deterministic" not in _own_argv
 
+
+# --- Contraintes additionnelles (issues d'experiments_v2/v3) ---
+# Toutes optionnelles : None = desactivees.
+def _parse_int_arg(flag_name):
+    """Renvoie int(value) du flag, ou None s'il n'est pas present."""
+    if flag_name not in _own_argv:
+        return None
+    idx = _own_argv.index(flag_name)
+    if idx + 1 >= len(_own_argv):
+        return None
+    try:
+        return int(_own_argv[idx + 1])
+    except ValueError:
+        return None
+
+K_sym = _parse_int_arg("--sym")   # |n_pent - n_hept| <= K_sym
+K_pb  = _parse_int_arg("--pb")    # nb_pent_au_bord <= K_pb
+K_hb  = _parse_int_arg("--hb")    # nb_hept_au_bord <= K_hb
+K_tot = _parse_int_arg("--tot")   # nb_pent + nb_hept <= K_tot
+
 # Nettoyer sys.argv pour que pycsp3 ne les intercepte pas
 sys.argv = [_own_argv[0]]
 
@@ -79,6 +99,10 @@ def main():
         print("  --no-freeze   : desactiver la contrainte des hexagones geles (b(v)>=2)")
         print("  --no-table    : desactiver la contrainte de table de voisinage (C3)")
         print("  --adj-57      : activer la contrainte d'adjacence 5-7 (C5)")
+        print("  --sym K       : limite |n_pent - n_hept| <= K (C-SYM, v2)")
+        print("  --pb K        : limite nb pent en bord <= K (C-PB, v2)")
+        print("  --hb K        : limite nb hept en bord <= K (C-HB, v2)")
+        print("  --tot K       : limite nb pent + nb hept <= K (C-TOT, v2)")
         print("  --n-runs N    : nombre d'optimisations xTB par solution (defaut 1)")
         print("  --method M    : strategy de validation (defaut 'multi-runs')")
         print("                  voir utils/validation/ pour les strategies disponibles")
@@ -126,9 +150,17 @@ def main():
         print("  Solution tout-hexagones : INCLUSE (--count-hexagon)")
     else:
         print("  Solution tout-hexagones : EXCLUE (defaut)")
+    extras = []
+    if K_sym is not None: extras.append(f"sym={K_sym}")
+    if K_pb  is not None: extras.append(f"pb={K_pb}")
+    if K_hb  is not None: extras.append(f"hb={K_hb}")
+    if K_tot is not None: extras.append(f"tot={K_tot}")
+    if extras:
+        print(f"  Contraintes additionnelles : {' '.join(extras)}")
     solutions = build_and_solve(graph, preprocessed, enumerate_all=enumerate_all,
                                 adj_57=adj_57, no_table=no_table,
-                                count_hexagon=count_hexagon)
+                                count_hexagon=count_hexagon,
+                                K_sym=K_sym, K_pb=K_pb, K_hb=K_hb, K_tot=K_tot)
 
     if not solutions:
         print("Aucune solution trouvee.")
