@@ -16,6 +16,9 @@ __pycache__/
 *.pyc
 csp_solver/experiments/h9_viewer/h9.db
 
+
+REORGANIZATION_PLAN.md
+
 # SQLite databases du viewer (regenerables via build_db.py)
 *.db
 *.db-shm
