@@ -16,7 +16,8 @@ __pycache__/
 *.pyc
 csp_solver/experiments/h9_viewer/h9.db
 
-
+docs/
+divers/
 REORGANIZATION_PLAN.md
 
 # SQLite databases du viewer (regenerables via build_db.py)
@@ -36,3 +37,16 @@ VISUALISATION_3D.md
 # Dossier tmp/ : scripts temporaires et fichiers intermediaires (rebuild DB,
 # count cluster, sync checks, etc.). Tout ce qui est jetable apres run.
 tmp/
+
+# === Nouvelle structure experiments/ (apres reorg mai 2026) ===
+# Inputs lourds et sorties regenerables : hors-git.
+experiments/v1/plane/
+experiments/v1/experiments_bundle.zip
+experiments/**/output/
+experiments/**/_runs/
+experiments/**/_results/
+experiments/**/_run_v2/
+experiments/**/_ev2_run/
+experiments/**/_ev3_run/
+experiments/**/_ev3_val/
+experiments/viewer/missing_export/
