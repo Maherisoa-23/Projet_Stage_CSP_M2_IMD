@@ -50,3 +50,7 @@ experiments/**/_ev3_run/
 experiments/**/_ev3_val/
 experiments/viewer/missing_export/
 viewer/
+
+# Docs recuperes du commit a67f065^ (rapport de stage + notes chimie + tex).
+# Volontairement hors-git : archive locale de reference.
+doc from commit/
