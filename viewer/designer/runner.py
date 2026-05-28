@@ -41,61 +41,45 @@ PLANARITY_THRESHOLD_DEG = 10.0
 
 
 def _setup_imports(project_root: Path) -> Dict:
-    """Configure sys.path pour faire cohabiter csp_solver/utils/ et
-    non_benzenoid_generator/utils/ (collision sur le nom 'utils').
+    """Resout les modules csp_solver utilises par les helpers du runner.
 
-    Cf csp_solver/test.py qui fait la meme danse. Cle :
-      1. Charger non_benzenoid_generator/utils/planarity.py via importlib
-         sous le nom 'gen_planarity' (evite le nom 'utils' tout court).
-      2. csp_root au tout debut de sys.path -> importer utils.parser,
-         reconstruction.*, core.optimizer. A ce moment, Python cache
-         'utils' comme csp_solver/utils/ (puisqu'on l'a trouve en premier).
-      3. Repropager gen_root devant pour les imports TARDIFS faits par
-         reconstruct_molecule (valence_solver fait 'from config import
-         BOND_LENGTH_CH' qui doit pointer vers non_benzenoid_generator/config.py).
+    Depuis le refactor Option C (mai 2026), tout le code de reconstruction,
+    optimisation xTB et planarite vit dans csp_solver/. Plus de collision
+    avec non_benzenoid_generator/ (archive dans divers/_old_nbg/).
 
-    Retourne un dict avec les fonctions deja resolues, evitant de redoer
-    la danse a chaque appel. Idempotent (cache via attribut de fonction).
+    On ajoute :
+      - csp_solver/ au path pour 'utils.X' / 'reconstruction.X'
+      - le parent du projet pour 'csp_solver.X' (utilise par les
+        sous-modules : reconstruction/pipeline.py importe
+        csp_solver.xtb.md, etc.)
+
+    Cache idempotent via attribut de fonction.
     """
     if getattr(_setup_imports, "_done", False):
         return _setup_imports._cache
 
+    csp_parent = str(project_root)
     csp_root = str(project_root / "csp_solver")
-    gen_root = str(project_root / "non_benzenoid_generator")
-
-    # 1) Charger planarity via importlib sous un nom unique (jamais 'utils.*')
-    import importlib.util
-    plan_spec = importlib.util.spec_from_file_location(
-        "gen_planarity",
-        str(project_root / "non_benzenoid_generator" / "utils" / "planarity.py"))
-    plan_mod = importlib.util.module_from_spec(plan_spec)
-    plan_spec.loader.exec_module(plan_mod)
-
-    # 2) csp_root avant gen_root pour que 'utils.parser' resolve csp_solver/utils
-    for p in (csp_root, gen_root):
+    for p in (csp_parent, csp_root):
         if p in sys.path:
             sys.path.remove(p)
-    sys.path.insert(0, gen_root)    # gen_root pos 1 (apres csp_root insert)
-    sys.path.insert(0, csp_root)    # csp_root pos 0 -> 'utils' = csp_solver/utils
+    sys.path.insert(0, csp_root)
+    sys.path.insert(0, csp_parent)
 
     import importlib
     mod_parser = importlib.import_module("utils.parser")
     mod_pipeline = importlib.import_module("reconstruction.pipeline")
     mod_assembler = importlib.import_module("reconstruction.assembler")
-    mod_core_opt = importlib.import_module("core.optimizer")
-
-    # 3) Re-prioriser gen_root pour les imports TARDIFS faits par valence_solver
-    #    (cf csp_solver/test.py meme strategie).
-    sys.path.remove(gen_root)
-    sys.path.insert(0, gen_root)
+    mod_xtb_opt = importlib.import_module("csp_solver.xtb.optimizer")
+    mod_planarity = importlib.import_module("csp_solver.planarity.pca")
 
     cache = {
-        "plan_mod": plan_mod,
+        "plan_mod": mod_planarity,
         "parse": mod_parser.parse,
         "reconstruct_molecule": mod_pipeline.reconstruct_molecule,
         "export_xyz": mod_assembler.export_xyz,
-        "optimize_xtb": mod_core_opt.optimize_xtb,
-        "read_optimized_coords": mod_core_opt.read_optimized_coords,
+        "optimize_xtb": mod_xtb_opt.optimize_xtb,
+        "read_optimized_coords": mod_xtb_opt.read_optimized_coords,
     }
     _setup_imports._done = True
     _setup_imports._cache = cache

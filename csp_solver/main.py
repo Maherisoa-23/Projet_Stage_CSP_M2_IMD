@@ -116,8 +116,12 @@ if preset_name:
 # Nettoyer sys.argv pour que pycsp3 ne les intercepte pas
 sys.argv = [_own_argv[0]]
 
-# Ajouter le dossier csp_solver/ au path pour les imports
-sys.path.insert(0, str(Path(__file__).parent))
+# Ajouter le dossier csp_solver/ au path (pour 'from utils.X import Y')
+# ET son parent (pour 'from csp_solver.X import Y' utilise dans les
+# sous-modules reconstruction/, utils/validate.py, etc.)
+_HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE.parent))
+sys.path.insert(0, str(_HERE))
 
 from utils.parser import parse
 from utils.preprocessing import preprocess

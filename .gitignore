@@ -50,3 +50,4 @@ experiments/**/_ev2_run/
 experiments/**/_ev3_run/
 experiments/**/_ev3_val/
 experiments/viewer/missing_export/
+viewer/
