@@ -80,73 +80,132 @@ def compute_domains(graph: BenzenoidGraph, freeze_b2: bool = True) -> dict:
     return domains
 
 
+def _ring_of_vertex(graph: BenzenoidGraph, v: int) -> list:
+    """Construit le 'ring' du sommet v : une liste de longueur 6 (= nb de
+    cotes de l'hexagone) ou ring[p] vaut l'index du voisin partageant le
+    cote p, ou None si le cote p est libre.
+
+    L'ordre des positions est celui de graph.patterns[v] (et de
+    graph.edge_positions, qui donne pour chaque arete duale (v,u) la
+    position du cote dans v)."""
+    n_sides = len(graph.patterns[v])
+    ring = [None] * n_sides
+    for u in graph.neighbors(v):
+        pos = graph.edge_positions[(v, u)][0]
+        ring[pos] = u
+    return ring
+
+
+def _realize_ring(ring: list, target_n: int) -> list:
+    """Genere les realisations topologiques du ring en taille target_n.
+
+    Seuls les COTES LIBRES (None) bougent ; les voisins gardent leur
+    disposition relative (c'est exactement ce que fait la reconstruction
+    geometrique en contractant/expansant) :
+
+      - target_n == len(ring)      : ring inchange (hexagone reste hexagone).
+      - target_n == len(ring) - 1  : contraction (-> pentagone). On fusionne
+        deux cotes libres ADJACENTS (cycliques) en un seul = suppression d'un
+        sommet interieur libre. Plusieurs realisations si plusieurs paires.
+      - target_n == len(ring) + 1  : expansion (-> heptagone). On dedouble un
+        cote libre = insertion d'un sommet. Plusieurs realisations si
+        plusieurs cotes libres.
+
+    Retourne une liste de rings (longueur target_n), dedupliquee. Vide si la
+    transformation est topologiquement impossible (coherent avec
+    has_interior_free_vertex / has_free_side de compute_domains)."""
+    cur = len(ring)
+    out = []
+    if target_n == cur:
+        out.append(list(ring))
+    elif target_n == cur - 1:
+        for i in range(cur):
+            j = (i + 1) % cur
+            if ring[i] is None and ring[j] is None:
+                out.append([ring[k] for k in range(cur) if k != j])
+    elif target_n == cur + 1:
+        for i in range(cur):
+            if ring[i] is None:
+                out.append(ring[:i + 1] + [None] + ring[i + 1:])
+    # dedupe (deux fusions/dedoublements peuvent donner le meme ring)
+    uniq, seen = [], set()
+    for r in out:
+        key = tuple(-1 if x is None else x for x in r)
+        if key not in seen:
+            seen.add(key)
+            uniq.append(r)
+    return uniq
+
+
+def _seq_variants(seq) -> set:
+    """Toutes les rotations + reflexions cycliques d'une sequence."""
+    n = len(seq)
+    s = list(seq)
+    variants = set()
+    for base in (s, s[::-1]):
+        for k in range(n):
+            variants.add(tuple(base[k:] + base[:k]))
+    return variants
+
+
 def filter_table_for_vertex(graph: BenzenoidGraph, v: int,
                             full_table: dict) -> list:
-    """Filtre la table T(n) pour un sommet v non gele.
+    """Genere les tuples extensionnels (x_v, x_u1, x_u2, ...) admissibles
+    pour le sommet v, ou (u1, u2, ...) = graph.neighbors(v) -- exactement
+    l'ordre utilise par model.py (contrainte C3 : scope in tables[v]).
 
-    Pour un sommet non gele (b(v)=1), les aretes partagees forment un
-    bloc consecutif dans le pattern. On ne garde que les lignes de T(n)
-    dont la structure correspond.
+    Pour chaque taille candidate n in {5,6,7} :
+      1. On 'realise' le ring de v en taille n via _realize_ring
+         (contraction/expansion des cotes LIBRES uniquement ; les voisins
+         conservent leur disposition relative).
+      2. Pour chaque entree seq de T(n) ayant le bon nombre de voisins, on
+         cherche une rotation/reflexion de seq qui aligne les positions des
+         voisins de la realisation avec les positions non-nulles de seq.
+      3. Si l'alignement existe, on lit la taille de chaque voisin et on
+         construit le tuple dans l'ordre neighbors(v).
 
-    Args:
-        graph: le graphe dual
-        v: indice du sommet
-        full_table: table complete {5: [...], 6: [...], 7: [...]}
-
-    Returns:
-        Liste de tuples (x_v, x_u1, x_u2, ...) pour la contrainte
-        extensionnelle. Chaque tuple contient la taille du cycle central
-        suivie des tailles des voisins dans l'ordre du dual.
+    IMPORTANT (correction mai 2026) : cette version verifie la DISPOSITION
+    complete des voisins, pas seulement leurs tailles. L'ancienne version
+    ne gardait que les entrees a bloc consecutif (_is_consecutive_block) et
+    ne comparait que les tailles -- correcte uniquement pour b(v)=1. Avec
+    --no-freeze, les sommets b(v)>=2 deviennent libres et recevaient une
+    contrainte mal posee : elle acceptait a tort des voisinages comme
+    [7,0,7,0,0,0] (deux heptagones SEPARES, absent de la table) en les
+    confondant avec [7,7,0,0,0,0] (deux heptagones ADJACENTS, present).
+    Le matching par disposition elimine ces faux positifs.
     """
-    pattern = graph.patterns[v]
-    deg = graph.degree(v)
     neighbors = graph.neighbors(v)
-
-    # Positions des aretes partagees dans l'hexagone d'origine
-    shared_positions = [i for i, p in enumerate(pattern) if p == 1]
-
-    # L'index de debut du bloc de 1 dans le pattern
-    if not shared_positions:
-        # Pas de voisin (ne devrait pas arriver si deg >= 1)
+    if not neighbors:
         return []
+    ring = _ring_of_vertex(graph, v)
+    deg = len(neighbors)
 
-    compatible_tuples = []
-
+    compatible = set()
     for n in (5, 6, 7):
-        for seq in full_table.get(n, []):
-            # seq est un tuple de longueur n : (s_0, s_1, ..., s_{n-1})
-            # Positions non nulles dans la sequence
-            seq_shared = [i for i, s in enumerate(seq) if s != 0]
-
-            # Le nombre de voisins doit correspondre
-            if len(seq_shared) != deg:
+        seqs = full_table.get(n, [])
+        if not seqs:
+            continue
+        realizations = _realize_ring(ring, n)
+        if not realizations:
+            continue
+        # Positions des voisins pour chaque realisation (constantes par n).
+        realized_occ = [
+            (realized, [i for i in range(len(realized))
+                        if realized[i] is not None])
+            for realized in realizations
+        ]
+        for seq in seqs:
+            if sum(1 for s in seq if s != 0) != deg:
                 continue
-
-            # Verifier que les positions non-nulles forment un bloc
-            # consecutif (comme dans le pattern d'origine, puisque b(v)=1)
-            if not _is_consecutive_block(seq_shared, n):
-                continue
-
-            # Verifier la compatibilite structurelle :
-            # Les aretes partagees dans le pattern (taille 6) sont remappees
-            # dans le cycle de taille n. Puisque b(v)=1, le bloc consecutif
-            # de shared_positions dans l'hexagone correspond a un bloc
-            # consecutif dans le nouveau cycle.
-
-            # Construire le tuple pour la contrainte extensionnelle :
-            # (x_v, x_u1, x_u2, ...) ou les u_i sont les voisins
-            # dans l'ordre du graphe dual.
-            # Les voisins dans seq sont dans l'ordre des positions.
-            neighbor_sizes = [seq[i] for i in seq_shared]
-
-            # L'ordre des voisins dans seq_shared correspond a l'ordre
-            # cyclique dans le nouveau cycle. On doit le mapper a l'ordre
-            # des voisins dans le graphe dual.
-            # Pour b(v)=1, les voisins sont dans le meme ordre cyclique.
-            entry = (n,) + tuple(neighbor_sizes)
-            compatible_tuples.append(entry)
-
-    return compatible_tuples
+            for var in _seq_variants(seq):
+                var_occ = [i for i in range(len(var)) if var[i] != 0]
+                for realized, ring_occ in realized_occ:
+                    if var_occ != ring_occ:
+                        continue
+                    sizes_by_nbr = {realized[i]: var[i] for i in ring_occ}
+                    entry = (n,) + tuple(sizes_by_nbr[u] for u in neighbors)
+                    compatible.add(entry)
+    return sorted(compatible)
 
 
 def _is_consecutive_block(positions: list, n: int) -> bool:
