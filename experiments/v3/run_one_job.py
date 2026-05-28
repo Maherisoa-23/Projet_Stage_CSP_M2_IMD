@@ -36,7 +36,7 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent          # experiments/v3/
 _PROJECT_ROOT = _HERE.parent.parent              # racine projet
 _CSP_ROOT = _PROJECT_ROOT / "csp_solver"
-sys.path.insert(0, str(_PROJECT_ROOT / "experiments" / "v1" / "cluster"))
+sys.path.insert(0, str(_PROJECT_ROOT / "cluster"))
 sys.path.insert(0, str(_PROJECT_ROOT))
 from atomic_io import write_atomic_json  # noqa: E402
 
@@ -153,14 +153,17 @@ def run_one_job_v3(graph_path: Path, config_name: str,
         # dans cwd, risque de collision si 2 workers partagent cwd.
         cmd = [
             sys.executable, "-m",
-            "experiments.v3.main",
+            "csp_solver.main",
             str(graph_local),
-            "--config", config_name,
+            "--preset", config_name,
             "--all",
             "--validate",
             "--output-dir", str(sol_dir),
-            "--th-sure-plan", str(th_sure_plan),
-            "--th-sure-non-plan", str(th_sure_non_plan),
+            # Note refactor option C : la chaine v3 (MMFF 3-tier) n'est plus
+            # appelee par defaut ; les seuils --th-sure-plan/--th-sure-non-plan
+            # restent acceptes en CLI mais ignores par csp_solver.main.
+            # Le pipeline complet v3 reste accessible via experiments/v3/v3_pipeline.py
+            # pour qui veut le reproduire (cf rapport_exp_v3.tex).
         ] + [f"--{flag}" for flag in extra_flags]
 
         env = os.environ.copy()

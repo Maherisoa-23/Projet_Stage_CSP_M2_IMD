@@ -33,7 +33,7 @@ _gen_root = Path(__file__).parent.parent.parent.parent / "non_benzenoid_generato
 _gen_str = str(_gen_root)
 if _gen_str not in sys.path:
     sys.path.insert(0, _gen_str)
-from core.optimizer_md import DEFAULT_MD_PARAMS  # re-export pratique
+from csp_solver.xtb.md import DEFAULT_MD_PARAMS  # re-export pratique
 
 
 class MDStrategy(ValidationStrategy):

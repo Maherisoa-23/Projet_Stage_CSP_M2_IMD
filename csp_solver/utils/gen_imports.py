@@ -50,17 +50,17 @@ _planarity = _load_module_from_path("gen_planarity", _GEN_ROOT / "utils" / "plan
 
 # Ceux-ci utilisent les imports internes du generateur (core, config, etc.)
 # donc il faut que sys.path soit deja configure.
-from core.optimizer import (
+from csp_solver.xtb.optimizer import (
     optimize_xtb,
     read_optimized_coords,
     verify_distances,
 )
-from core.topology import (
+from csp_solver.primitives.topology import (
     MolecularGraph,
     Cycle,
     Vertex,
 )
-from core.valence_solver import ValenceSolver
+from csp_solver.primitives.valence import ValenceSolver
 
 
 # ----------------------------------------------------------------------

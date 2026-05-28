@@ -1,0 +1,5 @@
+$md
+   method=det-opt
+   amplitude=0.05
+   phase=0.5
+$end

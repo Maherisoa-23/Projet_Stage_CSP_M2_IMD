@@ -29,7 +29,8 @@ def _find_ace_jar():
 
 def build_and_solve(graph, preprocessed, enumerate_all=True,
                     adj_57=False, no_table=False, count_hexagon=False,
-                    K_sym=None, K_pb=None, K_hb=None, K_tot=None):
+                    K_sym=None, K_pb=None, K_hb=None, K_tot=None,
+                    tau_gb=None, radius_gb=2):
     """Construit le modele CSP, genere le XML, et appelle ACE.
 
     Args:
@@ -121,6 +122,21 @@ def build_and_solve(graph, preprocessed, enumerate_all=True,
     if K_tot is not None:
         # nb_pent + nb_hept <= K_tot (= au moins (h - K_tot) hexagones)
         satisfy(Sum(x[v] != 6 for v in range(h)) <= K_tot)
+
+    # --- Contrainte C-LC : Gauss-Bonnet locale (issue de experiments_v3) ---
+    # Pour chaque hexagone h0, dans son voisinage de rayon r dans le dual,
+    # la courbure cumulee |#pent - #hept| <= tau_gb.
+    if tau_gb is not None and tau_gb >= 0:
+        import networkx as nx
+        for h0 in range(h):
+            nbrs = sorted(nx.single_source_shortest_path_length(
+                graph.dual, h0, cutoff=radius_gb).keys())
+            if not nbrs:
+                continue
+            pents = Sum(x[v] == 5 for v in nbrs)
+            hepts = Sum(x[v] == 7 for v in nbrs)
+            satisfy(pents - hepts <= tau_gb)
+            satisfy(hepts - pents <= tau_gb)
 
     # --- Generer le XML ---
     xml_path = str(Path.cwd() / "model.xml")

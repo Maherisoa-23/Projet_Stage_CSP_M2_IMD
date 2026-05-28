@@ -20,7 +20,7 @@ _gen_str = str(_gen_root)
 if _gen_str not in sys.path:
     sys.path.insert(0, _gen_str)
 
-from core.optimizer import optimize_xtb, read_optimized_coords
+from csp_solver.xtb.optimizer import optimize_xtb, read_optimized_coords
 
 # planarity via importlib (evite conflit avec utils/ local)
 _plan_spec = importlib.util.spec_from_file_location(

@@ -35,7 +35,7 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent              # experiments/v3/validation/
 _PROJECT_ROOT = _HERE.parent.parent.parent           # racine projet
 _CSP_ROOT = _PROJECT_ROOT / "csp_solver"
-sys.path.insert(0, str(_PROJECT_ROOT / "experiments" / "v1" / "cluster"))
+sys.path.insert(0, str(_PROJECT_ROOT / "cluster"))
 sys.path.insert(0, str(_PROJECT_ROOT))
 from atomic_io import write_atomic_json  # noqa: E402
 
@@ -62,7 +62,7 @@ def run_xtb_md_opt(source_xyz_path: Path, md_dir: Path):
     """Lance md_then_optimize sur source.xyz. Return (success, final_xyz)."""
     _gen_root = _PROJECT_ROOT / "non_benzenoid_generator"
     sys.path.insert(0, str(_gen_root))
-    from core.optimizer_md import md_then_optimize
+    from csp_solver.xtb.md import md_then_optimize
     md_dir.mkdir(parents=True, exist_ok=True)
     success, final_xyz, info = md_then_optimize(
         str(source_xyz_path), str(md_dir),

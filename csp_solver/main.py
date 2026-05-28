@@ -78,6 +78,40 @@ K_sym = _parse_int_arg("--sym")   # |n_pent - n_hept| <= K_sym
 K_pb  = _parse_int_arg("--pb")    # nb_pent_au_bord <= K_pb
 K_hb  = _parse_int_arg("--hb")    # nb_hept_au_bord <= K_hb
 K_tot = _parse_int_arg("--tot")   # nb_pent + nb_hept <= K_tot
+tau_gb = _parse_int_arg("--tau-gb")        # Gauss-Bonnet local (v3)
+radius_gb = _parse_int_arg("--radius-gb") or 2  # rayon BFS Gauss-Bonnet
+
+# --- Preset (catalogue presets.py) ---
+# Si --preset NAME est passe, il SURCHARGE les flags individuels (sauf
+# ceux qui sont deja explicites en CLI).
+preset_name = None
+if "--preset" in _own_argv:
+    idx = _own_argv.index("--preset")
+    if idx + 1 < len(_own_argv):
+        preset_name = _own_argv[idx + 1]
+if preset_name:
+    from csp_solver.presets import get_preset
+    try:
+        _preset = get_preset(preset_name)
+    except KeyError as e:
+        print(f"ERREUR : {e}", file=sys.stderr)
+        sys.exit(1)
+    # Les flags du preset sont appliques SAUF si le user les a deja
+    # explicites en ligne de commande (=> les CLI gagnent).
+    if K_sym is None and "K_sym" in _preset:
+        K_sym = _preset["K_sym"]
+    if K_pb  is None and "K_pb"  in _preset:
+        K_pb  = _preset["K_pb"]
+    if K_hb  is None and "K_hb"  in _preset:
+        K_hb  = _preset["K_hb"]
+    if K_tot is None and "K_tot" in _preset:
+        K_tot = _preset["K_tot"]
+    if tau_gb is None and "tau_gb" in _preset:
+        tau_gb = _preset["tau_gb"]
+    if "radius_gb" in _preset:
+        radius_gb = _preset["radius_gb"]
+    if not adj_57 and _preset.get("adj_57"):
+        adj_57 = True
 
 # Nettoyer sys.argv pour que pycsp3 ne les intercepte pas
 sys.argv = [_own_argv[0]]
@@ -151,16 +185,19 @@ def main():
     else:
         print("  Solution tout-hexagones : EXCLUE (defaut)")
     extras = []
+    if preset_name: extras.append(f"preset={preset_name}")
     if K_sym is not None: extras.append(f"sym={K_sym}")
     if K_pb  is not None: extras.append(f"pb={K_pb}")
     if K_hb  is not None: extras.append(f"hb={K_hb}")
     if K_tot is not None: extras.append(f"tot={K_tot}")
+    if tau_gb is not None and tau_gb >= 0: extras.append(f"curv={tau_gb}(r={radius_gb})")
     if extras:
         print(f"  Contraintes additionnelles : {' '.join(extras)}")
     solutions = build_and_solve(graph, preprocessed, enumerate_all=enumerate_all,
                                 adj_57=adj_57, no_table=no_table,
                                 count_hexagon=count_hexagon,
-                                K_sym=K_sym, K_pb=K_pb, K_hb=K_hb, K_tot=K_tot)
+                                K_sym=K_sym, K_pb=K_pb, K_hb=K_hb, K_tot=K_tot,
+                                tau_gb=tau_gb, radius_gb=radius_gb)
 
     if not solutions:
         print("Aucune solution trouvee.")

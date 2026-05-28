@@ -46,7 +46,7 @@ from datetime import datetime
 from pathlib import Path
 
 # Ajout au path :
-#   - experiments/v1/cluster/ pour atomic_io
+#   - cluster/ (racine) pour atomic_io
 #   - racine projet pour pouvoir importer experiments.v2.* en
 #     absolu (ce script est typiquement lance comme script direct par le
 #     worker via `python /path/to/run_one_job.py`, donc __package__ = None
@@ -54,7 +54,7 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent              # experiments/v2/
 _PROJECT_ROOT = _HERE.parent.parent                  # racine projet
 _CSP_ROOT = _PROJECT_ROOT / "csp_solver"
-sys.path.insert(0, str(_PROJECT_ROOT / "experiments" / "v1" / "cluster"))
+sys.path.insert(0, str(_PROJECT_ROOT / "cluster"))
 sys.path.insert(0, str(_PROJECT_ROOT))
 from atomic_io import write_atomic_json  # noqa: E402
 
@@ -176,11 +176,13 @@ def run_one_job_v2(graph_path: Path, config_name: str,
         # package, on passe PYTHONPATH=_PROJECT_ROOT dans l'env du
         # sous-process (alternative a cwd=projet_root, qui causait la
         # collision sur model.xml en parallele).
+        # Refactor option C (mai 2026) : main.py de v2 est supprime ;
+        # csp_solver.main couvre tous les presets via --preset NAME.
         cmd = [
             sys.executable, "-m",
-            "experiments.v2.main",
+            "csp_solver.main",
             str(graph_local),
-            "--config", config_name,
+            "--preset", config_name,
             "--all",
             "--validate",
             "--output-dir", str(sol_dir),

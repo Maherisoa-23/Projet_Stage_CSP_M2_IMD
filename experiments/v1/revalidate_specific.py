@@ -39,7 +39,7 @@ from reconstruction.pipeline import reconstruct_molecule        # noqa: E402
 from reconstruction.assembler import export_xyz                 # noqa: E402
 from utils.validate import test_planarity_from_xyz              # noqa: E402
 sys.path.append(str(_GEN_ROOT))
-from core.optimizer_md import md_then_optimize                  # noqa: E402
+from csp_solver.xtb.md import md_then_optimize                  # noqa: E402
 
 
 CASES = [

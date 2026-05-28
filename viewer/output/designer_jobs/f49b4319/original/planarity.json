@@ -1,0 +1,9 @@
+{
+  "success": true,
+  "planar": true,
+  "angle_deg": 0.09940312535629806,
+  "rmsd": 0.0024670830400613315,
+  "height": 0.010190892089765063,
+  "threshold_deg": 10.0,
+  "xyz_path": "experiments/viewer/output/designer_jobs/f49b4319/original/original_opt.xyz"
+}

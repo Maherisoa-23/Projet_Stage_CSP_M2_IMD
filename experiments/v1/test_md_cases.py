@@ -62,7 +62,7 @@ from utils.validate import test_planarity_from_xyz              # noqa: E402
 # Import optimizer_md APRES les imports csp_solver pour ne pas que son
 # `utils/` masque celui de csp_solver dans le resolver d'imports.
 sys.path.append(str(_GEN_ROOT))
-from core.optimizer_md import md_then_optimize                  # noqa: E402
+from csp_solver.xtb.md import md_then_optimize                  # noqa: E402
 
 
 # Cas observes en divergence (h6, config adj-57_no-freeze_no-table)

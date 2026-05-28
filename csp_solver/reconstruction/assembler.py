@@ -18,8 +18,8 @@ _gen_str = str(_gen_root)
 if _gen_str not in sys.path:
     sys.path.insert(0, _gen_str)
 
-from core.topology import MolecularGraph, Cycle
-from core.valence_solver import ValenceSolver
+from csp_solver.primitives.topology import MolecularGraph, Cycle
+from csp_solver.primitives.valence import ValenceSolver
 
 
 def build_molecular_graph(topo: CycleTopology, placer: CyclePlacer) -> MolecularGraph:

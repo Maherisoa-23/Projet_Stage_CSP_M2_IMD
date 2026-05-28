@@ -55,7 +55,10 @@ from pathlib import Path
 
 # Ecriture atomique pour job_status.json (fichier sur NFS partage en cluster).
 # Evite la corruption si le worker est tue au milieu d'un open(path,'w').
-sys.path.insert(0, str(Path(__file__).resolve().parent / "cluster"))
+# Refactor option C : cluster/ est maintenant a la racine du projet.
+_HERE = Path(__file__).resolve().parent          # experiments/v1/
+_PROJECT_ROOT = _HERE.parent.parent              # racine projet
+sys.path.insert(0, str(_PROJECT_ROOT / "cluster"))
 from atomic_io import write_atomic_json
 
 # Force le single-thread pour toutes les libs scientifiques (xTB, BLAS, MKL...).

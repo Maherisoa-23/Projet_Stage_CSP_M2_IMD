@@ -5,25 +5,10 @@ Ce module prend un fichier XYZ, l'optimise avec xTB, et teste
 si la molecule est plane (angle max <= seuil).
 """
 
-import sys
 from pathlib import Path
 
-# Ajouter le generateur au path pour que ses imports internes marchent
-_gen_root = Path(__file__).parent.parent.parent / "non_benzenoid_generator"
-_gen_str = str(_gen_root)
-if _gen_str not in sys.path:
-    sys.path.insert(0, _gen_str)
-
-from core.optimizer import optimize_xtb, read_optimized_coords
-
-# Import direct du module planarity par chemin (evite conflit avec utils/ local)
-import importlib.util
-_plan_spec = importlib.util.spec_from_file_location(
-    "gen_planarity", str(_gen_root / "utils" / "planarity.py"))
-_plan_mod = importlib.util.module_from_spec(_plan_spec)
-_plan_spec.loader.exec_module(_plan_mod)
-compute_planarity = _plan_mod.compute_planarity
-is_planar = _plan_mod.is_planar
+from csp_solver.xtb.optimizer import optimize_xtb, read_optimized_coords
+from csp_solver.planarity.pca import compute_planarity, is_planar
 
 
 def test_planarity_from_xyz(xyz_path, threshold=10.0):
