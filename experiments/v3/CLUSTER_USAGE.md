@@ -37,7 +37,7 @@ python -c "from rdkit.Chem import AllChem; print('rdkit OK')"
 Depuis Git Bash sur ton PC :
 
 ```bash
-cd "/e/Stage AMU CSP IMD M2/Generation des molecules pour la table de voisinage/second try with scipt and CSP"
+cd "/e/Stage AMU CSP IMD M2/Generation des molecules pour la table de voisinage/Projet_Stage_CSP_M2_IMD"
 
 tar -czf - csp_solver/experiments_v3 \
   | ssh 192.168.200.49 \
@@ -186,7 +186,7 @@ print('xyz_files :', c.execute('SELECT COUNT(*) FROM xyz_files').fetchone())
 Sur ton PC :
 
 ```bash
-cd "/e/Stage AMU CSP IMD M2/Generation des molecules pour la table de voisinage/second try with scipt and CSP/csp_solver/experiments/csp_viewer"
+cd "/e/Stage AMU CSP IMD M2/Generation des molecules pour la table de voisinage/Projet_Stage_CSP_M2_IMD/csp_solver/experiments/csp_viewer"
 
 scp 192.168.200.49:/home/COALA/ramaherisoa/projet/csp_solver/experiments/csp_viewer/db_v4.db db_v4.db
 ```

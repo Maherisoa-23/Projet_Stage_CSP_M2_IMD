@@ -7,7 +7,7 @@ plans selon xTB. Sampling stratifie 500 par (h, config) = 6000 jobs.
 
 Depuis Git Bash sur PC :
 ```bash
-cd "/e/Stage AMU CSP IMD M2/Generation des molecules pour la table de voisinage/second try with scipt and CSP"
+cd "/e/Stage AMU CSP IMD M2/Generation des molecules pour la table de voisinage/Projet_Stage_CSP_M2_IMD"
 tar -czf - csp_solver/experiments_v3/validation \
   | ssh 192.168.200.49 "cd /home/COALA/ramaherisoa/projet && tar -xzf -"
 ```
