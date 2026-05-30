@@ -557,12 +557,14 @@
 
   const configState = {};
   let configSchema = [];
+  let clusterEnabled = false;  // alimente par /api/designer/configs
 
   async function loadConfigPanel() {
     try {
       const r = await fetch("/api/designer/configs");
       const data = await r.json();
       configSchema = data.configs || [];
+      clusterEnabled = !!data.cluster_enabled;
       // Initialise defaults
       for (const c of configSchema) configState[c.key] = c.default;
       renderConfigPanel();
@@ -581,6 +583,9 @@
     for (const c of configSchema) {
       if (c.csp_constraint && presetActive) {
         continue;  // masque les contraintes CSP individuelles
+      }
+      if (c.cluster_feature && !clusterEnabled) {
+        continue;  // cluster globalement desactive : on masque la case
       }
       const row = document.createElement("div");
       row.className = "dz-config-row";

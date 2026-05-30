@@ -23,7 +23,7 @@ from typing import Optional
 
 from flask import Blueprint, abort, jsonify, render_template, request, current_app
 
-from . import graph_io, jobs, runner
+from . import graph_io, jobs, runner, solutions_db
 
 
 _HERE = Path(__file__).resolve().parent
@@ -158,7 +158,22 @@ CSP_CONFIGS = [
                 "Multi-runs : N optimisations independantes. Z-perturb : "
                 "perturbation deterministe (byte-reproductible).",
     },
+    {
+        "key": "cluster", "type": "bool", "default": False,
+        "label": "Executer sur cluster (xTB distant)",
+        "help": "Si active, le calcul xTB tourne sur la frontale du cluster "
+                "au lieu de votre PC. Beaucoup plus rapide pour h>=5. "
+                "Necessite SSH sans password configure et la variable "
+                "d'environnement DESIGNER_CLUSTER_ENABLED=1 cote serveur.",
+        "cluster_feature": True,  # masque quand cluster_enabled=False
+    },
 ]
+
+
+def _cluster_globally_enabled() -> bool:
+    """True si le toggle global DESIGNER_CLUSTER_ENABLED=1 est dans l'env."""
+    import os
+    return os.getenv("DESIGNER_CLUSTER_ENABLED", "0") == "1"
 
 
 # =====================================================================
@@ -197,8 +212,15 @@ def page_designer():
 
 @bp.route("/api/designer/configs")
 def api_configs():
-    """Retourne la liste declarative des options CSP."""
-    return jsonify({"configs": CSP_CONFIGS})
+    """Retourne la liste declarative des options CSP + flags globaux.
+
+    Le frontend utilise `cluster_enabled` pour decider d'afficher ou non
+    la case "Executer sur cluster". Quand False, l'option est masquee.
+    """
+    return jsonify({
+        "configs": CSP_CONFIGS,
+        "cluster_enabled": _cluster_globally_enabled(),
+    })
 
 
 # =====================================================================
@@ -331,6 +353,77 @@ def api_job_cancel(job_id: str):
     return jsonify({"ok": ok})
 
 
+def _compute_verdict(md_verdict, planar):
+    """Verdict global d'une solution. Identique fs et DB.
+
+    md_failed prime sur tout. Sinon planar=True -> 'plan', False -> 'non_plan',
+    None -> 'unknown' (MD ok mais planarite non calculee).
+    """
+    if md_verdict == "md_failed":
+        return "md_failed"
+    if planar is True:
+        return "plan"
+    if planar is False:
+        return "non_plan"
+    return "unknown"
+
+
+def _build_sol_dict_from_db(row):
+    """Construit le dict de reponse d'une solution depuis une row designer_solutions.
+
+    Format identique a celui produit par le parcours filesystem, pour ne
+    pas casser le frontend.
+    """
+    planar = row.get("planar")
+    md_verdict = row.get("md_verdict") or "unknown"
+    best = row.get("md_xyz_path") or row.get("source_xyz_path")
+    return {
+        "name": row["sol_name"],
+        "sol_idx": str(row["sol_idx"]),
+        "sizes": row.get("sizes") or "",
+        "has_source_xyz": bool(row.get("source_xyz_path")),
+        "has_md_xyz": bool(row.get("md_xyz_path")),
+        "best_xyz_path": best,
+        "md_verdict": md_verdict,
+        "n_attempts": row.get("n_attempts"),
+        "planar": planar,
+        "angle_deg": row.get("angle_deg"),
+        "rmsd": row.get("rmsd"),
+        "height": row.get("height"),
+        "verdict": _compute_verdict(md_verdict, planar),
+    }
+
+
+def _read_original_block(output_dir, project_root):
+    """Lit output_dir/original/planarity.json si dispo (best-effort).
+
+    Retourne None si pas de fichier (cas cluster pur ou job sans test
+    original).
+    """
+    orig_dir = output_dir / "original"
+    orig_plan = orig_dir / "planarity.json"
+    orig_opt_xyz = orig_dir / "original_opt.xyz"
+    if not orig_plan.is_file():
+        return None
+    try:
+        original = json.loads(orig_plan.read_text(encoding="utf-8"))
+        if orig_opt_xyz.is_file():
+            original["xyz_path"] = orig_opt_xyz.relative_to(project_root).as_posix()
+        return original
+    except (OSError, json.JSONDecodeError):
+        return {"success": False, "message": "planarity.json corrompu"}
+
+
+def _count_verdicts(sols):
+    """Compteurs agreges pour les badges du frontend."""
+    return {
+        "plan": sum(1 for s in sols if s["verdict"] == "plan"),
+        "non_plan": sum(1 for s in sols if s["verdict"] == "non_plan"),
+        "md_failed": sum(1 for s in sols if s["verdict"] == "md_failed"),
+        "unknown": sum(1 for s in sols if s["verdict"] == "unknown"),
+    }
+
+
 @bp.route("/api/designer/jobs/<job_id>/solutions")
 def api_job_solutions(job_id: str):
     """Liste les solutions d'un job designer.
@@ -357,6 +450,32 @@ def api_job_solutions(job_id: str):
     if job is None:
         abort(404, description="job not found")
     output_dir = _project_root() / job["output_dir"]
+    project_root = _project_root()
+
+    # --- Lecture DB en priorite ---
+    # Si designer_solutions contient des rows pour ce job, on les utilise
+    # comme source de verite (le mode cluster ne laisse pas de fichiers
+    # locaux ; meme en mode local, l'ingestion DB est plus rapide a lire
+    # qu'un parcours filesystem + read JSON par sol).
+    db_sols = solutions_db.get_job_solutions(db_path, job_id)
+    if db_sols is not None:
+        sols = [_build_sol_dict_from_db(row) for row in db_sols]
+        # Bloc "original" : on essaye le filesystem (best-effort). En mode
+        # cluster pur, peut etre None ; le frontend sait gerer ce cas.
+        original = _read_original_block(output_dir, project_root)
+        counts = _count_verdicts(sols)
+        return jsonify({
+            "job_id": job_id,
+            "state": job["state"],
+            "n_solutions": len(sols),
+            "output_dir": job["output_dir"],
+            "output_dir_exists": output_dir.is_dir(),
+            "original": original,
+            "counts": counts,
+            "solutions": sols,
+        })
+
+    # --- Fallback : lecture filesystem (mode legacy, jobs pre-DB) ---
     if not output_dir.is_dir():
         return jsonify({
             "job_id": job_id,
@@ -366,20 +485,7 @@ def api_job_solutions(job_id: str):
             "output_dir_exists": False,
         })
 
-    project_root = _project_root()
-
-    # Bloc "original" : on lit output_dir/original/planarity.json + le path xyz
-    original = None
-    orig_dir = output_dir / "original"
-    orig_plan = orig_dir / "planarity.json"
-    orig_opt_xyz = orig_dir / "original_opt.xyz"
-    if orig_plan.is_file():
-        try:
-            original = json.loads(orig_plan.read_text(encoding="utf-8"))
-            if orig_opt_xyz.is_file():
-                original["xyz_path"] = orig_opt_xyz.relative_to(project_root).as_posix()
-        except Exception:
-            original = {"success": False, "message": "planarity.json corrompu"}
+    original = _read_original_block(output_dir, project_root)
 
     sols = []
     for sol_dir in sorted(output_dir.glob("sol_*"), key=lambda p: p.name):
@@ -511,5 +617,6 @@ def init_app(app):
     db_path = app.config.get("DB_PATH")
     if db_path:
         jobs.init_jobs_table(db_path)
+        solutions_db.init_solutions_table(db_path)
     _designer_output_root().mkdir(parents=True, exist_ok=True)
     app.register_blueprint(bp)

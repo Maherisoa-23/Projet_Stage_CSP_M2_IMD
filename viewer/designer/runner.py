@@ -32,7 +32,7 @@ import time
 from pathlib import Path
 from typing import Dict, Optional
 
-from . import jobs
+from . import jobs, solutions_db
 
 
 # Seuil de planarite (deg) pour decider plan/non_plan. Aligne sur le
@@ -307,11 +307,29 @@ def run_job(db_path: str, job_id: str, project_root: Path,
         python_exe   : interpreteur python a utiliser. Par defaut, le venv
                        du projet si present, sinon sys.executable.
     """
+    import os
     import sys
 
     job = jobs.get_job(db_path, job_id)
     if job is None:
         return  # Devrait pas arriver
+
+    # --- Aiguillage cluster ---
+    # Si la config du job demande l'execution sur cluster ET que la feature
+    # est globalement activee (env DESIGNER_CLUSTER_ENABLED=1), on delegue
+    # a cluster_runner. Sinon, on log un echec explicite ou on continue en
+    # local selon le cas.
+    config = job.get("config", {})
+    if config.get("cluster"):
+        if os.getenv("DESIGNER_CLUSTER_ENABLED", "0") == "1":
+            from . import cluster_runner
+            return cluster_runner.run_job_cluster(db_path, job_id, project_root)
+        # La case "cluster" a ete cochee mais la feature globale est off :
+        # mode strict, on echoue plutot que de tourner en local par surprise.
+        jobs.update_job(db_path, job_id, state="failed",
+                        error="Mode cluster demande mais DESIGNER_CLUSTER_ENABLED "
+                              "n'est pas '1'. Definis cette env var pour activer.")
+        return
 
     if python_exe is None:
         # Cherche d'abord le venv du projet
@@ -414,11 +432,21 @@ def run_job(db_path: str, job_id: str, project_root: Path,
             n_planarity = _compute_solutions_planarity(output_dir, project_root)
         except Exception:
             n_planarity = 0
+        # Ingestion en DB : XYZ -> table xyz_files (gzippe), metriques ->
+        # table designer_solutions. La lecture cote API priorise la DB ;
+        # les fichiers restent en place comme fallback / backup.
+        try:
+            n_ingested = solutions_db.ingest_local_job(
+                db_path, job_id, output_dir, project_root,
+                threshold_deg=PLANARITY_THRESHOLD_DEG)
+        except Exception:
+            n_ingested = 0
         outputs = _count_outputs(output_dir)
         summary = {
             "return_code": 0,
             "stdout_tail": stdout_lines[-50:],
             "n_planarity_computed": n_planarity,
+            "n_ingested_db": n_ingested,
             **outputs,
         }
         jobs.update_job(db_path, job_id, state="success",
