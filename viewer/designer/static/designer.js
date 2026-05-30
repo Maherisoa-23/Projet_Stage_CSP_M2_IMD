@@ -894,32 +894,14 @@
       // Fetch async (ne bloque pas l'affichage du modal)
       fetchAndRenderSolutions(job.job_id);
 
-      // On considere qu'il y a des sols si la DB en a (post-cleanup workdir),
-      // ou si les counts fs en montrent (jobs legacy). n_ingested_db est la
-      // source canonique apres la migration DB.
+      // Activation : DB-natif (n_ingested_db) OU legacy fs (n_sol_dirs).
       const hasSols = (s.n_ingested_db || 0) > 0 || (s.n_sol_dirs || 0) > 0;
       viewBtn.disabled = !hasSols;
-      viewBtn.textContent = "Voir la 3D du 1er plan";
-      viewBtn.onclick = async () => {
-        // Fetch la liste des sols, prend le premier 'plan' (sinon le 1er tout
-        // court) et ouvre molviz en modale. Aligne avec le bouton 3D par-ligne.
-        try {
-          const r = await fetch(`/api/designer/jobs/${job.job_id}/solutions`);
-          const data = await r.json();
-          const sols = data.solutions || [];
-          if (!sols.length) { updateStatus("Aucune solution a afficher"); return; }
-          const first = sols.find(x => x.verdict === "plan") || sols[0];
-          if (!first.best_xyz_path) { updateStatus("Pas de XYZ disponible"); return; }
-          const ok = window.MolViz && window.MolViz.openSafe
-            && window.MolViz.openSafe({
-                 xyz_path: first.best_xyz_path,
-                 title: `Job #${job.job_id} · ${first.name}`,
-                 subtitle: `sizes ${(first.sizes || "").replace(/_/g, "-")} · ${first.verdict}`,
-               });
-          if (!ok) updateStatus("molviz non disponible");
-        } catch (e) {
-          updateStatus("Erreur : " + e.message);
-        }
+      viewBtn.textContent = "Ouvrir dans le viewer principal";
+      viewBtn.onclick = () => {
+        // Ouvre la vue job dediee dans le viewer principal (route /?job=<id>,
+        // cf viewer/static/app.js:loadJobView).
+        window.open(`/?job=${job.job_id}`, "_blank");
       };
     } else if (job.state === "cancelled") {
       title.textContent = "Annule";
