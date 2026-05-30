@@ -57,13 +57,31 @@ def test_init_tables():
 
 
 def test_get_solutions_empty():
-    print("Test 3 : get_job_solutions sur job vide retourne None...")
+    print("Test 3 : get_job_solutions sur job vide retourne [] (nouveau contrat)...")
     from viewer.designer import solutions_db
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
         db = Path(d) / "test.db"
         solutions_db.init_solutions_table(str(db))
         result = solutions_db.get_job_solutions(str(db), "nonexistent")
-        assert result is None, f"attendu None, recu {result}"
+        assert result == [], f"attendu [], recu {result!r}"
+    print("  OK")
+
+
+def test_ingest_returns_dict_with_n_failed():
+    print("Test 3b : ingest_local_job retourne dict avec n_ingested/n_failed/total...")
+    from viewer.designer import solutions_db
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
+        db = Path(d) / "test.db"
+        solutions_db.init_solutions_table(str(db))
+        # output_dir vide -> 0 sols a ingerer, n_failed=0
+        empty = Path(d) / "empty"
+        empty.mkdir()
+        stats = solutions_db.ingest_local_job(str(db), "j1", empty, Path(d))
+        assert stats == {"n_ingested": 0, "n_failed": 0, "total": 0}, stats
+        # output_dir inexistant -> meme reponse safe
+        stats2 = solutions_db.ingest_local_job(str(db), "j2",
+                                                Path(d) / "absent", Path(d))
+        assert stats2["total"] == 0 and stats2["n_failed"] == 0, stats2
     print("  OK")
 
 
@@ -129,6 +147,7 @@ def main():
     test_imports()
     test_init_tables()
     test_get_solutions_empty()
+    test_ingest_returns_dict_with_n_failed()
     test_configs_exposes_cluster_flag()
     test_run_with_cluster_disabled_fails_explicit()
     print("=" * 60)

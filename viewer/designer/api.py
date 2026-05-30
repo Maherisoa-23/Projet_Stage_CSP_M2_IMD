@@ -452,28 +452,29 @@ def api_job_solutions(job_id: str):
     output_dir = _project_root() / job["output_dir"]
     project_root = _project_root()
 
-    # --- Lecture DB en priorite ---
-    # Si designer_solutions contient des rows pour ce job, on les utilise
-    # comme source de verite (le mode cluster ne laisse pas de fichiers
-    # locaux ; meme en mode local, l'ingestion DB est plus rapide a lire
-    # qu'un parcours filesystem + read JSON par sol).
-    db_sols = solutions_db.get_job_solutions(db_path, job_id)
-    if db_sols is not None:
-        sols = [_build_sol_dict_from_db(row) for row in db_sols]
-        # Bloc "original" : on essaye le filesystem (best-effort). En mode
-        # cluster pur, peut etre None ; le frontend sait gerer ce cas.
-        original = _read_original_block(output_dir, project_root)
-        counts = _count_verdicts(sols)
-        return jsonify({
-            "job_id": job_id,
-            "state": job["state"],
-            "n_solutions": len(sols),
-            "output_dir": job["output_dir"],
-            "output_dir_exists": output_dir.is_dir(),
-            "original": original,
-            "counts": counts,
-            "solutions": sols,
-        })
+    # --- Lecture DB en priorite, conditionnee a ingest_complete ---
+    # On lit la DB UNIQUEMENT si l'ingestion s'est terminee avec succes
+    # (summary.ingest_complete=True). Sinon on retombe sur le filesystem
+    # pour eviter de masquer une ingestion partielle (cf. audit phase 2 :
+    # une exception au milieu de ingest_local_job pouvait laisser N-1
+    # rows en DB sans qu'on le sache).
+    summary = job.get("summary") or {}
+    if summary.get("ingest_complete"):
+        db_sols = solutions_db.get_job_solutions(db_path, job_id)
+        if db_sols:
+            sols = [_build_sol_dict_from_db(row) for row in db_sols]
+            original = _read_original_block(output_dir, project_root)
+            counts = _count_verdicts(sols)
+            return jsonify({
+                "job_id": job_id,
+                "state": job["state"],
+                "n_solutions": len(sols),
+                "output_dir": job["output_dir"],
+                "output_dir_exists": output_dir.is_dir(),
+                "original": original,
+                "counts": counts,
+                "solutions": sols,
+            })
 
     # --- Fallback : lecture filesystem (mode legacy, jobs pre-DB) ---
     if not output_dir.is_dir():

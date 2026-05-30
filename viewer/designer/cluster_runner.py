@@ -24,6 +24,7 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
+from typing import Dict, Optional
 
 from . import jobs, solutions_db
 from .runner import (
@@ -78,11 +79,28 @@ def check_cluster_alive():
     try:
         r = _ssh(
             f"{CLUSTER_CONDA_INIT} && which xtb >/dev/null && which python >/dev/null "
+            f"&& test -d {CLUSTER_PROJECT_PATH}/csp_solver "
             f"&& echo HOME=$HOME",
             timeout=30,
         )
         if r.returncode != 0:
-            return False, f"SSH/conda check echec : {(r.stderr or r.stdout).strip()[:200]}"
+            err = (r.stderr or r.stdout or "").strip()[:300]
+            # Diagnostic plus precis : on chaine plusieurs sous-checks pour
+            # localiser l'echec quand le check combine echoue.
+            for check, msg in (
+                ('which xtb', f"xtb manquant dans l'env conda nonbenz"),
+                ('which python', f"python manquant dans l'env conda nonbenz"),
+                (f'test -d {CLUSTER_PROJECT_PATH}/csp_solver',
+                 f"CLUSTER_PROJECT_PATH={CLUSTER_PROJECT_PATH}/csp_solver "
+                 f"introuvable (sync le code avec scp/rsync)"),
+            ):
+                try:
+                    sub = _ssh(f"{CLUSTER_CONDA_INIT} && {check}", timeout=15)
+                    if sub.returncode != 0:
+                        return False, msg
+                except Exception:
+                    break
+            return False, f"SSH/conda check echec : {err}"
         for line in (r.stdout or "").splitlines():
             if line.startswith("HOME="):
                 home = line[5:].strip()
@@ -186,7 +204,36 @@ def run_job_cluster(db_path, job_id, project_root):
     output_dir_local = project_root / job["output_dir"]
     output_dir_local.mkdir(parents=True, exist_ok=True)
     t_start = time.time()
+    remote_root: Optional[str] = None  # set apres recup de $HOME ; lu dans le finally
 
+    try:
+        _run_job_cluster_inner(db_path, job_id, project_root, job, config,
+                               output_dir_local, t_start,
+                               on_remote_root=lambda rr: _remote_root_holder.__setitem__("v", rr))
+    finally:
+        # Cleanup workdir distant best-effort dans TOUS les chemins (succes,
+        # echec, exception inattendue). Evite les workdirs orphelins qui
+        # remplissent le quota cluster (cf. audit phase 2).
+        rr = _remote_root_holder.get("v")
+        if rr:
+            try:
+                _ssh(f"rm -rf {rr}", timeout=30)
+            except Exception:
+                pass
+
+
+# Holder mutable au scope module : permet a la fonction inner de communiquer
+# remote_root vers le finally du wrapper sans avoir a refactorer toute la
+# signature. Reset a chaque appel via _remote_root_holder.clear().
+_remote_root_holder: Dict[str, str] = {}
+
+
+def _run_job_cluster_inner(db_path, job_id, project_root, job, config,
+                           output_dir_local, t_start, on_remote_root):
+    """Logique principale du job cluster. Le wrapper run_job_cluster gere
+    le cleanup remote en finally. Toute exception ici remonte au wrapper
+    qui marque le job failed et nettoie."""
+    _remote_root_holder.clear()
     # ---------- 0. Test de vie cluster + recuperation de $HOME ----------
     jobs.update_job(db_path, job_id, state="running",
                     current_stage="cluster_check", progress=0.01)
@@ -196,12 +243,13 @@ def run_job_cluster(db_path, job_id, project_root):
                         error=f"Cluster indisponible : {msg_or_home}",
                         duration_s=time.time() - t_start)
         return
-    remote_home = msg_or_home  # path absolu type '/home/COALA/ramaherisoa'
+    remote_home = msg_or_home
 
     # ---------- 1. Workdir distant + upload graph ----------
     # Paths absolus (pas de ~) pour que shlex.quote() fonctionne :
     # bash n'etend pas ~ dans des single quotes.
     remote_root = f"{remote_home}/_designer_cluster_jobs/{job_id}"
+    on_remote_root(remote_root)  # signale au finally
     remote_output = f"{remote_root}/output"
     remote_graph = f"{remote_root}/input.graph"
 
@@ -282,11 +330,11 @@ def run_job_cluster(db_path, job_id, project_root):
 
     duration_now = time.time() - t_start
 
-    # Verifier que le job n'a pas ete annule entre-temps
+    # Verifier que le job n'a pas ete annule entre-temps.
+    # Cleanup remote gere par le finally du wrapper, plus besoin ici.
     current = jobs.get_job(db_path, job_id)
     if current and current.get("state") == "cancelled":
         jobs.update_job(db_path, job_id, duration_s=duration_now, pid=None)
-        _ssh(f"rm -rf {remote_root}", timeout=30)
         return
 
     if rc != 0:
@@ -296,7 +344,6 @@ def run_job_cluster(db_path, job_id, project_root):
                         duration_s=duration_now, pid=None,
                         summary={"return_code": rc,
                                  "stdout_tail": stdout_lines[-50:]})
-        _ssh(f"rm -rf {remote_root}", timeout=30)
         return
 
     # ---------- 3. Rapatriement scp ----------
@@ -325,17 +372,15 @@ def run_job_cluster(db_path, job_id, project_root):
     except Exception:
         n_planarity = 0
     try:
-        n_ingested = solutions_db.ingest_local_job(
+        ingest_stats = solutions_db.ingest_local_job(
             db_path, job_id, output_dir_local, project_root,
             threshold_deg=PLANARITY_THRESHOLD_DEG)
+        ingest_complete = ingest_stats["n_failed"] == 0
     except Exception:
-        n_ingested = 0
+        ingest_stats = {"n_ingested": 0, "n_failed": -1, "total": 0}
+        ingest_complete = False
 
-    # ---------- 5. Cleanup workdir distant ----------
-    try:
-        _ssh(f"rm -rf {remote_root}", timeout=30)
-    except Exception:
-        pass  # best-effort
+    # ---------- 5. Cleanup workdir distant : gere par le finally du wrapper ----------
 
     duration = time.time() - t_start
     outputs = _count_outputs(output_dir_local)
@@ -343,7 +388,9 @@ def run_job_cluster(db_path, job_id, project_root):
         "return_code": 0,
         "stdout_tail": stdout_lines[-50:],
         "n_planarity_computed": n_planarity,
-        "n_ingested_db": n_ingested,
+        "n_ingested_db": ingest_stats["n_ingested"],
+        "n_failed_db": ingest_stats["n_failed"],
+        "ingest_complete": ingest_complete,
         "cluster": True,
         "cluster_host": CLUSTER_HOST,
         **outputs,

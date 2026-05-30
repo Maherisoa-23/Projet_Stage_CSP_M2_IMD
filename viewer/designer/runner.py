@@ -433,20 +433,25 @@ def run_job(db_path: str, job_id: str, project_root: Path,
         except Exception:
             n_planarity = 0
         # Ingestion en DB : XYZ -> table xyz_files (gzippe), metriques ->
-        # table designer_solutions. La lecture cote API priorise la DB ;
-        # les fichiers restent en place comme fallback / backup.
+        # table designer_solutions. Le flag ingest_complete=True signale
+        # a l'API qu'elle peut lire depuis la DB ; sinon fallback FS pour
+        # eviter de masquer une ingestion partielle (cf. audit phase 2).
         try:
-            n_ingested = solutions_db.ingest_local_job(
+            ingest_stats = solutions_db.ingest_local_job(
                 db_path, job_id, output_dir, project_root,
                 threshold_deg=PLANARITY_THRESHOLD_DEG)
+            ingest_complete = ingest_stats["n_failed"] == 0
         except Exception:
-            n_ingested = 0
+            ingest_stats = {"n_ingested": 0, "n_failed": -1, "total": 0}
+            ingest_complete = False
         outputs = _count_outputs(output_dir)
         summary = {
             "return_code": 0,
             "stdout_tail": stdout_lines[-50:],
             "n_planarity_computed": n_planarity,
-            "n_ingested_db": n_ingested,
+            "n_ingested_db": ingest_stats["n_ingested"],
+            "n_failed_db": ingest_stats["n_failed"],
+            "ingest_complete": ingest_complete,
             **outputs,
         }
         jobs.update_job(db_path, job_id, state="success",
