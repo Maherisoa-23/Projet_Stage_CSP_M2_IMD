@@ -381,6 +381,8 @@ def _run_job_cluster_inner(db_path, job_id, project_root, job, config,
         n_planarity = _compute_solutions_planarity(output_dir_local, project_root)
     except Exception:
         n_planarity = 0
+    # Capture les counts fs AVANT ingest_local_job (qui supprime le workdir).
+    outputs = _count_outputs(output_dir_local)
     try:
         ingest_stats = solutions_db.ingest_local_job(
             db_path, job_id, output_dir_local, project_root,
@@ -394,7 +396,6 @@ def _run_job_cluster_inner(db_path, job_id, project_root, job, config,
     # ---------- 5. Cleanup workdir distant : gere par le finally du wrapper ----------
 
     duration = time.time() - t_start
-    outputs = _count_outputs(output_dir_local)
     summary = {
         "return_code": 0,
         "stdout_tail": stdout_lines[-50:],

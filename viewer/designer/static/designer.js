@@ -894,11 +894,32 @@
       // Fetch async (ne bloque pas l'affichage du modal)
       fetchAndRenderSolutions(job.job_id);
 
-      viewBtn.disabled = !(s.n_sol_dirs > 0);
-      viewBtn.textContent = "Ouvrir dans le viewer principal";
-      viewBtn.onclick = () => {
-        // Ouvre la vue job dediee dans le viewer principal
-        window.open(`/?job=${job.job_id}`, "_blank");
+      // On considere qu'il y a des sols si la DB en a (post-cleanup workdir),
+      // ou si les counts fs en montrent (jobs legacy). n_ingested_db est la
+      // source canonique apres la migration DB.
+      const hasSols = (s.n_ingested_db || 0) > 0 || (s.n_sol_dirs || 0) > 0;
+      viewBtn.disabled = !hasSols;
+      viewBtn.textContent = "Voir la 3D du 1er plan";
+      viewBtn.onclick = async () => {
+        // Fetch la liste des sols, prend le premier 'plan' (sinon le 1er tout
+        // court) et ouvre molviz en modale. Aligne avec le bouton 3D par-ligne.
+        try {
+          const r = await fetch(`/api/designer/jobs/${job.job_id}/solutions`);
+          const data = await r.json();
+          const sols = data.solutions || [];
+          if (!sols.length) { updateStatus("Aucune solution a afficher"); return; }
+          const first = sols.find(x => x.verdict === "plan") || sols[0];
+          if (!first.best_xyz_path) { updateStatus("Pas de XYZ disponible"); return; }
+          const ok = window.MolViz && window.MolViz.openSafe
+            && window.MolViz.openSafe({
+                 xyz_path: first.best_xyz_path,
+                 title: `Job #${job.job_id} · ${first.name}`,
+                 subtitle: `sizes ${(first.sizes || "").replace(/_/g, "-")} · ${first.verdict}`,
+               });
+          if (!ok) updateStatus("molviz non disponible");
+        } catch (e) {
+          updateStatus("Erreur : " + e.message);
+        }
       };
     } else if (job.state === "cancelled") {
       title.textContent = "Annule";

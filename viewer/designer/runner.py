@@ -432,6 +432,9 @@ def run_job(db_path: str, job_id: str, project_root: Path,
             n_planarity = _compute_solutions_planarity(output_dir, project_root)
         except Exception:
             n_planarity = 0
+        # Capture les counts fs AVANT ingest_local_job : si l'ingestion
+        # reussit, elle supprime output_dir et _count_outputs renverrait 0.
+        outputs = _count_outputs(output_dir)
         # Ingestion en DB : XYZ -> table xyz_files (gzippe), metriques ->
         # table designer_solutions. Le flag ingest_complete=True signale
         # a l'API qu'elle peut lire depuis la DB ; sinon fallback FS pour
@@ -445,7 +448,6 @@ def run_job(db_path: str, job_id: str, project_root: Path,
             ingest_stats = {"n_ingested": 0, "n_failed": -1, "total": 0,
                             "original": None, "workdir_deleted": False}
             ingest_complete = False
-        outputs = _count_outputs(output_dir)
         summary = {
             "return_code": 0,
             "stdout_tail": stdout_lines[-50:],
