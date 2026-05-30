@@ -442,7 +442,8 @@ def run_job(db_path: str, job_id: str, project_root: Path,
                 threshold_deg=PLANARITY_THRESHOLD_DEG)
             ingest_complete = ingest_stats["n_failed"] == 0
         except Exception:
-            ingest_stats = {"n_ingested": 0, "n_failed": -1, "total": 0}
+            ingest_stats = {"n_ingested": 0, "n_failed": -1, "total": 0,
+                            "original": None, "workdir_deleted": False}
             ingest_complete = False
         outputs = _count_outputs(output_dir)
         summary = {
@@ -452,6 +453,8 @@ def run_job(db_path: str, job_id: str, project_root: Path,
             "n_ingested_db": ingest_stats["n_ingested"],
             "n_failed_db": ingest_stats["n_failed"],
             "ingest_complete": ingest_complete,
+            "workdir_deleted": ingest_stats.get("workdir_deleted", False),
+            "original": ingest_stats.get("original"),
             **outputs,
         }
         jobs.update_job(db_path, job_id, state="success",

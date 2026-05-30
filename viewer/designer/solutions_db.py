@@ -29,10 +29,12 @@ API publique :
 
 import gzip
 import json
+import os
+import shutil
 import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 _SCHEMA = """
@@ -173,9 +175,49 @@ def _read_json_safe(path: Path) -> Optional[Dict]:
         return None
 
 
+def _ingest_original_block(conn: sqlite3.Connection, output_dir: Path,
+                            project_root: Path,
+                            threshold_deg: float) -> Optional[Dict[str, Any]]:
+    """Ingere output_dir/original/original_opt.xyz en xyz_files et retourne
+    un dict (metriques + xyz_path) destine a summary['original'].
+
+    Retourne None si rien a ingerer (pas de bloc original sur le fs).
+    """
+    orig_dir = output_dir / "original"
+    orig_opt_xyz = orig_dir / "original_opt.xyz"
+    orig_plan_file = orig_dir / "planarity.json"
+    if not orig_dir.is_dir():
+        return None
+
+    out: Dict[str, Any] = {}
+    if orig_opt_xyz.is_file():
+        rel = orig_opt_xyz.relative_to(project_root).as_posix()
+        try:
+            _insert_xyz_blob(conn, rel,
+                             orig_opt_xyz.read_text(encoding="utf-8",
+                                                    errors="replace"))
+            out["xyz_path"] = rel
+        except Exception:
+            pass
+
+    plan = _read_json_safe(orig_plan_file)
+    if plan is not None:
+        out["success"] = bool(plan.get("success", False))
+        if out["success"]:
+            out["planar"] = plan.get("planar")
+            out["angle_deg"] = plan.get("angle_deg")
+            out["rmsd"] = plan.get("rmsd")
+            out["height"] = plan.get("height")
+            out["threshold_deg"] = plan.get("threshold_deg", threshold_deg)
+        else:
+            out["message"] = plan.get("message")
+
+    return out if out else None
+
+
 def ingest_local_job(db_path: str, job_id: str, output_dir: Path,
                      project_root: Path,
-                     threshold_deg: float = 10.0) -> Dict[str, int]:
+                     threshold_deg: float = 10.0) -> Dict[str, Any]:
     """Ingere les resultats d'un job termine en DB. Atomique par job.
 
     Parcourt output_dir/sol_*/ et pour chaque solution :
@@ -184,26 +226,39 @@ def ingest_local_job(db_path: str, job_id: str, output_dir: Path,
       - lit planarity.json si dispo, sinon planar=None
       - INSERT OR REPLACE dans designer_solutions
 
+    Ingere aussi le bloc original (output_dir/original/) en xyz_files, et
+    retourne ses metriques dans le champ 'original' du dict de retour
+    pour que l'appelant le stocke dans summary['original'] -- ainsi l'UI
+    peut afficher le benzenoide d'origine meme apres suppression du fs.
+
     Toutes les insertions tiennent dans UNE transaction : si la connexion
     sqlite plante au milieu, rien n'est commit (atomicite). Si une
     SOLUTION particuliere plante (XYZ illisible par ex), elle est sautee
-    mais l'ingestion continue, et n_failed est incremente. Aucun
-    silencement total : l'appelant peut detecter une ingestion partielle.
+    mais l'ingestion continue, et n_failed est incremente.
+
+    **Suppression auto du workdir** : si n_failed == 0 (ingestion complete)
+    et que l'env DESIGNER_KEEP_WORKDIR n'est pas defini, output_dir est
+    supprime recursivement apres le commit. C'est l'aboutissement de la
+    migration DB : plus aucun fichier residuel sur le fs apres un job
+    reussi. Pour debugger, definir DESIGNER_KEEP_WORKDIR=1 cote serveur.
 
     Args:
         threshold_deg : seuil de planarite (degres). Stocke pour reference.
 
     Returns:
-        {'n_ingested': int, 'n_failed': int, 'total': int}
+        {'n_ingested': int, 'n_failed': int, 'total': int,
+         'original': dict|None, 'workdir_deleted': bool}
         n_failed == 0 signifie que toutes les sol_dirs ont ete ingerees
         avec succes (appelant peut alors marquer summary.ingest_complete).
     """
     if not output_dir.is_dir():
-        return {"n_ingested": 0, "n_failed": 0, "total": 0}
+        return {"n_ingested": 0, "n_failed": 0, "total": 0,
+                "original": None, "workdir_deleted": False}
 
     sol_dirs = sorted(d for d in output_dir.glob("sol_*") if d.is_dir())
     n_ingested = 0
     n_failed = 0
+    original_block: Optional[Dict[str, Any]] = None
 
     with _open_conn(db_path) as conn:
         for sol_dir in sol_dirs:
@@ -261,7 +316,27 @@ def ingest_local_job(db_path: str, job_id: str, output_dir: Path,
             except Exception:
                 # On note l'echec mais on continue avec les autres sols.
                 n_failed += 1
+
+        # Bloc original (best-effort, n'incremente pas n_failed si rate)
+        try:
+            original_block = _ingest_original_block(conn, output_dir,
+                                                     project_root, threshold_deg)
+        except Exception:
+            original_block = None
+
         conn.commit()
 
+    # Suppression du workdir si ingestion complete et toggle debug absent.
+    workdir_deleted = False
+    if n_failed == 0 and not os.getenv("DESIGNER_KEEP_WORKDIR"):
+        try:
+            shutil.rmtree(output_dir)
+            workdir_deleted = True
+        except OSError:
+            # Echec de suppression (handles ouverts sur Windows, droits...)
+            # n'est pas fatal : la DB est commit, le workdir reste sur fs.
+            pass
+
     return {"n_ingested": n_ingested, "n_failed": n_failed,
-            "total": len(sol_dirs)}
+            "total": len(sol_dirs), "original": original_block,
+            "workdir_deleted": workdir_deleted}

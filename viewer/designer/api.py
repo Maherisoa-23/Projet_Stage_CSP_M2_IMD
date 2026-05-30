@@ -394,23 +394,29 @@ def _build_sol_dict_from_db(row):
     }
 
 
-def _read_original_block(output_dir, project_root):
-    """Lit output_dir/original/planarity.json si dispo (best-effort).
+def _read_original_block(output_dir, project_root, summary=None):
+    """Retourne le dict 'original' (planarity du benzenoide d'entree).
 
-    Retourne None si pas de fichier (cas cluster pur ou job sans test
-    original).
+    Strategie de lecture, par ordre de priorite :
+      1. summary['original'] (ingere en DB par ingest_local_job) -> idempotent,
+         survit a la suppression du workdir.
+      2. output_dir/original/planarity.json + original_opt.xyz (legacy fs).
+      3. None si ni l'un ni l'autre.
     """
+    if summary and isinstance(summary.get("original"), dict):
+        return summary["original"]
     orig_dir = output_dir / "original"
     orig_plan = orig_dir / "planarity.json"
     orig_opt_xyz = orig_dir / "original_opt.xyz"
     if not orig_plan.is_file():
         return None
     try:
-        original = json.loads(orig_plan.read_text(encoding="utf-8"))
+        original = json.loads(orig_plan.read_text(encoding="utf-8",
+                                                   errors="replace"))
         if orig_opt_xyz.is_file():
             original["xyz_path"] = orig_opt_xyz.relative_to(project_root).as_posix()
         return original
-    except (OSError, json.JSONDecodeError):
+    except (OSError, ValueError):
         return {"success": False, "message": "planarity.json corrompu"}
 
 
@@ -463,7 +469,7 @@ def api_job_solutions(job_id: str):
         db_sols = solutions_db.get_job_solutions(db_path, job_id)
         if db_sols:
             sols = [_build_sol_dict_from_db(row) for row in db_sols]
-            original = _read_original_block(output_dir, project_root)
+            original = _read_original_block(output_dir, project_root, summary)
             counts = _count_verdicts(sols)
             return jsonify({
                 "job_id": job_id,

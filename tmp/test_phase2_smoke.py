@@ -68,20 +68,42 @@ def test_get_solutions_empty():
 
 
 def test_ingest_returns_dict_with_n_failed():
-    print("Test 3b : ingest_local_job retourne dict avec n_ingested/n_failed/total...")
+    print("Test 3b : ingest_local_job retourne dict avec n_ingested/n_failed/total/original/workdir_deleted...")
     from viewer.designer import solutions_db
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
         db = Path(d) / "test.db"
         solutions_db.init_solutions_table(str(db))
-        # output_dir vide -> 0 sols a ingerer, n_failed=0
+        # output_dir vide -> 0 sols, n_failed=0, original=None, workdir_deleted=True
         empty = Path(d) / "empty"
         empty.mkdir()
         stats = solutions_db.ingest_local_job(str(db), "j1", empty, Path(d))
-        assert stats == {"n_ingested": 0, "n_failed": 0, "total": 0}, stats
-        # output_dir inexistant -> meme reponse safe
+        assert stats["n_ingested"] == 0 and stats["n_failed"] == 0, stats
+        assert stats["original"] is None, stats
+        assert stats["workdir_deleted"] is True, stats
+        assert not empty.exists(), f"empty dir devrait avoir ete supprime : {empty}"
+        # output_dir inexistant -> meme reponse safe, workdir_deleted=False
         stats2 = solutions_db.ingest_local_job(str(db), "j2",
                                                 Path(d) / "absent", Path(d))
         assert stats2["total"] == 0 and stats2["n_failed"] == 0, stats2
+        assert stats2["workdir_deleted"] is False, stats2
+    print("  OK")
+
+
+def test_keep_workdir_env_preserves_files():
+    print("Test 3c : DESIGNER_KEEP_WORKDIR=1 conserve les fichiers...")
+    from viewer.designer import solutions_db
+    os.environ["DESIGNER_KEEP_WORKDIR"] = "1"
+    try:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
+            db = Path(d) / "test.db"
+            solutions_db.init_solutions_table(str(db))
+            workdir = Path(d) / "workdir"
+            workdir.mkdir()
+            stats = solutions_db.ingest_local_job(str(db), "jk", workdir, Path(d))
+            assert stats["workdir_deleted"] is False, stats
+            assert workdir.exists(), "workdir devrait etre preserve avec env=1"
+    finally:
+        os.environ.pop("DESIGNER_KEEP_WORKDIR", None)
     print("  OK")
 
 
@@ -148,6 +170,7 @@ def main():
     test_init_tables()
     test_get_solutions_empty()
     test_ingest_returns_dict_with_n_failed()
+    test_keep_workdir_env_preserves_files()
     test_configs_exposes_cluster_flag()
     test_run_with_cluster_disabled_fails_explicit()
     print("=" * 60)

@@ -33,6 +33,7 @@ from .runner import (
     _compute_solutions_planarity,
     _count_outputs,
     _resolve_preset_flags,
+    _test_original_benzenoid,
 )
 
 
@@ -258,6 +259,15 @@ def _run_job_cluster_inner(db_path, job_id, project_root, job, config,
     graph_local = output_dir_local / "input.graph"
     graph_local.write_text(job.get("graph_content", ""), encoding="utf-8")
 
+    # Test du benzenoide d'entree LOCALEMENT, comme en mode local.
+    # ingest_local_job lira ensuite output_dir_local/original/ et stockera
+    # le bloc dans summary['original']. ~5-15s, best-effort.
+    jobs.update_job(db_path, job_id, current_stage="original", progress=0.04)
+    try:
+        _test_original_benzenoid(graph_local, output_dir_local, project_root)
+    except Exception:
+        pass
+
     try:
         r = _ssh(f"mkdir -p {remote_output}", timeout=30)
     except subprocess.TimeoutExpired:
@@ -377,7 +387,8 @@ def _run_job_cluster_inner(db_path, job_id, project_root, job, config,
             threshold_deg=PLANARITY_THRESHOLD_DEG)
         ingest_complete = ingest_stats["n_failed"] == 0
     except Exception:
-        ingest_stats = {"n_ingested": 0, "n_failed": -1, "total": 0}
+        ingest_stats = {"n_ingested": 0, "n_failed": -1, "total": 0,
+                        "original": None, "workdir_deleted": False}
         ingest_complete = False
 
     # ---------- 5. Cleanup workdir distant : gere par le finally du wrapper ----------
@@ -391,6 +402,8 @@ def _run_job_cluster_inner(db_path, job_id, project_root, job, config,
         "n_ingested_db": ingest_stats["n_ingested"],
         "n_failed_db": ingest_stats["n_failed"],
         "ingest_complete": ingest_complete,
+        "workdir_deleted": ingest_stats.get("workdir_deleted", False),
+        "original": ingest_stats.get("original"),
         "cluster": True,
         "cluster_host": CLUSTER_HOST,
         **outputs,
