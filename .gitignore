@@ -1,46 +1,36 @@
-non_benzenoid_generator/output/
-pah-tools-master/
-optimisation_et_test_planarite/
-venv/
-csp_solver/output/
-.claude/
-csp_solver/experiments/plane/
-csp_solver/experiments/output/
-csp_solver/experiments/experiments_bundle.zip
-csp_solver/experiments/model.xml
-generate_hep_v3.py
-cluster_results/
+# ===== Python =====
 **/__pycache__/
-__pycache__/
 *.pyc
-csp_solver/experiments/h9_viewer/h9.db
 
-docs/
-divers/
-REORGANIZATION_PLAN.md
+# ===== Environnement Python =====
+venv/
 
-# SQLite databases du viewer (regenerables via build_db.py)
+# ===== Outils IDE / agents =====
+.claude/
+
+# ===== Bases SQLite (regenerables via viewer/build_db.py) =====
 *.db
 *.db-shm
 *.db-wal
-csp_solver/experiments/csp_viewer/missing_export/
-prep_reunion_chimistes.md
-these_VARET.pdf
-these_VARET.txt
-rapport de stage/
-implementation_csp/
-_run_v2/
-VISUALISATION_3D.md
+
+# ===== Logs =====
 *.log
 
-# Dossier tmp/ : scripts temporaires et fichiers intermediaires (rebuild DB,
-# count cluster, sync checks, etc.). Tout ce qui est jetable apres run.
+# ===== Dossiers de travail jetables =====
+# Scripts temporaires et fichiers intermediaires (rebuild DB, count cluster,
+# sync checks, etc.). Tout ce qui est jetable apres run.
 tmp/
+# Archives diverses (anciens fichiers, code deplace lors des refactors).
+divers/
+# Docs recuperes du commit a67f065^ (rapport de stage + notes chimie + tex).
+# Volontairement hors-git : archive locale de reference.
+doc from commit/
 
-# === Nouvelle structure experiments/ (apres reorg mai 2026) ===
-# Inputs lourds et sorties regenerables : hors-git.
+# ===== Inputs lourds des experimentations (regenerables, ~10 MB+) =====
 experiments/v1/plane/
 experiments/v1/experiments_bundle.zip
+
+# ===== Sorties d'experimentations (regenerables via run_one_job) =====
 experiments/**/output/
 experiments/**/_runs/
 experiments/**/_results/
@@ -48,9 +38,9 @@ experiments/**/_run_v2/
 experiments/**/_ev2_run/
 experiments/**/_ev3_run/
 experiments/**/_ev3_val/
-experiments/viewer/missing_export/
-viewer/
 
-# Docs recuperes du commit a67f065^ (rapport de stage + notes chimie + tex).
-# Volontairement hors-git : archive locale de reference.
-doc from commit/
+# ===== Viewer =====
+# Le code dans viewer/ est tracke (731 fichiers indexes avant que cette regle
+# soit ajoutee). Cette regle empeche les NOUVEAUX dossiers (viewer/output/,
+# viewer/missing_export/, viewer/__pycache__/, etc.) d'etre tracks.
+viewer/
