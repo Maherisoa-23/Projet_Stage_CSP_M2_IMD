@@ -27,7 +27,6 @@ class Paths:
     csp_root: Path = _CSP_ROOT
     data_dir: Path = _CSP_ROOT / "data"
     output_dir: Path = _CSP_ROOT / "output"
-    generator_root: Path = _PROJECT_ROOT / "non_benzenoid_generator"
     table_voisinage: Path = _CSP_ROOT / "data" / "table_voisinage.json"
 
 

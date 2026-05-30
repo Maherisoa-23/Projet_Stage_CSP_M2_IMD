@@ -42,26 +42,17 @@ from pathlib import Path
 from statistics import mean, stdev
 
 
-# Make csp_solver and non_benzenoid_generator importable.
-# IMPORTANT : csp_solver doit etre EN PREMIER dans sys.path. Les 2 packages
-# ont chacun un sous-paquet `utils/` ; si non_benzenoid_generator est en
-# tete, `from utils.parser import parse` echoue (parser.py n'est que dans
-# csp_solver/utils/). On import donc csp_solver avant, puis on ajoute
-# non_benzenoid_generator EN FIN de path pour que `core.optimizer_md` se
-# resolve sans masquer `utils.*` de csp_solver.
+# Imports csp_solver. Tout est dans csp_solver/ depuis le refactor Option C.
+# project root pour 'from csp_solver.X', csp_solver/ pour 'from utils.X'.
 _HERE = Path(__file__).resolve().parent
-_CSP_ROOT = _HERE.parent
-_GEN_ROOT = _CSP_ROOT.parent / "non_benzenoid_generator"
-sys.path.insert(0, str(_CSP_ROOT))
+_PROJECT_ROOT = _HERE.parent.parent
+sys.path.insert(0, str(_PROJECT_ROOT))
+sys.path.insert(0, str(_PROJECT_ROOT / "csp_solver"))
 
 from utils.parser import parse                                  # noqa: E402
 from reconstruction.pipeline import reconstruct_molecule        # noqa: E402
 from reconstruction.assembler import export_xyz                 # noqa: E402
 from utils.validate import test_planarity_from_xyz              # noqa: E402
-
-# Import optimizer_md APRES les imports csp_solver pour ne pas que son
-# `utils/` masque celui de csp_solver dans le resolver d'imports.
-sys.path.append(str(_GEN_ROOT))
 from csp_solver.xtb.md import md_then_optimize                  # noqa: E402
 
 

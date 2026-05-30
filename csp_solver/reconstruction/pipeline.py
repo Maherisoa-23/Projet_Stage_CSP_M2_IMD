@@ -158,11 +158,6 @@ def _run_md(graph, sol, i, threshold, opt_level, output_dir, sol_str,
 
     # Import local pour eviter de charger optimizer_md si la strategy
     # MD n'est pas utilisee.
-    import sys
-    _gen_root = Path(__file__).parent.parent.parent / "non_benzenoid_generator"
-    _gen_str = str(_gen_root)
-    if _gen_str not in sys.path:
-        sys.path.insert(0, _gen_str)
     from csp_solver.xtb.md import md_then_optimize
 
     success, final_xyz, info = md_then_optimize(

@@ -6,17 +6,8 @@ pour construire un MolecularGraph complet, resoudre les valences
 (doubles liaisons + hydrogenes), et exporter en format XYZ.
 """
 
-import sys
-from pathlib import Path
-
 from reconstruction.topology import CycleTopology
 from reconstruction.placement import CyclePlacer
-
-# Import depuis le generateur (meme pattern que validate.py)
-_gen_root = Path(__file__).parent.parent.parent / "non_benzenoid_generator"
-_gen_str = str(_gen_root)
-if _gen_str not in sys.path:
-    sys.path.insert(0, _gen_str)
 
 from csp_solver.primitives.topology import MolecularGraph, Cycle
 from csp_solver.primitives.valence import ValenceSolver

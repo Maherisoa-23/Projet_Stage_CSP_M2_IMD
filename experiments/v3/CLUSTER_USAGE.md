@@ -37,7 +37,7 @@ python -c "from rdkit.Chem import AllChem; print('rdkit OK')"
 Depuis Git Bash sur ton PC :
 
 ```bash
-cd "/e/Stage AMU CSP IMD M2/Generation des molecules pour la table de voisinage/Projet_Stage_CSP_M2_IMD"
+cd "/c/Projets/Projet_Stage_CSP_M2_IMD"
 
 tar -czf - csp_solver/experiments_v3 \
   | ssh 192.168.200.49 \
@@ -151,7 +151,7 @@ ls /home/COALA/ramaherisoa/projet/_ev3_run/output/worker_dbs/*.db 2>/dev/null | 
 ```bash
 python -m csp_solver.experiments_v3.cluster.finalize \
   --workers-dir /home/COALA/ramaherisoa/projet/_ev3_run/output/worker_dbs \
-  --db /home/COALA/ramaherisoa/projet/csp_solver/experiments/csp_viewer/db_v4.db \
+  --db /home/COALA/ramaherisoa/projet/viewer/db_v4.db \
   --delete-after-merge
 ```
 
@@ -163,7 +163,7 @@ Le schéma de db_v4 est compatible avec csp_viewer existant (mêmes colonnes
 ```bash
 python -c "
 import sqlite3
-c = sqlite3.connect('/home/COALA/ramaherisoa/projet/csp_solver/experiments/csp_viewer/db_v4.db')
+c = sqlite3.connect('/home/COALA/ramaherisoa/projet/viewer/db_v4.db')
 
 print('=== par config ===')
 for r in c.execute(\"SELECT h, name, n_molecules, n_solutions, n_plans, n_non_plans FROM configs ORDER BY h, name\"):
@@ -186,9 +186,9 @@ print('xyz_files :', c.execute('SELECT COUNT(*) FROM xyz_files').fetchone())
 Sur ton PC :
 
 ```bash
-cd "/e/Stage AMU CSP IMD M2/Generation des molecules pour la table de voisinage/Projet_Stage_CSP_M2_IMD/csp_solver/experiments/csp_viewer"
+cd "/c/Projets/Projet_Stage_CSP_M2_IMD/viewer"
 
-scp 192.168.200.49:/home/COALA/ramaherisoa/projet/csp_solver/experiments/csp_viewer/db_v4.db db_v4.db
+scp 192.168.200.49:/home/COALA/ramaherisoa/projet/viewer/db_v4.db db_v4.db
 ```
 
 **Comparaison rapide v2 vs v3** :
@@ -196,8 +196,8 @@ scp 192.168.200.49:/home/COALA/ramaherisoa/projet/csp_solver/experiments/csp_vie
 ./venv/Scripts/python.exe -c "
 import sqlite3
 for path, lbl in [
-    ('csp_solver/experiments/csp_viewer/db_v2.db', 'v2_baseline'),
-    ('csp_solver/experiments/csp_viewer/db_v4.db', 'v3_constrained'),
+    ('viewer/db_v2.db', 'v2_baseline'),
+    ('viewer/db_v4.db', 'v3_constrained'),
 ]:
     db = sqlite3.connect(path)
     print(f'--- {lbl} ---')

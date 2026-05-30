@@ -31,14 +31,16 @@ import subprocess
 from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
-_CSP_ROOT = _HERE.parent
-_GEN_ROOT = _CSP_ROOT.parent / "non_benzenoid_generator"
-sys.path.insert(0, str(_CSP_ROOT))
+_CSP_ROOT = _HERE.parent              # conserve la semantique historique (utilise plus bas)
+_PROJECT_ROOT = _CSP_ROOT.parent
+# Pour 'from csp_solver.X' on a besoin du project root ;
+# pour 'from utils.X' (modules internes a csp_solver/) on a besoin de csp_solver/.
+sys.path.insert(0, str(_PROJECT_ROOT))
+sys.path.insert(0, str(_PROJECT_ROOT / "csp_solver"))
 from utils.parser import parse                                  # noqa: E402
 from reconstruction.pipeline import reconstruct_molecule        # noqa: E402
 from reconstruction.assembler import export_xyz                 # noqa: E402
 from utils.validate import test_planarity_from_xyz              # noqa: E402
-sys.path.append(str(_GEN_ROOT))
 from csp_solver.xtb.md import md_then_optimize                  # noqa: E402
 
 

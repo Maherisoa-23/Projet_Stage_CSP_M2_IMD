@@ -107,14 +107,8 @@ if __name__ == "__main__":
     import sys
 
     if len(sys.argv) < 2:
-        # Chemin par défaut vers le rapport
-        rapport = str(
-            Path(__file__).parent.parent.parent
-            / "non_benzenoid_generator"
-            / "output"
-            / "rapport_planarite.txt"
-        )
-    else:
-        rapport = sys.argv[1]
+        print("Usage: python table.py <chemin_rapport_planarite.txt>")
+        sys.exit(1)
+    rapport = sys.argv[1]
 
     build_table(rapport)

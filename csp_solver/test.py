@@ -11,37 +11,20 @@ Usage:
 
 import sys
 import shutil
-import importlib.util
 from pathlib import Path
 
-# --- Imports du generateur ---
-_gen_root = Path(__file__).parent.parent / "non_benzenoid_generator"
-_gen_str = str(_gen_root)
-if _gen_str not in sys.path:
-    sys.path.insert(0, _gen_str)
+# csp_solver/ dans sys.path pour les imports 'utils.X' / 'reconstruction.X'.
+# Le parent (project root) doit deja etre dans sys.path pour 'csp_solver.X'.
+_HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE.parent))
+sys.path.insert(0, str(_HERE))
 
 from csp_solver.xtb.optimizer import optimize_xtb, read_optimized_coords
+from csp_solver.planarity.pca import compute_planarity, is_planar
 
-# planarity via importlib (evite conflit avec utils/ local)
-_plan_spec = importlib.util.spec_from_file_location(
-    "gen_planarity", str(_gen_root / "utils" / "planarity.py"))
-_plan_mod = importlib.util.module_from_spec(_plan_spec)
-_plan_spec.loader.exec_module(_plan_mod)
-compute_planarity = _plan_mod.compute_planarity
-is_planar = _plan_mod.is_planar
-
-# --- Import du parser et du pipeline de reconstruction ---
-sys.path.insert(0, str(Path(__file__).parent))
 from utils.parser import parse
 from reconstruction.pipeline import reconstruct_molecule
 from reconstruction.assembler import export_xyz
-
-# Re-prioriser non_benzenoid_generator dans sys.path : valence_solver.py fait
-# `from config import BOND_LENGTH_CH` (import tardif) et on ne veut pas tomber
-# sur csp_solver/config.py qui n'a pas cette constante.
-if _gen_str in sys.path:
-    sys.path.remove(_gen_str)
-sys.path.insert(0, _gen_str)
 
 
 def main():

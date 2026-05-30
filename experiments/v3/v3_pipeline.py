@@ -231,12 +231,7 @@ def reconstruct_filter_validate_v3(
             })
             continue
 
-        try:
-            from csp_solver.xtb.md import md_then_optimize  # via path setup ci-dessus
-        except ImportError:
-            _gen_root = _project_root / "non_benzenoid_generator"
-            sys.path.insert(0, str(_gen_root))
-            from csp_solver.xtb.md import md_then_optimize  # noqa
+        from csp_solver.xtb.md import md_then_optimize
 
         md_dir = sol_dir / "md_validation"
         success, final_xyz, info = md_then_optimize(

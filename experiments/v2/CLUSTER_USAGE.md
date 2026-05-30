@@ -17,7 +17,7 @@ qui a déjà fait ses preuves.
 Depuis Git Bash sur ton PC :
 
 ```bash
-cd "/e/Stage AMU CSP IMD M2/Generation des molecules pour la table de voisinage/Projet_Stage_CSP_M2_IMD"
+cd "/c/Projets/Projet_Stage_CSP_M2_IMD"
 
 tar -czf - csp_solver/experiments_v2 \
   | ssh 192.168.200.49 \
@@ -123,7 +123,7 @@ besoin de `build_db.py` ni de `ingest_xyz.py`) :
 ```bash
 python -m csp_solver.experiments_v2.cluster.finalize \
   --workers-dir /home/COALA/ramaherisoa/projet/_ev2_run/output/worker_dbs \
-  --db /home/COALA/ramaherisoa/projet/csp_solver/experiments/csp_viewer/db_v3.db \
+  --db /home/COALA/ramaherisoa/projet/viewer/db_v3.db \
   --delete-after-merge
 ```
 
@@ -139,7 +139,7 @@ pas de fichiers xyz éparpillés sur le NFS.
 ```bash
 python -c "
 import sqlite3
-c = sqlite3.connect('/home/COALA/ramaherisoa/projet/csp_solver/experiments/csp_viewer/db_v3.db')
+c = sqlite3.connect('/home/COALA/ramaherisoa/projet/viewer/db_v3.db')
 for r in c.execute(\"SELECT h, config, COUNT(*) FROM molecules GROUP BY h, config\"):
     print(r)
 for r in c.execute(\"SELECT h, verdict, COUNT(*) FROM solutions GROUP BY h, verdict\"):
@@ -155,9 +155,9 @@ print('xyz_files :', c.execute('SELECT COUNT(*) FROM xyz_files').fetchone())
 Sur ton PC :
 
 ```bash
-cd "/e/Stage AMU CSP IMD M2/Generation des molecules pour la table de voisinage/Projet_Stage_CSP_M2_IMD/csp_solver/experiments/csp_viewer"
+cd "/c/Projets/Projet_Stage_CSP_M2_IMD/viewer"
 
-scp 192.168.200.49:/home/COALA/ramaherisoa/projet/csp_solver/experiments/csp_viewer/db_v3.db db_v3.db
+scp 192.168.200.49:/home/COALA/ramaherisoa/projet/viewer/db_v3.db db_v3.db
 ```
 
 Puis lance le batch analysis_v2 sur db_v3 :
@@ -165,7 +165,7 @@ Puis lance le batch analysis_v2 sur db_v3 :
 ```bash
 cd "../../.."  # racine projet
 ./venv/Scripts/python.exe -u -m csp_solver.experiments.csp_viewer.analysis_v2.cluster.build_manifest \
-  --db csp_solver/experiments/csp_viewer/db_v3.db \
+  --db viewer/db_v3.db \
   --h h7 \
   --output _av2_v3/manifest.jsonl
 # ... (cf analysis_v2/CLUSTER_USAGE.md)
@@ -177,8 +177,8 @@ Le rapport `rapport_h7.html` côté v3 te montrera le **nouveau %plan**.
 ```bash
 ./venv/Scripts/python.exe -c "
 import sqlite3
-v2 = sqlite3.connect('csp_solver/experiments/csp_viewer/db_v2.db')
-v3 = sqlite3.connect('csp_solver/experiments/csp_viewer/db_v3.db')
+v2 = sqlite3.connect('viewer/db_v2.db')
+v3 = sqlite3.connect('viewer/db_v3.db')
 for db, lbl in [(v2,'v2_baseline'),(v3,'v3_constrained')]:
     r = db.execute(\"SELECT verdict, COUNT(*) FROM solutions WHERE h='h7' GROUP BY verdict\").fetchall()
     print(lbl, ':', dict(r))

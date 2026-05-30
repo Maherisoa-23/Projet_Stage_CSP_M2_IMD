@@ -15,19 +15,15 @@ syntaxique). Ce fichier les charge, substitue les donnees et ecrit le HTML.
 
 import sys
 import json
-import importlib.util
 from pathlib import Path
 from datetime import datetime
 from string import Template
 
-# --- Import du module planarity ---
-_gen_root = Path(__file__).parent.parent.parent / "non_benzenoid_generator"
-_plan_spec = importlib.util.spec_from_file_location(
-    "gen_planarity", str(_gen_root / "utils" / "planarity.py"))
-_plan_mod = importlib.util.module_from_spec(_plan_spec)
-_plan_spec.loader.exec_module(_plan_mod)
-compute_planarity = _plan_mod.compute_planarity
-is_planar = _plan_mod.is_planar
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from csp_solver.planarity.pca import compute_planarity, is_planar
 
 THRESHOLD_DEG = 10.0
 TEMPLATES_DIR = Path(__file__).parent / "templates"

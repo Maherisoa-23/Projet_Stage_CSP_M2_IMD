@@ -26,13 +26,6 @@ coexister (les 2 methodes peuvent valider la meme solution pour comparaison).
 """
 
 from utils.validation.base import ValidationStrategy
-# Re-exporte les defauts pour qu'ils soient accessibles via cette strategy.
-import sys
-from pathlib import Path
-_gen_root = Path(__file__).parent.parent.parent.parent / "non_benzenoid_generator"
-_gen_str = str(_gen_root)
-if _gen_str not in sys.path:
-    sys.path.insert(0, _gen_str)
 from csp_solver.xtb.md import DEFAULT_MD_PARAMS  # re-export pratique
 
 
