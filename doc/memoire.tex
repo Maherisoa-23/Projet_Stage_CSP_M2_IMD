@@ -1,0 +1,306 @@
+% =====================================================================
+%  Mémoire de stage M2 IMD — Toky Nirina RAMAHERISOA — 2025/2026
+%  PLAN DÉTAILLÉ (à valider par l'encadrant avant rédaction du contenu)
+%
+%  Compilation : pdflatex (Overleaf : moteur pdfLaTeX), 2 passes pour
+%  le sommaire et les références.
+%
+%  >>> Ce document ne contient PAS encore le contenu : chaque section
+%      porte une courte description (en italique gris) de ce qui y sera
+%      écrit. Le but est de figer la STRUCTURE et de la faire valider.
+% =====================================================================
+\documentclass[11pt,a4paper]{article}
+
+% ---------- Encodage / langue ----------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[french]{babel}
+
+% ---------- Mise en page ----------
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{setspace}
+\usepackage{parskip}
+
+% ---------- Maths / tableaux / figures ----------
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{enumitem}
+\usepackage{xcolor}
+
+% ---------- Liens ----------
+\usepackage[hidelinks]{hyperref}
+\hypersetup{
+  pdftitle={Memoire M2 IMD - Generation PPC de non-benzenoides 5/6/7},
+  pdfauthor={Toky Nirina Ramaherisoa}
+}
+
+% =====================================================================
+%  Macro de description de section (à RETIRER une fois le contenu écrit)
+% =====================================================================
+\definecolor{descrgray}{gray}{0.35}
+\newcommand{\descr}[1]{%
+  {\small\itshape\color{descrgray}\textbf{Contenu prévu :} #1\par}\vspace{0.4em}}
+
+% Macros récurrentes
+\newcommand{\GD}{\ensuremath{G_D}}                 % graphe dual
+\newcommand{\Tn}{\ensuremath{\mathcal{T}}}         % table de voisinage
+\newcommand{\xtb}{\textsc{xTB}}
+\newcommand{\ace}{\textsc{ace}}
+
+\begin{document}
+
+% =====================================================================
+%  PAGE DE GARDE
+% =====================================================================
+\begin{titlepage}
+\centering
+
+% --- Logos -----------------------------------------------------------
+% À FAIRE sur Overleaf : déposer les 3 logos (amu.png, lis.png, ism2.png)
+% puis dé-commenter la ligne ci-dessous. Logos officiels :
+%   - Aix-Marseille Université  - LIS  - iSm2  (cf. these.pdf p.1)
+% \includegraphics[height=1.7cm]{amu.png}\hfill
+% \includegraphics[height=1.7cm]{lis.png}\hfill
+% \includegraphics[height=1.7cm]{ism2.png}
+{\large\bfseries Aix-Marseille Université\quad$\cdot$\quad LIS\quad$\cdot$\quad iSm2}\\[0.3em]
+{\footnotesize\itshape [emplacement des logos — à ajouter sur Overleaf]}
+
+\vspace{1.2cm}
+{\large Mémoire de stage de Master 2}\\[0.2em]
+{\large Informatique et Mathématiques Discrètes (IMD)}\\[0.2em]
+{\large Année universitaire 2025--2026}
+
+\vspace{1.6cm}
+\rule{\linewidth}{0.5pt}\\[0.6em]
+{\LARGE\bfseries Génération automatique et exhaustive de structures\\[0.25em]
+moléculaires bi-dimensionnelles par programmation\\[0.25em]
+par contraintes\par}
+\vspace{0.5em}
+{\large focus sur les non-benzénoïdes à cycles 5, 6 et 7 atomes\\
+et validation quantique semi-empirique\par}
+\rule{\linewidth}{0.5pt}
+
+\vspace{1.6cm}
+{\large\bfseries Toky Nirina RAMAHERISOA}
+
+\vspace{1.4cm}
+\begin{tabular}{rl}
+\textbf{Encadrants} & Nicolas \textsc{Prcovic} et Cyril \textsc{Terrioux}\\
+                    & \emph{LIS, équipe COALA, Aix-Marseille Université}\\[0.6em]
+\textbf{Partenaires} & Yannick \textsc{Carissan} et Denis \textsc{Hagebaum-Reignier}\\
+                     & \emph{Institut des Sciences Moléculaires de Marseille (iSm2)}\\
+\end{tabular}
+
+\vfill
+{\small Document de travail — \emph{plan détaillé soumis à validation}}
+\end{titlepage}
+
+% =====================================================================
+%  TABLE DES MATIÈRES
+% =====================================================================
+\tableofcontents
+\newpage
+
+% =====================================================================
+\section{Introduction}
+% =====================================================================
+\descr{Présentation générale, situation du stage dans la continuité de la
+thèse de A.~Varet (PPC pour les benzénoïdes), annonce du plan.}
+
+\subsection{Contexte}
+\descr{Les HAP et leur intérêt ; les benzénoïdes ; l'émergence récente des
+cycles à 5 et 7 atomes.}
+
+\subsection{Objectif et problématique}
+\descr{Énoncé bref du but : énumérer exhaustivement les substitutions
+5/6/7 d'un benzénoïde. Le problème est détaillé en section~3.}
+
+\subsection{Positionnement et apports}
+\descr{Ce que reprend / ce qu'étend le stage par rapport à Varet ; liste
+des contributions.}
+
+% =====================================================================
+\section{Préliminaires et état de l'art}
+% =====================================================================
+\descr{Donner au lecteur (jury maths/info) les deux corpus de notions
+nécessaires : la PPC, puis la chimie des HAP.}
+
+\subsection{Programmation par contraintes (PPC)}
+\descr{Paradigme déclaratif (variables, domaines, contraintes), solveur
+\og boîte noire \fg{} (\ace{} via PyCSP3), contraintes extensionnelles
+(tables), contraintes globales, rupture de symétrie.}
+
+\subsection{Notions de chimie}
+\descr{Tous les termes chimiques employés dans le projet, chacun en
+sous-section.}
+
+\subsubsection{Hydrocarbures aromatiques polycycliques et benzénoïdes}
+\descr{HAP, benzénoïdes (hexagones fusionnés), graphe carbone, et
+représentation par graphe dual \GD{} (un sommet par hexagone, notion de
+bord).}
+
+\subsubsection{Aromaticité et délocalisation}
+\descr{Électrons $\pi$, délocalisation, lien avec la stabilité.}
+
+\subsubsection{Structures de Kekulé}
+\descr{Alternance simple/double, couplage parfait du graphe carbone.}
+
+\subsubsection{Sextets et couvertures de Clar}
+\descr{Sextet aromatique, nombre de Clar, règle de Hückel $4n{+}2$.}
+
+\subsubsection{Ring Bond Order (RBO)}
+\descr{Ordre de liaison moyenné sur les Kekulé, RBO d'un cycle.}
+
+\subsubsection{Sites radicalaires}
+\descr{Électron $\pi$ non apparié, lien avec la parité des cycles 5/7.}
+
+\subsubsection{Planéité et courbure}
+\descr{Molécule plane vs gondolée ; intuition de courbure (Gauss--Bonnet,
+défaut Stone--Wales).}
+
+\subsubsection{Validation quantique semi-empirique (\xtb{})}
+\descr{GFN2-\xtb{} : minimisation d'énergie d'une géométrie à faible coût ;
+ce qu'on en attend (géométrie d'équilibre pour juger la planéité).}
+
+% =====================================================================
+\section{Le problème}
+% =====================================================================
+\descr{Maintenant que le vocabulaire est posé, on détaille réellement le
+problème : ce qu'on cherche, et pourquoi c'est difficile — sur les deux
+plans combinatoire et géométrique/chimique.}
+
+\subsection{Énoncé : substitutions 5/6/7 d'un benzénoïde}
+\descr{Formulation précise sur le graphe dual : conserver chaque hexagone
+ou le remplacer par un cycle à 5 ou 7 atomes, et énumérer toutes les
+substitutions admissibles.}
+
+\subsection{La difficulté combinatoire}
+\descr{Explosion du nombre de substitutions avec la taille du benzénoïde ;
+seules certaines configurations sont réalisables.}
+
+\subsection{La difficulté géométrique et topologique}
+\descr{Le cœur de la difficulté : angles, distances inter-atomiques,
+contraintes topologiques de fusion des cycles, et planéité — autant de
+grandeurs non figées pour les 5/7, à évaluer plutôt que données.}
+
+% =====================================================================
+\section{Modélisation}
+% =====================================================================
+\descr{Première contribution : la modélisation PPC qui résout le problème
+décrit en section~3. On présente variables, domaines et contraintes
+structurelles. (Les contraintes \emph{additionnelles} relèvent de l'étude
+expérimentale, section~6.)}
+
+\subsection{Variables et domaines}
+\descr{Une variable $x_v\in\{5,6,7\}$ par hexagone. Réduction de domaine
+en prétraitement : motif d'occupation $\sigma(v)$, blocs de côtés libres
+$b(v)$, et gel des hexagones ($\deg(v)=6$ ou $b(v)\ge 2$).}
+
+\subsection{C1 — Conservation du carbone}
+\descr{$\sum_v x_v = 6h$ (Euler), équivalent à $n_5 = n_7$.}
+
+\subsection{C3 — Voisinage admissible et table de voisinage}
+\descr{Contrainte extensionnelle sur le tuple $(x_v,x_{u_1},\dots)$, table
+\Tn{} sensible à la disposition cyclique des voisins ; construction par
+validation géométrique (\xtb{} + critère $10^\circ$) ; table officielle
+$63+291+367 = 721$ entrées.}
+% NOTE pour Toky : confirmer avec l'encadrant la provenance exacte de la
+% table officielle (génération + validation xTB vs catalogue raffiné).
+
+\subsection{Rupture de symétrie (lex-leader)}
+\descr{Automorphismes du graphe dual $\mathrm{Aut}(\GD)$ et contrainte
+lex-leader pour ne garder qu'un représentant par orbite (justif. Whitney
++ 2-connexité).}
+
+\subsection{Résolution}
+\descr{Compilation XCSP3 puis énumération de toutes les solutions par
+\ace{}.}
+
+% =====================================================================
+\section{Réalisation : des solutions du modèle aux molécules validées et analysées}
+% =====================================================================
+\descr{Deuxième contribution, partie qui regroupe l'essentiel du travail
+d'implémentation : produire des molécules 3D, trancher leur planéité,
+les analyser, et la brique logicielle qui orchestre le tout.}
+
+\subsection{Reconstruction 3D des solutions}
+\descr{Modifications topologiques par cycle, placement géométrique BFS,
+assemblage moléculaire (Blossom, hydrogènes), export XYZ.}
+
+\subsection{Validation par \xtb{} : protocole MD}
+\descr{Minimum plat parasite ; dynamique moléculaire courte puis
+optimisation ; variantes \texttt{multi-runs} / \texttt{z-perturb}.}
+
+\subsection{Test de planéité par analyse en composantes principales}
+\descr{ACP sur les carbones, métriques d'angle/épaisseur, critère
+\texttt{max\_angle\_deg} $\le 10^\circ$, verdict PLAN/NON-PLAN.}
+
+\subsection{Analyse électronique des structures}
+\descr{Section courte : analyses statiques (Kekulé, Clar, radicaux) et
+\textbf{extension du RBO aux cycles 5/7}. Statut : outil opérationnel,
+exploration préliminaire.}
+
+\subsection{Mise en œuvre logicielle}
+\descr{Section courte (IMD, pas génie logiciel) : application designer
+web, base SQLite, exécution sur cluster, viewer 3D multi-modes ;
+mentionnée pour la reproductibilité.}
+
+% =====================================================================
+\section{Étude expérimentale : quelles contraintes améliorent la planéité ?}
+% =====================================================================
+\descr{Cœur scientifique : démarche expérimentale en trois temps
+(v1, v2, v3) pour identifier les contraintes additionnelles qui augmentent
+la proportion de molécules planes, avec résultats chiffrés.}
+
+\subsection{Protocole et banc d'essai}
+\descr{Corpus BenzaiDB $h_3$ à $h_9$, métrique de taux de planéité,
+pipeline reproductible, comparaison terme à terme.}
+
+\subsection{v1 — Modèle de base}
+\descr{Mesure de référence (contraintes structurelles seules) et mise au
+point du pipeline complet.}
+
+\subsection{v2 — Contraintes globales : pentagones en bord}
+\descr{C-SYM (sans effet) vs C-PB ; \texttt{pb1} levier dominant
+($+9$ à $+19$ pts) ; compromis volume/qualité.}
+
+\subsection{v3 — Contraintes locales : appariement 5--7 (Stone--Wales)}
+\descr{Gauss--Bonnet local (redondant) et adjacence 5--7 ;
+\texttt{pb1\_adj57} gagnant ($+17$ à $+32$ pts) ; interprétation
+courbure / défaut topologique.}
+
+\subsection{Bilan expérimental}
+\descr{Configuration recommandée, gains par taille, volume de molécules
+planes, limites (effondrement sur $h_9$).}
+
+% =====================================================================
+\section{Conclusion et perspectives}
+% =====================================================================
+\descr{Bilan des contributions ; perspectives (contraintes globales de
+courbure, approfondissement de l'analyse électronique, RBO exact via
+Kasteleyn, passage à l'échelle).}
+
+% =====================================================================
+%  RÉFÉRENCES (squelette — à compléter)
+% =====================================================================
+\begin{thebibliography}{99}
+\small
+\bibitem{varet2022} A.~Varet, \emph{Programmation par contraintes et chimie
+théorique : utilisation du formalisme CSP pour résoudre des problématiques
+liées aux benzénoïdes}, thèse de doctorat, Aix-Marseille Université, 2022.
+\bibitem{clar1972} E.~Clar, \emph{The Aromatic Sextet}, Wiley, 1972.
+\bibitem{pauling} L.~Pauling, \emph{The Nature of the Chemical Bond}.
+\bibitem{huckel1931} E.~Hückel, 1931 — règle $4n+2$.
+\bibitem{rispoli2001} Rispoli, comptage des structures de Kekulé (déterminant
+de biadjacence), 2001.
+\bibitem{kasteleyn1967} P.~W.~Kasteleyn, \emph{Graph theory and crystal
+physics}, 1967.
+\bibitem{stonewales} A.~J.~Stone, D.~J.~Wales, défaut topologique 5--7--7--5, 1986.
+\bibitem{xtb} C.~Bannwarth, S.~Ehlert, S.~Grimme, \emph{GFN2-xTB}, 2019.
+\bibitem{pycsp3ace} C.~Lecoutre, \emph{PyCSP3 / ACE (Abscon Constraint Engine)}.
+\bibitem{whitney} H.~Whitney, unicité du plongement planaire, 1932.
+\end{thebibliography}
+
+\end{document}
