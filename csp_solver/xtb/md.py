@@ -322,6 +322,7 @@ def _try_det_opt_attempt(input_path: Path, work_dir: Path, perturb_params: dict,
         "perturbed": perturbed,
         "final": final,
         "converged": converged,
+        "stdout": result_opt.stdout or "",
     }
     return True, "OK (converge)" if converged else "OK (non converge, max iterations)", artefacts
 
@@ -432,6 +433,10 @@ def md_then_optimize(input_xyz: str,
                     f.write(perturbed_content)
                     f.write(final_content)
                 shutil.copy2(artefacts["final"], out_final)
+                if artefacts.get("stdout"):
+                    (output_dir / "xtb.log").write_text(
+                        artefacts["stdout"], encoding="utf-8"
+                    )
 
                 info["converged"] = artefacts["converged"]
                 info["trajectory_file"] = out_traj.name

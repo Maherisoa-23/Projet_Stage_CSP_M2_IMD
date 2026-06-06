@@ -43,6 +43,7 @@
 \newcommand{\descr}[1]{%
   {\small\itshape\color{descrgray}\textbf{Contenu prévu :} #1\par}\vspace{0.4em}}
 \newcommand{\todo}[1]{{\bfseries\color{red}[À COMPLÉTER : #1]}}
+\newcommand{\tbd}{{\bfseries\color{red}--?--}}  % cellule de tableau à remplir
 
 \newcommand{\GD}{\ensuremath{G_D}}                 % graphe dual
 \newcommand{\Tn}{\ensuremath{\mathcal{T}}}         % table de voisinage
@@ -549,86 +550,357 @@ l'étape suivante, reconstruit en une molécule tridimensionnelle puis validé.
 % =====================================================================
 \section{Réalisation : des solutions du modèle aux molécules validées et analysées}
 \label{sec:realisation}
-% =====================================================================
-\descr{[Lot 2] Reconstruction 3D, validation \xtb{}-MD, test de planéité ACP,
-analyse électronique (Kekulé/Clar/RBO 5--7), et brève présentation de la mise en
-œuvre logicielle.}
+
+Le modèle de la section~\ref{sec:modele} produit des \emph{vecteurs de tailles}
+$(x_0, \dots, x_{h-1})$ : des objets abstraits. Cette section décrit comment on
+en fait des molécules réelles, comment on tranche leur planéité, et comment on
+analyse leurs propriétés électroniques. Elle regroupe l'essentiel du travail
+d'implémentation.
 
 \subsection{Reconstruction 3D des solutions}
-\descr{Modifications topologiques par cycle, placement BFS, assemblage (Blossom,
-hydrogènes), export XYZ.}
 
-\subsection{Validation par \xtb{} : protocole MD}
-\descr{Minimum plat parasite ; dynamique moléculaire courte puis optimisation ;
-variantes multi-runs / z-perturb.}
+Chaque solution est transformée en une molécule tridimensionnelle (carbones et
+hydrogènes, avec coordonnées) en trois phases.
+
+\begin{enumerate}[leftmargin=1.4em]
+  \item \textbf{Modifications topologiques.} Pour chaque hexagone dont la taille
+    assignée diffère de $6$, on modifie le cycle : on retire un sommet pour
+    obtenir un pentagone, on en ajoute un pour un heptagone. Ces modifications
+    ne portent que sur les côtés \emph{libres} ($\sigma_i = 0$), afin de
+    préserver les arêtes partagées avec les voisins.
+  \item \textbf{Placement géométrique.} Un parcours en largeur (BFS) du graphe
+    dual place les cycles comme des polygones réguliers fusionnés (longueur de
+    liaison carbone--carbone $\approx 1{,}4$~\AA). On part d'un cycle ancré (le
+    plus haut degré), puis chaque cycle enfant est positionné par rapport à son
+    parent via l'arête partagée, du bon côté pour que la structure ne se replie
+    pas sur elle-même.
+  \item \textbf{Assemblage moléculaire.} Les coordonnées sont injectées dans un
+    graphe moléculaire ; les doubles liaisons sont placées par un couplage de
+    cardinalité maximale (algorithme de Blossom d'Edmonds~\cite{edmonds1965}) ;
+    les hydrogènes sont ajoutés sur les carbones de bord (longueur
+    $\approx 1{,}088$~\AA) ; le tout est exporté au format XYZ.
+\end{enumerate}
+
+La géométrie ainsi produite est \emph{plane par construction} (tous les atomes
+dans le plan $z=0$). C'est l'étape de validation qui révélera si la molécule est
+réellement plane à l'équilibre.
+
+\subsection{Validation par \xtb{} : protocole de dynamique moléculaire}
+
+L'optimisation \xtb{} procède par descente de gradient. Or si la géométrie
+initiale est \emph{parfaitement} plane, les forces perpendiculaires au plan sont
+nulles par symétrie : l'optimiseur reste alors piégé dans un \textbf{minimum
+plat parasite} et conclut à tort que la molécule est plane. Nous l'avons
+constaté en comparant deux géométries initiales planes du même benzénoïde, qui
+convergeaient l'une vers une forme plane, l'autre vers une forme courbée à
+$58{,}6^\circ$.
+
+Le protocole retenu contourne ce piège par une \textbf{dynamique moléculaire}
+courte (GFN2-\xtb{}, $\sim 300$~K) qui « secoue » la molécule pour la sortir du
+faux équilibre, suivie d'une optimisation (\texttt{--opt tight}) depuis la
+dernière configuration, qui fournit la géométrie d'équilibre. Un filtre
+anti-fragmentation rejette les trajectoires où un atome s'éjecte. C'est
+l'équivalent numérique de la procédure suggérée par le chimiste : \emph{déplacer
+un atome et vérifier s'il revient à sa place}. Deux variantes ont été testées :
+\texttt{multi-runs} (plusieurs optimisations indépendantes avec une légère
+perturbation aléatoire en $z$, la molécule étant déclarée plane si \emph{au
+moins une} converge plane) et \texttt{z-perturb} (perturbation déterministe,
+calculée par hachage du fichier, donc reproductible). Le protocole MD est la
+stratégie par défaut.
 
 \subsection{Test de planéité par analyse en composantes principales}
-\descr{ACP sur les carbones, critère \texttt{max\_angle\_deg} $\le 10^\circ$.}
+
+Sur la géométrie optimisée, on teste la planéité par une \textbf{analyse en
+composantes principales} (ACP) des positions des carbones. On centre les
+coordonnées, on diagonalise leur matrice de covariance $3\times3$, et l'on
+obtient le \emph{plan moyen} (engendré par les deux premières composantes) et sa
+normale $v_3$. On en déduit plusieurs métriques : l'angle entre $v_3$ et l'axe
+$Z$ global, le \emph{rmsd} des distances des atomes au plan, la hauteur
+(épaisseur) de la molécule, et surtout \texttt{max\_angle\_deg}, qui mesure les
+bombements \emph{locaux} cycle par cycle. Le critère de décision, validé par le
+chimiste, est
+\[
+  \text{molécule plane} \iff \texttt{max\_angle\_deg} \le 10^\circ .
+\]
+En combinant le statut de la MD et ce test, chaque solution reçoit un verdict :
+\textsc{plan}, \textsc{non-plan}, ou \textsc{échec MD}.
 
 \subsection{Analyse électronique des structures}
-\descr{Kekulé, Clar, radicaux et extension du RBO aux cycles 5/7 ; statut
-préliminaire.}
+
+Une fois les structures planes obtenues, nous avons développé un outil pour en
+étudier les propriétés électroniques. Ces analyses sont \emph{statiques} : elles
+opèrent directement sur le graphe carbone (sans nouveau calcul quantique) et
+sont donc quasi instantanées.
+
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{Kekulé et radicaux.} On calcule un couplage de cardinalité
+    maximale (Blossom) ; les Kekulé sont énumérés par retour arrière (avec un
+    plafond). Les carbones non couverts sont les sites radicalaires.
+  \item \textbf{Couvertures de Clar.} On énumère les sous-ensembles d'hexagones
+    deux à deux disjoints (au plus $2^{n_{\text{hex}}}$, trivial pour
+    $n_{\text{hex}} \le 9$) et l'on couple le résidu ; seuls les hexagones
+    portent un sextet (règle de Hückel).
+  \item \textbf{Extension du RBO aux cycles $5$ et $7$.} La définition de
+    Pauling--Randić~\cite{randic}, reprise par Varet, ne concerne que les
+    hexagones. Notre contribution est de conserver la formule
+    $\mathrm{CBO}(C) = \sum_{e \in C} \mathrm{bo}(e)$ \emph{sommée sur tout
+    cycle quelle que soit sa taille}, en affichant le ratio
+    $\mathrm{CBO}/\mathrm{cbo_{max}}$ pour rester fidèle au contexte. Le cas
+    radicalaire (aucune Kekulé stricte) n'est pas défini au sens de
+    Pauling--Randić.
+\end{itemize}
+
+\begin{remarque}[Pourquoi l'énumération directe plutôt qu'une méthode polynomiale]
+Le comptage rapide des Kekulé des benzénoïdes (méthode de
+Rispoli~\cite{rispoli2001}) repose sur le caractère \emph{biparti} du graphe
+carbone. Les cycles impairs ($5$ ou $7$) brisent cette bipartition ; la
+généralisation passe par le théorème de Kasteleyn~\cite{kasteleyn1967}
+(orientation et Pfaffien), d'un coût d'implémentation jugé hors du périmètre du
+stage. Nous nous en tenons à l'énumération directe, suffisante car les cycles
+$5/7$ contraignent fortement les couplages.
+\end{remarque}
+
+À ce stade, cet outillage est \emph{opérationnel} mais l'exploration reste
+préliminaire : nous avons par exemple cherché un lien entre planéité et nombre
+de radicaux sans dégager de corrélation exploitable. Nous le présentons comme un
+moyen d'analyse des structures produites et une piste à approfondir.
 
 \subsection{Mise en œuvre logicielle}
-\descr{Application designer web, base SQLite, cluster, viewer 3D multi-modes
-(court).}
+
+Le stage relevant de l'IMD et non du génie logiciel, nous décrivons ce volet
+brièvement. L'ensemble du pipeline est intégré dans une application web (le
+\emph{designer}) : un canevas hexagonal permet de dessiner ou d'importer un
+benzénoïde et de choisir la configuration de contraintes, puis de lancer la
+génération. Les résultats (solutions, géométries XYZ compressées, agrégats) sont
+persistés dans une base SQLite, et les campagnes sur le grand corpus sont
+distribuées sur un cluster. Un visualiseur 3D propose quatre modes d'affichage
+(défaut, Kekulé, Clar, RBO). Ce travail d'industrialisation garantit surtout la
+\emph{reproductibilité} des expériences décrites ci-dessous.
 
 % =====================================================================
 \section{Étude expérimentale : quelles contraintes améliorent la planéité ?}
 \label{sec:xp}
 % =====================================================================
-\descr{[Lot 2] Démarche en trois temps (v1/v2/v3). Chiffres en placeholders, à
-régénérer après correction de la table.}
+
+Comme établi en section~\ref{sec:probleme}, la planéité est une propriété
+globale qu'aucun jeu de contraintes locales ne capture exactement. La question
+pratique devient alors : \emph{quelles contraintes additionnelles augmentent le
+plus la proportion de molécules planes parmi celles que le modèle génère ?} Nous
+y répondons par une démarche expérimentale en trois temps.
+
+\begin{remarque}
+Les valeurs chiffrées de cette section sont laissées en attente
+(\tbd, \todo{}) : le corpus de résultats doit être régénéré sur la version
+définitive de la table de voisinage avant intégration au mémoire.
+\end{remarque}
 
 \subsection{Protocole et banc d'essai}
-\descr{Corpus BenzaiDB $h_3$ à $h_9$, métrique de taux de planéité, pipeline
-reproductible.}
+
+Le banc d'essai utilise les squelettes benzénoïdes canoniques de la base
+\emph{BenzaiDB}, de $h_3$ à $h_9$ hexagones (tableau~\ref{tab:corpus}). La
+métrique principale est le \textbf{taux de planéité} : la proportion de
+solutions jugées planes par le pipeline \xtb{}+ACP, complétée par le
+\emph{nombre absolu} de molécules planes produites. Les campagnes sont
+reproductibles, agrégées en base SQLite, et chaque configuration de contraintes
+est comparée terme à terme aux autres sur le même corpus.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lccccccc}
+\toprule
+$h$ & $h_3$ & $h_4$ & $h_5$ & $h_6$ & $h_7$ & $h_8$ & $h_9$ \\
+\midrule
+nombre de squelettes & \tbd & \tbd & \tbd & $44$ & $126$ & $376$ & $2\,418$ \\
+\bottomrule
+\end{tabular}
+\caption{Nombre de squelettes benzénoïdes de BenzaiDB par taille $h$.}
+\label{tab:corpus}
+\end{table}
 
 \subsection{v1 --- Modèle de base}
-\descr{Référence (contraintes structurelles seules), mise au point du pipeline.}
+
+La première campagne mesure la référence : avec les seules contraintes
+structurelles (section~\ref{sec:modele}), quelle proportion des solutions est
+réellement plane après \xtb{} ? Le constat est que ce taux est médiocre et
+\emph{décroît fortement} quand $h$ augmente (\tbd). Au-delà de la mesure, v1 a
+surtout servi à mettre au point et stabiliser le pipeline complet
+(reconstruction $\to$ MD $\to$ optimisation $\to$ ACP).
 
 \subsection{v2 --- Contraintes globales : pentagones en bord}
-\descr{C-SYM (sans effet) vs C-PB ; \texttt{pb1} dominant ; compromis
-volume/qualité.}
 
-\subsection{v3 --- Contraintes locales : appariement 5--7 (Stone--Wales)}
-\descr{Gauss--Bonnet local (redondant) et adjacence 5--7 ; \texttt{pb1\_adj57}
-gagnant.}
+L'idée de v2 est de traduire en contraintes \emph{a priori} deux régularités
+empiriques observées sur les premières données : un équilibre entre pentagones
+et heptagones, et la localisation des pentagones sur le bord. On introduit donc
+deux contraintes optionnelles paramétrées :
+\[
+  \text{(C-SYM)}\ |n_5 - n_7| \le K_{\text{sym}},
+  \qquad
+  \text{(C-PB)}\ \sum_{v \in \partial \GD} \mathbf{1}[x_v = 5] \le K_{\text{pb}} .
+\]
+Les résultats sont nets. La contrainte de symétrie \textbf{C-SYM est sans effet}
+mesurable : l'équilibre $n_5 = n_7$ est déjà imposé par C1, et le filtrage par la
+table produit des compositions équilibrées. En revanche, \textbf{plafonner les
+pentagones de bord est le levier dominant} : avec $K_{\text{pb}} = 1$ (préréglage
+\texttt{pb1}), le taux de planéité gagne \todo{+X à +Y points} sur l'ensemble des
+tailles, tandis que $K_{\text{pb}} = 0$ rend le problème insatisfiable. Le
+préréglage \texttt{pb1} génère beaucoup moins de solutions, mais une proportion
+bien plus élevée d'entre elles est plane (compromis volume / qualité favorable à
+l'aval).
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lcc}
+\toprule
+$h$ & \texttt{baseline} (\% plan) & \texttt{pb1} (\% plan) \\
+\midrule
+$h_6$ & \tbd & \tbd \\
+$h_7$ & \tbd & \tbd \\
+$h_8$ & \tbd & \tbd \\
+$h_9$ & \tbd & \tbd \\
+\bottomrule
+\end{tabular}
+\caption{Taux de planéité : modèle de base contre préréglage \texttt{pb1}.}
+\label{tab:v2}
+\end{table}
+
+\subsection{v3 --- Contraintes locales : appariement $5$--$7$ (Stone--Wales)}
+
+v3 explore deux raffinements \emph{locaux}. Le premier borne la courbure de
+Gauss--Bonnet dans un disque de rayon $R$ autour de chaque hexagone
+($|n_5 - n_7| \le \tau$ localement, contrainte C-LC) ; il s'avère
+\textbf{redondant} avec \texttt{pb1}. Le second impose l'\textbf{adjacence
+$5$--$7$} (contrainte C5) : tout pentagone doit avoir un heptagone parmi ses
+voisins immédiats, et réciproquement. C'est l'analogue discret du défaut
+\emph{Stone--Wales} : un pentagone isolé porte une courbure $+\pi/3$ qui ne peut
+être compensée qu'à distance ; en l'accolant à un heptagone ($-\pi/3$), la
+courbure s'annule localement, condition nécessaire à un plongement plan.
+
+La combinaison \texttt{pb1\_adj57} est la \textbf{configuration gagnante} : elle
+améliore encore \texttt{pb1} et atteint un gain de \todo{+X à +Y points} par
+rapport au modèle de base.
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lccc}
+\toprule
+$h$ & \texttt{baseline} & \texttt{pb1} & \texttt{pb1\_adj57} \\
+\midrule
+$h_6$ & \tbd & \tbd & \tbd \\
+$h_7$ & \tbd & \tbd & \tbd \\
+$h_8$ & \tbd & \tbd & \tbd \\
+$h_9$ & \tbd & \tbd & \tbd \\
+\bottomrule
+\end{tabular}
+\caption{Taux de planéité (\%) selon la configuration de contraintes.}
+\label{tab:v3}
+\end{table}
 
 \subsection{Bilan expérimental}
-\descr{Configuration recommandée, gains, volume, limites.}
+
+L'étude désigne \texttt{pb1\_adj57} comme configuration recommandée (et par
+défaut dans l'outil) : elle combine le plafond combinatoire des pentagones de
+bord et l'appariement local $5$--$7$, et domine les autres réglages en taux de
+planéité comme en coût de validation. Ses limites confirment l'analyse de la
+section~\ref{sec:probleme} : sur les grands squelettes ($h_9$), le taux de
+planéité s'effondre (\tbd), car les défauts de courbure s'accumulent au-delà de
+ce que des contraintes locales peuvent contrôler --- ce qui rappelle la nature
+intrinsèquement globale de la planéité.
 
 % =====================================================================
 \section{Conclusion et perspectives}
 \label{sec:conclusion}
 % =====================================================================
-\descr{[Lot 2] Bilan des contributions ; perspectives (contraintes globales de
-courbure, analyse électronique approfondie, RBO exact via Kasteleyn, passage à
-l'échelle).}
 
+Ce stage a étendu aux cycles à $5$ et $7$ atomes le cadre, jusque-là limité aux
+benzénoïdes, de génération de structures moléculaires par programmation par
+contraintes. Nos contributions sont : un \textbf{modèle PPC} énumérant
+exhaustivement les substitutions $5/6/7$ d'un benzénoïde ; une \textbf{table de
+voisinage} sensible à la disposition des voisins et validée géométriquement, qui
+sert de filtre chimique paramétrable ; un \textbf{pipeline de validation
+physique} (reconstruction 3D, optimisation \xtb{} avec protocole de dynamique
+moléculaire, test de planéité par ACP) ; une \textbf{étude expérimentale
+systématique} qui identifie le couplage \texttt{pb1}\,+\,\texttt{adj-57} comme le
+plus efficace pour améliorer le rendement de planéité, avec une interprétation en
+termes de courbure discrète (motif Stone--Wales) ; et une \textbf{extension de
+l'analyse électronique} (Kekulé, Clar, RBO) aux cycles $5$ et $7$.
+
+Plusieurs perspectives se dégagent. La plus importante est de chercher à
+\textbf{exprimer dans le modèle des contraintes globales de courbure}, afin de
+réduire l'écart entre ce que les contraintes locales filtrent et la planéité
+réelle. Sur le plan chimique, l'\textbf{analyse électronique} du corpus généré
+mérite d'être approfondie (statistiques de Clar, RBO et radicaux, recherche de
+corrélations), de même qu'un \textbf{RBO exact pour les cycles impairs} via le
+théorème de Kasteleyn. Enfin, le \textbf{passage à l'échelle} au-delà de $h_9$ et
+la poursuite du dialogue avec les chimistes --- pour affiner les critères
+d'admissibilité et explorer la chimie radicalaire que les structures $5/7$
+produisent naturellement --- prolongeraient naturellement ce travail.
+
+% =====================================================================
+%  BIBLIOGRAPHIE
+%  (références à vérifier / compléter ; détails bibliographiques indicatifs)
 % =====================================================================
 \begin{thebibliography}{99}
 \small
-\bibitem{varet2022} A.~Varet, \emph{Programmation par contraintes et chimie
-théorique : utilisation du formalisme CSP pour résoudre des problématiques
-liées aux benzénoïdes}, thèse de doctorat, Aix-Marseille Université, 2022.
-\bibitem{clar1972} E.~Clar, \emph{The Aromatic Sextet}, Wiley, 1972.
-\bibitem{pauling} L.~Pauling, \emph{The Nature of the Chemical Bond}, Cornell
-University Press.
-\bibitem{huckel1931} E.~Hückel, \emph{Quantentheoretische Beiträge zum
-Benzolproblem}, 1931 --- règle $4n+2$.
-\bibitem{rispoli2001} E.~Rispoli, comptage des structures de Kekulé via le
-déterminant de la matrice de biadjacence, 2001.
-\bibitem{kasteleyn1967} P.~W.~Kasteleyn, \emph{Graph theory and crystal
-physics}, 1967.
-\bibitem{stonewales} A.~J.~Stone, D.~J.~Wales, \emph{Theoretical studies of
-icosahedral C$_{60}$ and some related species}, 1986.
-\bibitem{xtb} C.~Bannwarth, S.~Ehlert, S.~Grimme, \emph{GFN2-xTB}, J.~Chem.
-Theory Comput., 2019.
-\bibitem{pycsp3ace} C.~Lecoutre, \emph{PyCSP3 et le solveur ACE (Abscon
-Constraint Engine)}.
-\bibitem{whitney} H.~Whitney, \emph{Congruent graphs and the connectivity of
-graphs}, 1932.
+
+\bibitem{varet2022} A.~Varet,
+\emph{Programmation par contraintes et chimie théorique : utilisation du
+formalisme CSP pour résoudre des problématiques liées aux benzénoïdes},
+thèse de doctorat, Aix-Marseille Université, 2022.
+
+\bibitem{handbookcp} F.~Rossi, P.~van~Beek, T.~Walsh (éds.),
+\emph{Handbook of Constraint Programming}, Elsevier, 2006.
+
+\bibitem{lecoutre2009} C.~Lecoutre,
+\emph{Constraint Networks: Techniques and Algorithms}, ISTE/Wiley, 2009.
+
+\bibitem{pycsp3ace} C.~Lecoutre, N.~Szczepanski,
+\emph{PyCSP3 : modélisation en programmation par contraintes} et le solveur
+\emph{ACE} (Abscon Constraint Engine). \texttt{pycsp.org}.
+
+\bibitem{benzai} Y.~Carissan, D.~Hagebaum-Reignier, N.~Prcovic, C.~Terrioux,
+A.~Varet, \emph{BenzAI : un logiciel pour la conception et l'étude des
+benzénoïdes}. \todo{référence exacte à compléter}
+
+\bibitem{edmonds1965} J.~Edmonds,
+\emph{Paths, trees, and flowers}, Canadian Journal of Mathematics, 17:449--467,
+1965.
+
+\bibitem{whitney} H.~Whitney,
+\emph{Congruent graphs and the connectivity of graphs}, American Journal of
+Mathematics, 54(1):150--168, 1932.
+
+\bibitem{clar1972} E.~Clar,
+\emph{The Aromatic Sextet}, John Wiley \& Sons, Londres, 1972.
+
+\bibitem{huckel1931} E.~Hückel,
+\emph{Quantentheoretische Beiträge zum Benzolproblem}, Zeitschrift für Physik,
+70:204--286, 1931 (règle des $4n+2$ électrons $\pi$).
+
+\bibitem{pauling} L.~Pauling,
+\emph{The Nature of the Chemical Bond}, Cornell University Press, 3\textsuperscript{e}
+édition, 1960.
+
+\bibitem{randic} M.~Randić,
+\emph{Aromaticity and conjugation}, Journal of the American Chemical Society,
+99(2):444--450, 1977 (ordres de liaison et circuits conjugués).
+
+\bibitem{rispoli2001} E.~Rispoli,
+comptage des structures de Kekulé d'un benzénoïde par le déterminant de la
+matrice de biadjacence, 2001. \todo{référence exacte à compléter}
+
+\bibitem{kasteleyn1967} P.~W.~Kasteleyn,
+\emph{Graph theory and crystal physics}, in \emph{Graph Theory and Theoretical
+Physics}, Academic Press, p.~43--110, 1967.
+
+\bibitem{stonewales} A.~J.~Stone, D.~J.~Wales,
+\emph{Theoretical studies of icosahedral C$_{60}$ and some related species},
+Chemical Physics Letters, 128(5--6):501--503, 1986.
+
+\bibitem{xtb} C.~Bannwarth, S.~Ehlert, S.~Grimme,
+\emph{GFN2-xTB — An Accurate and Broadly Parametrized Self-Consistent
+Tight-Binding Quantum Chemical Method}, Journal of Chemical Theory and
+Computation, 15(3):1652--1671, 2019.
+
 \end{thebibliography}
 
 \end{document}
