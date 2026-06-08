@@ -99,98 +99,139 @@ def _ssh_run_worker(host: str, batch_input: dict, ssh_timeout_s: int) -> dict:
         )
 
 
+_CLAIM_LOCK = threading.Lock()
+
+
 def _worker_thread_loop(
     host: str, db_path: str, run_id: int, batch_size: int,
     max_parallel_xtb: int, timeout_xtb: int, ssh_timeout_s: int,
     stop_event: threading.Event, stats: dict, stats_lock: threading.Lock,
+    claim_lock: threading.Lock,
 ):
     """Boucle d'un thread worker.
 
     Tourne tant qu'il reste des sols pending dans la DB.
     """
+    import traceback
     _log(f"[{host}] worker started")
     while not stop_event.is_set():
+        try:
+            _worker_iter(host, db_path, run_id, batch_size, max_parallel_xtb,
+                         timeout_xtb, ssh_timeout_s, stop_event, stats, stats_lock,
+                         claim_lock)
+        except _NoMorePending:
+            _log(f"[{host}] no more pending sols, exiting")
+            return
+        except Exception as e:
+            _log(f"[{host}] WORKER ITER EXCEPTION: {e}\n{traceback.format_exc()[-1500:]}")
+            time.sleep(10)
+            continue
+    _log(f"[{host}] worker stopped (stop_event)")
+
+
+class _NoMorePending(Exception):
+    pass
+
+
+def _worker_iter(
+    host: str, db_path: str, run_id: int, batch_size: int,
+    max_parallel_xtb: int, timeout_xtb: int, ssh_timeout_s: int,
+    stop_event: threading.Event, stats: dict, stats_lock: threading.Lock,
+    claim_lock: threading.Lock,
+):
+    """Une iteration : claim un batch, SSH, commit. Lève _NoMorePending si fini."""
+    # Mutex SEULEMENT autour du claim_batch (court), pas autour du SSH (long)
+    with claim_lock:
         try:
             batch = _final_db.claim_batch(db_path, run_id, batch_size, host)
         except Exception as e:
             _log(f"[{host}] claim_batch error: {e}")
             time.sleep(5)
-            continue
-        if not batch:
-            _log(f"[{host}] no more pending sols, exiting")
             return
 
-        sol_ids = [s["sol_id"] for s in batch]
-        _log(f"[{host}] claimed {len(batch)} sols : {sol_ids[:5]}{'...' if len(sol_ids) > 5 else ''}")
-
-        batch_input = {
-            "max_parallel": max_parallel_xtb,
-            "timeout_xtb": timeout_xtb,
-            "sols": [
-                {
-                    "sol_id": s["sol_id"],
-                    "graph_content": s["graph_content"],
-                    "csp_solution": s["csp_solution"],
-                    "sol_index": s["sol_index"],
-                }
-                for s in batch
-            ],
-        }
-
-        # Tente l'execution SSH
+    if not batch:
+        # claim_batch a retourne [] : verifier que c'est vraiment fini
+        # (NFS+WAL peuvent avoir des snapshots stale, ne pas tuer le worker trop tot)
         try:
-            t0 = time.perf_counter()
-            _log(f"[{host}] SSH starting (batch of {len(batch)} sols)")
-            out = _ssh_run_worker(host, batch_input, ssh_timeout_s)
-            dt = time.perf_counter() - t0
-            _log(f"[{host}] SSH returned in {dt:.1f}s, {len(out.get('results', []))} results")
-        except subprocess.TimeoutExpired:
-            _log(f"[{host}] SSH TIMEOUT apres {ssh_timeout_s}s, retry batch")
-            for sid in sol_ids:
-                _final_db.mark_failed_or_retry(db_path, sid, "ssh_timeout")
-            with stats_lock:
-                stats["batches_timeout"] += 1
-            continue
-        except Exception as e:
-            _log(f"[{host}] SSH ERROR: {e}, retry batch")
-            for sid in sol_ids:
-                _final_db.mark_failed_or_retry(db_path, sid, f"ssh_error: {e}"[:500])
-            with stats_lock:
-                stats["batches_failed"] += 1
-            continue
+            stats_db = _final_db.get_stats(db_path, run_id)
+            n_pend = stats_db["by_status"].get("pending", 0)
+        except Exception:
+            n_pend = -1
+        if n_pend == 0:
+            raise _NoMorePending()
+        _log(f"[{host}] claim returned [] but {n_pend} pending in DB, retry in 10s")
+        time.sleep(10)
+        return
 
-        # Commit results — TOUT EN 1 TRANSACTION (batch)
-        results = out.get("results", [])
-        result_ids = set(r["sol_id"] for r in results)
-        done_results = [r for r in results if r.get("status") == "done"]
-        failed_results = [r for r in results if r.get("status") != "done"]
-        missing_sids = [sid for sid in sol_ids if sid not in result_ids]
+    sol_ids = [s["sol_id"] for s in batch]
+    _log(f"[{host}] claimed {len(batch)} sols : {sol_ids[:5]}{'...' if len(sol_ids) > 5 else ''}")
 
-        n_done = len(done_results)
-        n_failed = len(failed_results) + len(missing_sids)
+    batch_input = {
+        "max_parallel": max_parallel_xtb,
+        "timeout_xtb": timeout_xtb,
+        "sols": [
+            {
+                "sol_id": s["sol_id"],
+                "graph_content": s["graph_content"],
+                "csp_solution": s["csp_solution"],
+                "sol_index": s["sol_index"],
+            }
+            for s in batch
+        ],
+    }
 
-        # 1. Commit groupe des done
-        if done_results:
-            _final_db.commit_results_batch(db_path, done_results)
-        # 2. Marquer les failed (avec retry) un par un (peu nombreux normalement)
-        for r in failed_results:
-            _final_db.mark_failed_or_retry(
-                db_path, r["sol_id"], r.get("error_message", "unknown") or "unknown"
-            )
-        for sid in missing_sids:
-            _final_db.mark_failed_or_retry(db_path, sid, "no_result_from_worker")
-
+    # Tente l'execution SSH
+    try:
+        t0 = time.perf_counter()
+        _log(f"[{host}] SSH starting (batch of {len(batch)} sols)")
+        out = _ssh_run_worker(host, batch_input, ssh_timeout_s)
+        dt = time.perf_counter() - t0
+        _log(f"[{host}] SSH returned in {dt:.1f}s, {len(out.get('results', []))} results")
+    except subprocess.TimeoutExpired:
+        _log(f"[{host}] SSH TIMEOUT apres {ssh_timeout_s}s, retry batch")
+        for sid in sol_ids:
+            _final_db.mark_failed_or_retry(db_path, sid, "ssh_timeout")
         with stats_lock:
-            stats["sols_done"] += n_done
-            stats["sols_failed"] += n_failed
-            stats["batches_ok"] += 1
-        _log(f"[{host}] batch done ({n_done} OK, {n_failed} failed) in {dt:.1f}s")
+            stats["batches_timeout"] += 1
+        return
+    except Exception as e:
+        _log(f"[{host}] SSH ERROR: {e}, retry batch")
+        for sid in sol_ids:
+            _final_db.mark_failed_or_retry(db_path, sid, f"ssh_error: {e}"[:500])
+        with stats_lock:
+            stats["batches_failed"] += 1
+        return
 
-    _log(f"[{host}] worker stopped (stop_event)")
+    # Commit results — TOUT EN 1 TRANSACTION (batch)
+    results = out.get("results", [])
+    result_ids = set(r["sol_id"] for r in results)
+    done_results = [r for r in results if r.get("status") == "done"]
+    failed_results = [r for r in results if r.get("status") != "done"]
+    missing_sids = [sid for sid in sol_ids if sid not in result_ids]
+
+    n_done = len(done_results)
+    n_failed = len(failed_results) + len(missing_sids)
+
+    if done_results:
+        _final_db.commit_results_batch(db_path, done_results)
+    for r in failed_results:
+        _final_db.mark_failed_or_retry(
+            db_path, r["sol_id"], r.get("error_message", "unknown") or "unknown"
+        )
+    for sid in missing_sids:
+        _final_db.mark_failed_or_retry(db_path, sid, "no_result_from_worker")
+
+    with stats_lock:
+        stats["sols_done"] += n_done
+        stats["sols_failed"] += n_failed
+        stats["batches_ok"] += 1
+    _log(f"[{host}] batch done ({n_done} OK, {n_failed} failed) in {dt:.1f}s")
 
 
 def _heartbeat_loop(db_path: str, run_id: int, interval_s: int,
                     stop_event: threading.Event, stats: dict, stats_lock: threading.Lock):
+    import sqlite3
+    STALE_RUNNING_SEC = 1800  # 30 min : sol running plus longtemps = stuck, reset
     while not stop_event.wait(interval_s):
         try:
             _final_db.update_heartbeat(db_path, run_id)
@@ -198,6 +239,23 @@ def _heartbeat_loop(db_path: str, run_id: int, interval_s: int,
             by_status = db_stats["by_status"]
             with stats_lock:
                 snap = dict(stats)
+            # Reset des sols running stuck (filet de secours si worker thread mort)
+            try:
+                conn = sqlite3.connect(db_path, timeout=30.0)
+                conn.execute("PRAGMA busy_timeout=30000")
+                cur = conn.execute(
+                    "UPDATE final_solutions SET status='pending', started_at=NULL, hostname=NULL "
+                    "WHERE run_id=? AND status='running' "
+                    "AND (julianday('now') - julianday(started_at)) * 86400 > ?",
+                    (run_id, STALE_RUNNING_SEC),
+                )
+                n_stale_reset = cur.rowcount
+                conn.commit()
+                conn.close()
+                if n_stale_reset > 0:
+                    _log(f"HEARTBEAT reset {n_stale_reset} stale running -> pending (>{STALE_RUNNING_SEC}s)")
+            except Exception as e:
+                _log(f"heartbeat stale-reset error: {e}")
             _log(
                 f"HEARTBEAT db={by_status} session=batches_ok={snap['batches_ok']} "
                 f"timeout={snap['batches_timeout']} ssh_err={snap['batches_failed']} "
@@ -234,13 +292,15 @@ def run_dispatcher(
         "sols_done": 0, "sols_failed": 0,
     }
     stats_lock = threading.Lock()
+    claim_lock = threading.Lock()
 
     threads = []
     for host in workers:
         t = threading.Thread(
             target=_worker_thread_loop,
             args=(host, db_path, run_id, batch_size, max_parallel_xtb,
-                  timeout_xtb, ssh_timeout_s, stop_event, stats, stats_lock),
+                  timeout_xtb, ssh_timeout_s, stop_event, stats, stats_lock,
+                  claim_lock),
             daemon=True,
         )
         t.start()
