@@ -112,33 +112,57 @@ def _compute_kekule_list(cache_key: str, xyz_text: str, max_count: int) -> dict:
 def _compute_clar_list(cache_key: str, xyz_text: str, max_count: int) -> dict:
     """Calcul des couvertures de Clar d'une molecule.
 
-    Cle de cache = (rel_path, xyz_text, max_count). Retourne la liste des
-    couvertures de score MAXIMUM (= nombre de Clar), chacune avec ses
-    sextets, bond_orders canoniques et radicaux du residu.
+    Retourne DEUX modes :
+      - clar    : Option A (hex uniquement, Huckel n=1 neutre) -- compatibilite
+      - clar_b  : Option B (hex + pent-anion + hept-cation, Huckel 4n+2 generalise)
+                  Chaque cover de clar_b inclut sextet_sizes + n_hex/pent/hept
+                  pour annoter visuellement les sextets non-hexagonaux dans
+                  le viewer.
+
+    Cle de cache = (rel_path, xyz_text, max_count).
     """
     mol = build_mol_graph_from_text(xyz_text)
     if not mol.atoms:
         return {"error": "empty or unreadable xyz"}
 
-    covers, is_exact = enumerate_clar_covers(mol, max_count=max_count)
-    clar_number = covers[0].n_sextets if covers else 0
+    covers_a, is_exact_a = enumerate_clar_covers(mol, max_count=max_count,
+                                                 include_huckel_4n2=False)
+    covers_b, is_exact_b = enumerate_clar_covers(mol, max_count=max_count,
+                                                 include_huckel_4n2=True)
+    clar_number_a = covers_a[0].n_sextets if covers_a else 0
+    clar_number_b = covers_b[0].n_sextets if covers_b else 0
+
+    def _serialize(c, with_breakdown):
+        d = {
+            "sextets": [int(s) for s in c.sextets],
+            "bond_orders": [int(o) for o in c.bond_orders],
+            "radicals": sorted(int(i) for i in c.radicals),
+            "n_sextets": int(c.n_sextets),
+        }
+        if with_breakdown:
+            d["sextet_sizes"] = [int(s) for s in c.sextet_sizes]
+            d["n_hex"] = int(c.n_hex_sextets)
+            d["n_pent_anion"] = int(c.n_pent_sextets)
+            d["n_hept_cation"] = int(c.n_hept_sextets)
+        return d
 
     return {
-        "clar": [
-            {
-                "sextets": [int(s) for s in c.sextets],
-                "bond_orders": [int(o) for o in c.bond_orders],
-                "radicals": sorted(int(i) for i in c.radicals),
-                "n_sextets": int(c.n_sextets),
-            }
-            for c in covers
-        ],
+        # Option A (compat existing frontend)
+        "clar": [_serialize(c, with_breakdown=False) for c in covers_a],
+        # Option B (nouveau : sextets 5/6/7 avec annotation)
+        "clar_b": [_serialize(c, with_breakdown=True) for c in covers_b],
         "meta": {
-            "returned": len(covers),
-            "is_exact": bool(is_exact),
-            "has_more": not is_exact,
+            "returned": len(covers_a),
+            "returned_b": len(covers_b),
+            "is_exact": bool(is_exact_a),
+            "is_exact_b": bool(is_exact_b),
+            "has_more": not is_exact_a,
             "max_requested": int(max_count),
-            "clar_number": int(clar_number),
+            # Option A (compat existing)
+            "clar_number": int(clar_number_a),
+            # Annotations explicites Option A vs B
+            "clar_number_a": int(clar_number_a),
+            "clar_number_b": int(clar_number_b),
             "source": cache_key,
         },
     }

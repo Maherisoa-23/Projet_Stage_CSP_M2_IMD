@@ -49,7 +49,7 @@ class ClarCover:
     """Une couverture de Clar.
 
     sextets       : indices des cycles porteurs d'un rond de Clar (sextets).
-                    Tous sont des hexagones.
+                    Tous sont des hexagones (Option A) ou hex/pent/hept (Option B).
     bond_orders   : longueur len(mol.bonds), valeurs 1 ou 2.
                     Sur les aretes d'un sextet : alternance canonique
                     (double sur les positions paires du cycle).
@@ -58,15 +58,25 @@ class ClarCover:
     radicals      : indices d'atomes non couverts par le matching du residu.
                     Typiquement vide pour molecule non-radicalaire.
     n_sextets     : len(sextets) = score Clar de cette couverture.
+    sextet_sizes  : longueur len(sextets), taille (5/6/7) de chaque sextet.
+                    Vide pour Option A (tous hex), rempli pour Option B.
+    n_hex_sextets : nb de sextets hex (taille 6) — Hückel n=1 neutre.
+    n_pent_sextets: nb de sextets pent (taille 5) — Hückel n=1 anion implicite.
+    n_hept_sextets: nb de sextets hept (taille 7) — Hückel n=1 cation implicite.
     """
     sextets: List[int] = field(default_factory=list)
     bond_orders: List[int] = field(default_factory=list)
     radicals: Set[int] = field(default_factory=set)
     n_sextets: int = 0
+    sextet_sizes: List[int] = field(default_factory=list)
+    n_hex_sextets: int = 0
+    n_pent_sextets: int = 0
+    n_hept_sextets: int = 0
 
 
 def enumerate_clar_covers(mol: MolGraph,
-                          max_count: int = 200) -> Tuple[List[ClarCover], bool]:
+                          max_count: int = 200,
+                          include_huckel_4n2: bool = False) -> Tuple[List[ClarCover], bool]:
     """Enumere les couvertures de Clar de score MAXIMUM.
 
     Args:
@@ -92,8 +102,15 @@ def enumerate_clar_covers(mol: MolGraph,
     if n == 0 or not mol.bonds:
         return [], True
 
-    # Hexagones uniquement (les pent/hept ne peuvent pas porter un sextet)
-    hex_indices = [i for i, c in enumerate(mol.cycles) if len(c.atoms) == 6]
+    # Option A : hex uniquement.
+    # Option B (include_huckel_4n2=True) : hex + pent (anion implicite,
+    # 6 e-pi) + hept (cation implicite, 6 e-pi). Tous suivent Huckel 4n+2 n=1.
+    if include_huckel_4n2:
+        candidate_indices = [i for i, c in enumerate(mol.cycles)
+                             if len(c.atoms) in (5, 6, 7)]
+    else:
+        candidate_indices = [i for i, c in enumerate(mol.cycles) if len(c.atoms) == 6]
+    hex_indices = candidate_indices  # alias pour minimiser diff
     n_hex = len(hex_indices)
 
     # Graphe complet pour le matching global
@@ -105,12 +122,11 @@ def enumerate_clar_covers(mol: MolGraph,
     # Index des aretes pour conversion (u,v) -> indice dans mol.bonds
     bond_idx = bond_index_map(mol)
 
-    # Pre-calcul : atomes et aretes de chaque cycle, puis on ne garde que les hex.
-    # cycle_edge_indices retourne UNE liste par cycle (dans l'ordre mol.cycles),
-    # on indexe sur hex_indices pour ne garder que les hex.
+    # Pre-calcul : atomes et aretes de chaque cycle, puis on ne garde que les candidats.
     all_cycle_edges = cycle_edge_indices(mol, bond_idx)
     hex_atoms_set = {hi: set(mol.cycles[hi].atoms) for hi in hex_indices}
     hex_bond_indices = {hi: all_cycle_edges[hi] for hi in hex_indices}
+    cycle_sizes = {hi: len(mol.cycles[hi].atoms) for hi in hex_indices}
 
     best_score = 0     # au moins la couverture vide est toujours valide
     capped = False
@@ -175,11 +191,16 @@ def enumerate_clar_covers(mol: MolGraph,
             if key in bond_idx:
                 bond_orders[bond_idx[key]] = 2
 
+        sextet_sizes_list = [cycle_sizes[hi] for hi in S]
         cover = ClarCover(
             sextets=list(S),
             bond_orders=bond_orders,
             radicals=set(sub_radicals),
             n_sextets=score,
+            sextet_sizes=sextet_sizes_list,
+            n_hex_sextets=sum(1 for s in sextet_sizes_list if s == 6),
+            n_pent_sextets=sum(1 for s in sextet_sizes_list if s == 5),
+            n_hept_sextets=sum(1 for s in sextet_sizes_list if s == 7),
         )
 
         if score > best_score:

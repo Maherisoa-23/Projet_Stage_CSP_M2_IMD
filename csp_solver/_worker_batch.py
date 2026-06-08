@@ -64,7 +64,7 @@ def _angle_to_verdict(angle_deg):
 
 # === Traitement d'une seule sol ===
 
-def _process_one_sol(sol_dict, timeout_xtb, host, perturb_params=None):
+def _process_one_sol(sol_dict, timeout_xtb, host, perturb_params=None, fallback_cascade=None):
     """Traite une sol et retourne un dict result.
 
     sol_dict attendu :
@@ -118,19 +118,39 @@ def _process_one_sol(sol_dict, timeout_xtb, host, perturb_params=None):
         export_xyz(mol, str(input_xyz),
                    comment=f"sol_id={sol_id} sol_index={sol_dict.get('sol_index')}")
 
-        # xTB det-opt (deterministe : OMP=1)
-        ok, final_xyz, info = md_then_optimize(
-            str(input_xyz), str(workdir),
-            params=perturb_params,  # peut etre None (defaults) ou {"mode":"random","amplitude":1.0,"seed":42}
-            opt_level="tight",
-            timeout_opt=timeout_xtb,
-            deterministic=True,
-            max_retries=3,
-        )
+        # Cascade de perturbations : essayer perturb_params, puis fallback_cascade si echec
+        cascade = [perturb_params] if perturb_params else [None]
+        if fallback_cascade:
+            cascade.extend(fallback_cascade)
+        ok = False
+        info = {}
+        final_xyz = None
+        last_message = ""
+        attempt_used = None
+        for params_try in cascade:
+            # Nouveau workdir pour chaque tentative
+            attempt_dir = workdir / f"try_{cascade.index(params_try)}"
+            attempt_dir.mkdir(parents=True, exist_ok=True)
+            ok, final_xyz, info = md_then_optimize(
+                str(input_xyz), str(attempt_dir),
+                params=params_try,
+                opt_level="tight",
+                timeout_opt=timeout_xtb,
+                deterministic=True,
+                max_retries=3,
+            )
+            last_message = info.get("message", "?") if info else "?"
+            if ok and final_xyz and Path(final_xyz).exists():
+                attempt_used = params_try
+                break
 
         if not ok or final_xyz is None or not Path(final_xyz).exists():
-            result["error_message"] = f"xTB failed : {info.get('message', '?')}"
+            result["error_message"] = f"xTB failed (apres {len(cascade)} cascades) : {last_message}"
             return result
+
+        # Stocker la cascade params utilisee dans error_message pour trace
+        if attempt_used and attempt_used != perturb_params:
+            result["error_message"] = f"recovered_with_{attempt_used.get('mode','?')}_amp{attempt_used.get('amplitude','?')}_seed{attempt_used.get('seed','?')}"
 
         # Parser stdout xtb (sauve par md.py dans workdir + un .log eventuel)
         # md.py ne sauve PAS le stdout xtb dans un fichier. On le re-derive
@@ -244,6 +264,7 @@ def main():
     max_parallel = int(batch.get("max_parallel", 40))
     timeout_xtb = int(batch.get("timeout_xtb", 50000))
     perturb_params = batch.get("perturb_params")  # None ou {"mode":"random","amplitude":1.0,"seed":42}
+    fallback_cascade = batch.get("fallback_cascade")  # liste de params alternatifs si echec
     host = socket.gethostname()
 
     if not sols:
@@ -255,7 +276,7 @@ def main():
 
     def runner(idx, sol):
         with sem:
-            results[idx] = _process_one_sol(sol, timeout_xtb, host, perturb_params)
+            results[idx] = _process_one_sol(sol, timeout_xtb, host, perturb_params, fallback_cascade)
 
     threads = []
     for i, sol in enumerate(sols):
