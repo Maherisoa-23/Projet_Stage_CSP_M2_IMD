@@ -64,7 +64,7 @@ def _angle_to_verdict(angle_deg):
 
 # === Traitement d'une seule sol ===
 
-def _process_one_sol(sol_dict, timeout_xtb, host):
+def _process_one_sol(sol_dict, timeout_xtb, host, perturb_params=None):
     """Traite une sol et retourne un dict result.
 
     sol_dict attendu :
@@ -121,6 +121,7 @@ def _process_one_sol(sol_dict, timeout_xtb, host):
         # xTB det-opt (deterministe : OMP=1)
         ok, final_xyz, info = md_then_optimize(
             str(input_xyz), str(workdir),
+            params=perturb_params,  # peut etre None (defaults) ou {"mode":"random","amplitude":1.0,"seed":42}
             opt_level="tight",
             timeout_opt=timeout_xtb,
             deterministic=True,
@@ -242,6 +243,7 @@ def main():
     sols = batch.get("sols") or []
     max_parallel = int(batch.get("max_parallel", 40))
     timeout_xtb = int(batch.get("timeout_xtb", 50000))
+    perturb_params = batch.get("perturb_params")  # None ou {"mode":"random","amplitude":1.0,"seed":42}
     host = socket.gethostname()
 
     if not sols:
@@ -253,7 +255,7 @@ def main():
 
     def runner(idx, sol):
         with sem:
-            results[idx] = _process_one_sol(sol, timeout_xtb, host)
+            results[idx] = _process_one_sol(sol, timeout_xtb, host, perturb_params)
 
     threads = []
     for i, sol in enumerate(sols):

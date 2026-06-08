@@ -216,22 +216,26 @@ def _expected_frames(md_params: dict) -> int:
 
 def _apply_structured_z_perturbation(input_path: Path, output_path: Path,
                                       amplitude: float = 0.05,
-                                      phase: float = 0.5) -> None:
-    """Perturbation z DETERMINISTE structuree.
+                                      phase: float = 0.5,
+                                      mode: str = "structured",
+                                      seed: int = 42) -> None:
+    """Perturbation z DETERMINISTE.
 
-    Pattern :  z_i' = z_i + amplitude * sin(2 * pi * i / N + phase)
+    mode="structured" (defaut) :
+      Pattern :  z_i' = z_i + amplitude * sin(2 * pi * i / N + phase)
+      - Aucun RNG, byte-deterministe via parametres (amp, phase) seuls
+      - Adapte aux geometries reconstruites sans atomes superposes
 
-    Avantages vs random.uniform / vs MD :
-      - Aucun RNG, aucune dependance temporelle, aucun seed
-      - Meme input.xyz -> meme output.xyz, byte-pour-byte
-      - Brise la symetrie z=0 (gradient perpendiculaire au plan != 0)
-        donc xtb --opt sort du minimum plat parasite
+    mode="random" :
+      Pattern :  z_i' = z_i + random.Random(seed).uniform(-amplitude, amplitude)
+      - random.Random(seed) = sequence deterministe et reproductible
+      - Brise plus efficacement les configurations dégénérées (atomes
+        superposés des reconstructions 3D problematiques)
+      - Mode de fallback pour les sols ou structured echoue
 
-    Attention :
-      - La perturbation utilise l'INDEX i de l'atome (ordre de lecture du
-        XYZ d'entree). Notre reconstruction canonicalise deja cet ordre
-        (sorted dans assembler.py), donc la perturbation est aussi
-        canonicalisee.
+    Dans les deux cas :
+      - Meme input.xyz + meme params -> meme output.xyz, byte-pour-byte
+      - L'ordre des atomes est canonicalise par la reconstruction (sorted)
     """
     with open(input_path) as f:
         lines = f.readlines()
@@ -241,13 +245,21 @@ def _apply_structured_z_perturbation(input_path: Path, output_path: Path,
         parts = lines[i].split()
         atoms.append((parts[0], float(parts[1]), float(parts[2]), float(parts[3])))
 
-    two_pi = 2.0 * math.pi
+    if mode == "random":
+        import random as _random
+        rng = _random.Random(seed)
+        deltas = [rng.uniform(-amplitude, amplitude) for _ in range(n)]
+        comment = f"perturbed (random seed={seed} amp={amplitude})"
+    else:
+        two_pi = 2.0 * math.pi
+        deltas = [amplitude * math.sin(two_pi * i / n + phase) for i in range(n)]
+        comment = f"perturbed (structured amp={amplitude} phase={phase})"
+
     with open(output_path, "w") as f:
         f.write(f"{n}\n")
-        f.write("perturbed (deterministic structured z)\n")
+        f.write(f"{comment}\n")
         for i, (elem, x, y, z) in enumerate(atoms):
-            dz = amplitude * math.sin(two_pi * i / n + phase)
-            f.write(f"{elem:<2s}  {x:14.6f}  {y:14.6f}  {z + dz:14.6f}\n")
+            f.write(f"{elem:<2s}  {x:14.6f}  {y:14.6f}  {z + deltas[i]:14.6f}\n")
 
 
 def _write_minimal_md_inp(path: Path, params: dict):
@@ -277,13 +289,15 @@ def _try_det_opt_attempt(input_path: Path, work_dir: Path, perturb_params: dict,
     in_xyz = work_dir / "input.xyz"
     shutil.copy2(input_path, in_xyz)
 
-    # Etape 1 : perturbation z structuree (deterministe)
+    # Etape 1 : perturbation z deterministe (structured ou random)
     perturbed = work_dir / "perturbed.xyz"
     try:
         _apply_structured_z_perturbation(
             in_xyz, perturbed,
             amplitude=float(perturb_params.get("amplitude", 0.05)),
             phase=float(perturb_params.get("phase", 0.5)),
+            mode=str(perturb_params.get("mode", "structured")),
+            seed=int(perturb_params.get("seed", 42)),
         )
     except (ValueError, OSError) as e:
         return False, f"Perturbation echouee : {e}", None
@@ -377,12 +391,14 @@ def md_then_optimize(input_xyz: str,
 
     perturb_params = dict(DEFAULT_PERTURB_PARAMS)
     if params:
-        # Les anciennes cles MD sont silencieusement ignorees ; seules
-        # 'amplitude' et 'phase' ont un effet dans la voie det-opt.
         if "amplitude" in params:
             perturb_params["amplitude"] = params["amplitude"]
         if "phase" in params:
             perturb_params["phase"] = params["phase"]
+        if "mode" in params:
+            perturb_params["mode"] = params["mode"]
+        if "seed" in params:
+            perturb_params["seed"] = params["seed"]
 
     info = {
         "method": "det-opt",
