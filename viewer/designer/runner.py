@@ -405,15 +405,17 @@ def run_job(db_path: str, job_id: str, project_root: Path,
     # Etape 0 : test xTB sur le benzenoide d'entree (tout-hexagones).
     # Permet d'afficher dans la vue job la planarite de la molecule
     # d'origine, en plus des solutions substituees. Rapide (~5-15s).
-    jobs.update_job(db_path, job_id, state="running",
-                     current_stage="original", progress=0.03)
-    try:
-        _test_original_benzenoid(graph_path, output_dir, project_root)
-    except Exception:
-        # On n'echoue pas le job si le test original plante : c'est un
-        # indicateur, pas une etape critique. Le frontend affichera
-        # success=False dans planarity.json.
-        pass
+    # Skip si test_original=False dans la config (gain ~5-15s).
+    if job.get("config", {}).get("test_original", True):
+        jobs.update_job(db_path, job_id, state="running",
+                         current_stage="original", progress=0.03)
+        try:
+            _test_original_benzenoid(graph_path, output_dir, project_root)
+        except Exception:
+            # On n'echoue pas le job si le test original plante : c'est un
+            # indicateur, pas une etape critique. Le frontend affichera
+            # success=False dans planarity.json.
+            pass
 
     jobs.update_job(db_path, job_id, state="running",
                      current_stage="parse", progress=0.08)

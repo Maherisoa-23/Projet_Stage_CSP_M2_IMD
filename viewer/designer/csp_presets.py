@@ -237,6 +237,14 @@ VALIDATION_OPTIONS = [
                 "avec methode = multi-runs. Ignore sinon.",
     },
     {
+        "key": "test_original", "type": "bool", "default": True,
+        "label": "Tester le benzenoide d'origine (xTB sur tout-hexagones)",
+        "help": "Avant les sols substituees, lance xTB sur le benzenoide pur "
+                "(tous cycles = hex) pour servir de reference de planarite. "
+                "Cout : ~5-15s. Decoche pour gagner du temps quand seule la "
+                "topologie t'interesse.",
+    },
+    {
         "key": "cluster", "type": "bool", "default": False,
         "label": "Executer xTB sur cluster (distant)",
         "help": "Si active, le calcul xTB tourne sur le cluster (SSH). "

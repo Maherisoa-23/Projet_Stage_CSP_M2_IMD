@@ -262,11 +262,13 @@ def _run_job_cluster_inner(db_path, job_id, project_root, job, config,
     # Test du benzenoide d'entree LOCALEMENT, comme en mode local.
     # ingest_local_job lira ensuite output_dir_local/original/ et stockera
     # le bloc dans summary['original']. ~5-15s, best-effort.
-    jobs.update_job(db_path, job_id, current_stage="original", progress=0.04)
-    try:
-        _test_original_benzenoid(graph_local, output_dir_local, project_root)
-    except Exception:
-        pass
+    # Skip si test_original=False dans la config.
+    if job.get("config", {}).get("test_original", True):
+        jobs.update_job(db_path, job_id, current_stage="original", progress=0.04)
+        try:
+            _test_original_benzenoid(graph_local, output_dir_local, project_root)
+        except Exception:
+            pass
 
     try:
         r = _ssh(f"mkdir -p {remote_output}", timeout=30)
