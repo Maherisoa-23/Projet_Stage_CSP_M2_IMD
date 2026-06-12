@@ -367,10 +367,23 @@ def _load_xyz_text(rel: str) -> str | None:
             return target.read_text(encoding="utf-8", errors="replace")
         except OSError:
             pass
+    # Fallback DB : xyz_files d'abord (table ou VIEW sur final_solutions),
+    # puis designer_xyz_files (sols issues du designer quand xyz_files est
+    # une VIEW non-modifiable, cf. viewer/designer/solutions_db.py)
     with db() as conn:
         row = conn.execute(
             "SELECT content_gz FROM xyz_files WHERE rel_path = ?", (rel_norm,)
         ).fetchone()
+        if not row:
+            # Verifier que designer_xyz_files existe avant de la query
+            has_designer_xyz = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE name='designer_xyz_files' AND type='table'"
+            ).fetchone()
+            if has_designer_xyz:
+                row = conn.execute(
+                    "SELECT content_gz FROM designer_xyz_files WHERE rel_path = ?",
+                    (rel_norm,),
+                ).fetchone()
     if not row:
         return None
     try:

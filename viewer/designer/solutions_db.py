@@ -62,7 +62,28 @@ CREATE TABLE IF NOT EXISTS xyz_files (
     content_gz BLOB NOT NULL,
     size_raw   INTEGER NOT NULL
 );
+
+-- Table dediee aux XYZ des jobs designer. Utilisee quand xyz_files est une
+-- VIEW (cas DB issue de viewer/migrations/final_to_viewer.py qui transforme
+-- xyz_files en VIEW sur final_solutions.xyz_optimized_gz pour eviter la
+-- duplication des 3 Go de XYZ du run final). Le code de lecture (viewer
+-- /file et /api/mol3d) fallback transparemment sur cette table quand un
+-- rel_path n'est pas trouve dans xyz_files.
+CREATE TABLE IF NOT EXISTS designer_xyz_files (
+    rel_path   TEXT PRIMARY KEY,
+    content_gz BLOB NOT NULL,
+    size_raw   INTEGER NOT NULL
+);
 """
+
+
+def _xyz_files_is_view(conn: sqlite3.Connection) -> bool:
+    """Detecte si xyz_files est une VIEW (cas DB run-final migree)
+    ou une vraie TABLE (cas DB designer-only)."""
+    r = conn.execute(
+        "SELECT type FROM sqlite_master WHERE name='xyz_files'"
+    ).fetchone()
+    return r is not None and r[0] == "view"
 
 
 @contextmanager
@@ -94,15 +115,22 @@ def init_solutions_table(db_path: str) -> None:
 
 
 def _insert_xyz_blob(conn: sqlite3.Connection, rel_path: str, xyz_text: str) -> None:
-    """Helper interne : INSERT OR REPLACE dans xyz_files. La connexion
-    est passee par l'appelant pour que l'ensemble de l'ingestion tienne
-    dans une seule transaction. Pas appele directement de l'exterieur.
+    """Helper interne : INSERT OR REPLACE dans la table de stockage XYZ.
+
+    - Cas standard (xyz_files est une TABLE) : INSERT dans xyz_files.
+    - Cas DB run-final (xyz_files est une VIEW non-modifiable) : INSERT
+      dans designer_xyz_files. Le viewer fallback sur cette table en
+      lecture quand un rel_path n'est pas trouve dans xyz_files.
+
+    La connexion est passee par l'appelant pour que l'ensemble de
+    l'ingestion tienne dans une seule transaction.
     """
     rel_norm = rel_path.replace("\\", "/").lstrip("/")
     raw = xyz_text.encode("utf-8")
     gz = gzip.compress(raw)
+    target_table = "designer_xyz_files" if _xyz_files_is_view(conn) else "xyz_files"
     conn.execute(
-        "INSERT OR REPLACE INTO xyz_files (rel_path, content_gz, size_raw) "
+        f"INSERT OR REPLACE INTO {target_table} (rel_path, content_gz, size_raw) "
         "VALUES (?, ?, ?)",
         (rel_norm, gz, len(raw)),
     )

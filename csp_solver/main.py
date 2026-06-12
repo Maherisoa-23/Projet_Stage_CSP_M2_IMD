@@ -239,7 +239,34 @@ def main():
             pct = 100 * counts[size] / total if total > 0 else 0
             print(f"  Taille {size}: {counts[size]} ({pct:.1f}%)")
 
-    # --- Etape 5 (optionnelle) : Validation xTB ---
+    # --- Etape 5a : Materialisation des sols sans validation xTB ---
+    # Cas method=skip (designer) : on veut quand meme avoir les sol_dirs sur
+    # disque avec source.xyz (reconstruction plate z=0) pour pouvoir les
+    # visualiser dans le viewer 3D, mais sans payer le cout xTB.
+    # Cette branche s'active si --output-dir est fourni ET --validate absent.
+    if not do_validate and output_dir and solutions:
+        from pathlib import Path
+        from reconstruction import reconstruct_molecule, export_xyz
+        print()
+        print("=== Materialisation sans validation xTB (mode skip) ===")
+        out = Path(output_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        n_materialized = 0
+        for i, sol in enumerate(solutions):
+            sizes_str = "_".join(str(sol[v]) for v in sorted(sol.keys()))
+            sol_dir = out / f"sol_{i}_{sizes_str}"
+            sol_dir.mkdir(exist_ok=True)
+            try:
+                mol = reconstruct_molecule(graph, sol)
+                export_xyz(mol, str(sol_dir / "source.xyz"),
+                            comment=f"sol {i} (method=skip, no xtb)")
+                n_materialized += 1
+            except Exception as e:
+                # Reconstruction echoue : on log mais on continue
+                print(f"  sol_{i} : reconstruction echouee ({type(e).__name__}: {e})")
+        print(f"  {n_materialized}/{len(solutions)} sols materialisees dans {out}")
+
+    # --- Etape 5b : Validation xTB ---
     if do_validate and solutions:
         print()
         print("=== Validation xTB + planarite ===")

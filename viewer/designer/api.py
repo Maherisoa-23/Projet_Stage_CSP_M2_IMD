@@ -246,11 +246,18 @@ def api_job_cancel(job_id: str):
 def _compute_verdict(md_verdict, planar):
     """Verdict global d'une solution. Identique fs et DB.
 
-    md_failed prime sur tout. Sinon planar=True -> 'plan', False -> 'non_plan',
-    None -> 'unknown' (MD ok mais planarite non calculee).
+    Priorites :
+      - md_verdict == 'md_failed' -> 'md_failed' (xtb n'a pas converge)
+      - md_verdict == 'skipped'   -> 'skipped' (mode skip xTB du designer,
+                                     reconstruction plate sans validation)
+      - planar == True            -> 'plan'
+      - planar == False           -> 'non_plan'
+      - sinon                     -> 'unknown'
     """
     if md_verdict == "md_failed":
         return "md_failed"
+    if md_verdict == "skipped":
+        return "skipped"
     if planar is True:
         return "plan"
     if planar is False:
@@ -316,6 +323,7 @@ def _count_verdicts(sols):
         "plan": sum(1 for s in sols if s["verdict"] == "plan"),
         "non_plan": sum(1 for s in sols if s["verdict"] == "non_plan"),
         "md_failed": sum(1 for s in sols if s["verdict"] == "md_failed"),
+        "skipped": sum(1 for s in sols if s["verdict"] == "skipped"),
         "unknown": sum(1 for s in sols if s["verdict"] == "unknown"),
     }
 
@@ -427,17 +435,18 @@ def api_job_solutions(job_id: str):
             except Exception:
                 pass
 
-        # Verdict global : prioritise la planarite si calculee, sinon md_verdict.
-        # Coherent avec view-mol : un sol "MD ok" sans planarite calculee
-        # reste flou ; on l'expose comme "unknown".
-        if md_verdict == "md_failed":
-            verdict = "md_failed"
-        elif planar is True:
-            verdict = "plan"
-        elif planar is False:
-            verdict = "non_plan"
-        else:
-            verdict = "unknown"
+        # Verdict global : centralise dans _compute_verdict pour rester
+        # coherent avec la branche DB (cf. ligne ~246).
+        # Pour mode skip xTB, la planarity.json contient verdict_mode="skipped"
+        # qu'on transmet via md_verdict.
+        if md_verdict == "unknown" and plan_file.is_file():
+            try:
+                p = json.loads(plan_file.read_text(encoding="utf-8"))
+                if p.get("verdict_mode") == "skipped":
+                    md_verdict = "skipped"
+            except Exception:
+                pass
+        verdict = _compute_verdict(md_verdict, planar)
 
         if md_final.is_file():
             best_xyz = md_final.relative_to(project_root).as_posix()
