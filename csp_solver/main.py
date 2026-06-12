@@ -81,6 +81,10 @@ K_tot = _parse_int_arg("--tot")   # nb_pent + nb_hept <= K_tot
 tau_gb = _parse_int_arg("--tau-gb")        # Gauss-Bonnet local (v3)
 radius_gb = _parse_int_arg("--radius-gb") or 2  # rayon BFS Gauss-Bonnet
 
+# Ctopo : contrainte blacklist rayon-2 + pre-check n_peri (juin 2026)
+ctopo_filter = "--ctopo" in _own_argv
+ctopo_min_n_peri = _parse_int_arg("--ctopo-min-n-peri") or 4
+
 # --- Preset (catalogue presets.py) ---
 # Si --preset NAME est passe, il SURCHARGE les flags individuels (sauf
 # ceux qui sont deja explicites en CLI).
@@ -201,7 +205,9 @@ def main():
                                 adj_57=adj_57, no_table=no_table,
                                 count_hexagon=count_hexagon,
                                 K_sym=K_sym, K_pb=K_pb, K_hb=K_hb, K_tot=K_tot,
-                                tau_gb=tau_gb, radius_gb=radius_gb)
+                                tau_gb=tau_gb, radius_gb=radius_gb,
+                                ctopo_filter=ctopo_filter,
+                                ctopo_min_n_peri=ctopo_min_n_peri)
 
     if not solutions:
         print("Aucune solution trouvee.")

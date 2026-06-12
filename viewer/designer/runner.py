@@ -310,6 +310,10 @@ def _build_command(python_exe: str, main_py: Path, graph_path: Path,
         cmd.extend(["--tau-gb", str(int(config["tau_gb"]))])
     if config.get("radius_gb") is not None and config.get("radius_gb") != 2:
         cmd.extend(["--radius-gb", str(int(config["radius_gb"]))])
+    if config.get("ctopo_filter"):
+        cmd.append("--ctopo")
+        if config.get("ctopo_min_n_peri") is not None and int(config["ctopo_min_n_peri"]) != 4:
+            cmd.extend(["--ctopo-min-n-peri", str(int(config["ctopo_min_n_peri"]))])
 
     # --- Output et validation ---
     cmd.extend(["--output-dir", str(output_dir)])

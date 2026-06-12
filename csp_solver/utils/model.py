@@ -27,10 +27,81 @@ def _find_ace_jar():
     raise FileNotFoundError("ACE jar introuvable dans pycsp3")
 
 
+# =====================================================================
+#  Contrainte Ctopo : blacklist de motifs rayon-2 du graphe dual
+# =====================================================================
+# Definition : pour chaque cycle v, le motif rayon-2 est
+# (taille_v, multiset(tailles des voisins dans le dual)).
+# La blacklist liste les motifs identifies comme deleteres pour la
+# planarite par l'analyse exploratoire (cf. doc/experimentation.md).
+# Source : csp_solver/analysis/exploration/analyze_radius2_motifs.py.
+#
+# Implementation CSP : pour chaque cycle v de degre d, on filtre la
+# blacklist pour ne garder que les motifs de longueur d, puis on
+# enumere toutes les permutations du multiset et on interdit chaque
+# tuple ordonne via une contrainte negative.
+
+# Multiset blacklist (taille_centrale, tuple_trie_des_tailles_voisines)
+CTOPO_BLACKLIST_R2 = {
+    # Motifs universels (top defavorisants h7/h8/h9) -- strict
+    (7, (5, 7, 7)),
+    (7, (7, 7)),
+    (7, (6, 7, 7)),
+    (7, (5, 6, 7, 7)),
+    (5, (5,)),
+    (7, (7,)),
+    # Loose : ajout des motifs forts h-specifiques
+    (7, (5, 5, 7, 7)),
+    (5, (5, 5)),
+    (7, (6, 6, 7, 7)),
+    (6, (6, 7, 7)),
+}
+
+
+def _multiset_permutations(items):
+    """Genere toutes les permutations distinctes d'un multiset.
+
+    Ex : _multiset_permutations([5, 7, 7]) -> [(5,7,7), (7,5,7), (7,7,5)]
+    """
+    from itertools import permutations
+    return sorted(set(permutations(items)))
+
+
+def _ctopo_forbidden_tuples(degree, center_size_in_blacklist):
+    """Pour un cycle de degre `degree` et une taille centrale donnee,
+    retourne la liste des tuples ordonnes (x_v, x_n1, ..., x_nd) a
+    interdire selon la blacklist Ctopo.
+    """
+    forbidden = []
+    for center, nbr_multiset in CTOPO_BLACKLIST_R2:
+        if center != center_size_in_blacklist:
+            continue
+        if len(nbr_multiset) != degree:
+            continue
+        for perm in _multiset_permutations(nbr_multiset):
+            forbidden.append((center,) + perm)
+    return forbidden
+
+
+def count_peri_atoms(graph) -> int:
+    """Compte les atomes du benzenoide partages par >=3 cycles.
+
+    Utilise pour le pre-check Ctopo : la contrainte n'a de sens que sur
+    des squelettes assez compacts (n_peri >= 4 par defaut).
+    """
+    from collections import Counter
+    atom_count = Counter()
+    for hexagon in graph.hexagons:
+        for a in hexagon:
+            atom_count[a] += 1
+    return sum(1 for c in atom_count.values() if c >= 3)
+
+
 def build_and_solve(graph, preprocessed, enumerate_all=True,
                     adj_57=False, no_table=False, count_hexagon=False,
                     K_sym=None, K_pb=None, K_hb=None, K_tot=None,
-                    tau_gb=None, radius_gb=2):
+                    tau_gb=None, radius_gb=2,
+                    ctopo_filter=False, ctopo_min_n_peri=4):
     """Construit le modele CSP, genere le XML, et appelle ACE.
 
     Args:
@@ -42,13 +113,19 @@ def build_and_solve(graph, preprocessed, enumerate_all=True,
         count_hexagon: si True, garder la solution tout-hexagones (le
             benzenoide d'origine, x_v = 6 pour tout v) dans la liste.
             Defaut False : on l'exclut puisque l'objectif du solveur est
-            d'enumerer les substitutions non-benzenoides. Le benzenoide
-            d'origine reste teste separement par test.py (champ "original"
-            du data.json).
+            d'enumerer les substitutions non-benzenoides.
         K_sym: si non-None, contrainte C-SYM |n_pent - n_hept| <= K_sym
         K_pb : si non-None, contrainte C-PB nb_pent_au_bord <= K_pb
         K_hb : si non-None, contrainte C-HB nb_hept_au_bord <= K_hb
         K_tot: si non-None, contrainte C-TOT nb_pent + nb_hept <= K_tot
+        tau_gb: contrainte Gauss-Bonnet locale (rayon radius_gb)
+        ctopo_filter: si True, applique la contrainte Ctopo (blacklist
+            rayon-2 du graphe dual). Necessite ctopo_min_n_peri verifie
+            en amont (sinon le solveur ne retourne rien).
+        ctopo_min_n_peri: nombre minimal d'atomes peri-condenses dans le
+            squelette pour considerer Ctopo applicable. Defaut 4. Si le
+            squelette en a moins, la contrainte est silencieusement
+            desactivee (retourne liste vide via pre-check dans main.py).
 
     Returns:
         Liste de solutions, chaque solution est un dict {v: taille}
@@ -137,6 +214,38 @@ def build_and_solve(graph, preprocessed, enumerate_all=True,
             hepts = Sum(x[v] == 7 for v in nbrs)
             satisfy(pents - hepts <= tau_gb)
             satisfy(hepts - pents <= tau_gb)
+
+    # --- Contrainte Ctopo : blacklist de motifs rayon-2 du graphe dual ---
+    # Pour chaque cycle v de degre d, on interdit que (x_v, x_voisins_ordonnes)
+    # forme un tuple correspondant a un motif blacklist (apres canonisation
+    # par multiset). Cf. CTOPO_BLACKLIST_R2 en haut du module.
+    #
+    # Pre-check n_peri : si le squelette n'a pas assez d'atomes peri-condenses,
+    # Ctopo ne s'applique pas et on retourne une liste vide (la contrainte
+    # serait trivialement inutile sur un squelette etale).
+    if ctopo_filter:
+        n_peri = count_peri_atoms(graph)
+        if n_peri < ctopo_min_n_peri:
+            print(f"  Ctopo : squelette trop etale (n_peri={n_peri} < {ctopo_min_n_peri}), "
+                  f"aucune solution attendue.")
+            return []
+        print(f"  Ctopo active : n_peri={n_peri} >= {ctopo_min_n_peri}, "
+              f"application de la blacklist rayon-2.")
+        for v in range(h):
+            nbrs = graph.neighbors(v)
+            d = len(nbrs)
+            if d == 0:
+                continue
+            scope = [x[v]] + [x[u] for u in nbrs]
+            # Pour chaque taille centrale candidate (5, 6 ou 7), construire
+            # la liste des tuples ordonnes a interdire
+            forbidden = []
+            for center_size in (5, 6, 7):
+                forbidden.extend(
+                    _ctopo_forbidden_tuples(d, center_size)
+                )
+            if forbidden:
+                satisfy(scope not in set(forbidden))
 
     # --- Generer le XML ---
     xml_path = str(Path.cwd() / "model.xml")
