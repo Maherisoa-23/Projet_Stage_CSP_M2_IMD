@@ -73,11 +73,36 @@
 
       <!-- Panneau config + run a droite -->
       <aside class="dz-sidebar">
-        <h2 class="dz-section-title">Configuration CSP</h2>
-        <div id="config-panel" class="dz-config-panel">
-          <div class="dz-loading-mini">Chargement…</div>
-        </div>
+        <!-- Bloc 1 : Config CSP avec 2 onglets -->
+        <section class="dz-block">
+          <h2 class="dz-section-title">Configuration CSP</h2>
 
+          <div class="dz-tabs" role="tablist">
+            <button class="dz-tab active" role="tab" data-tab="preset" aria-selected="true">
+              Preset
+            </button>
+            <button class="dz-tab" role="tab" data-tab="advanced" aria-selected="false">
+              Avance
+            </button>
+          </div>
+
+          <div class="dz-tab-panel active" id="tab-panel-preset" role="tabpanel">
+            <div class="dz-loading-mini">Chargement…</div>
+          </div>
+          <div class="dz-tab-panel" id="tab-panel-advanced" role="tabpanel" hidden>
+            <div class="dz-loading-mini">Chargement…</div>
+          </div>
+        </section>
+
+        <!-- Bloc 2 : Validation xTB -->
+        <section class="dz-block">
+          <h2 class="dz-section-title">Validation xTB</h2>
+          <div id="validation-panel" class="dz-config-panel">
+            <div class="dz-loading-mini">Chargement…</div>
+          </div>
+        </section>
+
+        <!-- Bloc 3 : Bouton run -->
         <div class="dz-actions">
           <button id="btn-run" class="dz-btn dz-btn-primary" disabled>
             <span>▶</span> Lancer la generation

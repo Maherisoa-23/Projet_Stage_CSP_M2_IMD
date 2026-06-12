@@ -82,13 +82,131 @@ body {
 }
 
 .dz-sidebar {
-  width: 340px;
+  width: 520px;
   padding: 1rem;
   background: #ffffff;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.8rem;
+  gap: 1rem;
+}
+
+/* ---- Blocs (Config CSP / Validation xTB) ---- */
+.dz-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.7rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+/* ---- Onglets (style navigateur) ---- */
+.dz-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid #cbd5e1;
+  margin-bottom: 0.2rem;
+}
+.dz-tab {
+  flex: 1;
+  padding: 0.55rem 0.8rem;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s, background 0.1s;
+  font-family: inherit;
+}
+.dz-tab:hover {
+  background: #f1f5f9;
+  color: #1e293b;
+}
+.dz-tab.active {
+  color: #1d4ed8;
+  border-bottom-color: #1d4ed8;
+  font-weight: 600;
+  background: #fff;
+}
+.dz-tab-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding-top: 0.4rem;
+}
+.dz-tab-panel[hidden] { display: none; }
+.dz-tab-panel.active { display: flex; }
+
+/* ---- Radio liste C1/C2/C3/Ctopo (onglet Preset) ---- */
+.dz-radio-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.dz-radio-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.1s, background 0.1s;
+}
+.dz-radio-row:hover {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+.dz-radio-row.selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+.dz-radio-row input[type="radio"] {
+  margin-top: 0.2rem;
+  cursor: pointer;
+}
+.dz-radio-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.dz-radio-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+.dz-radio-help {
+  font-size: 0.78rem;
+  color: #6b7280;
+  line-height: 1.35;
+}
+
+/* ---- Onglet Avance : groupes thematiques (cockpit) ---- */
+.dz-group {
+  border-top: 1px dashed #d4d8de;
+  padding-top: 0.5rem;
+  margin-top: 0.3rem;
+}
+.dz-group:first-child {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0;
+}
+.dz-group-title {
+  margin: 0 0 0.4rem 0;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  font-weight: 600;
 }
 
 /* ---- Toolbar ---- */
