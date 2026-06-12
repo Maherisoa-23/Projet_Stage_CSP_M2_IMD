@@ -555,102 +555,279 @@
   //  ConfigPanel : panneau de configuration dynamique
   // ====================================================================
 
-  const configState = {};
-  let configSchema = [];
-  let clusterEnabled = false;  // alimente par /api/designer/configs
+  // -----------------------------------------------------------------
+  // configState contient TOUT l'etat du panneau :
+  //   - preset           : 'C1' | 'C2' | 'C3' | 'Ctopo' | 'custom'
+  //   - <flag advanced>  : chaque cle des CSP_ADVANCED_OPTIONS (K_pb, ...)
+  //   - method, n_runs, cluster (validation)
+  //
+  // Quand preset != 'custom', les flags advanced sont IGNORES par le
+  // backend (ecrases par les flags du preset). On les conserve quand meme
+  // en memoire pour quand l'utilisateur switche vers 'custom'.
+  // -----------------------------------------------------------------
+  const configState = { preset: "C2" };
+  let presetsCanonical = [];
+  let advancedOptions = [];
+  let advancedGroups = [];
+  let validationOptions = [];
+  let clusterEnabled = false;
 
   async function loadConfigPanel() {
     try {
       const r = await fetch("/api/designer/configs");
       const data = await r.json();
-      configSchema = data.configs || [];
+      presetsCanonical = data.presets_canonical || [];
+      advancedOptions = data.advanced_options || [];
+      advancedGroups = data.advanced_groups || [];
+      validationOptions = data.validation_options || [];
       clusterEnabled = !!data.cluster_enabled;
-      // Initialise defaults
-      for (const c of configSchema) configState[c.key] = c.default;
-      renderConfigPanel();
+
+      // Initialise defaults pour advanced et validation
+      for (const c of advancedOptions) {
+        if (configState[c.key] === undefined) {
+          configState[c.key] = c.default;
+        }
+      }
+      for (const v of validationOptions) {
+        if (configState[v.key] === undefined) {
+          configState[v.key] = v.default;
+        }
+      }
+
+      renderPresetPanel();
+      renderAdvancedPanel();
+      renderValidationPanel();
+      bindTabs();
     } catch (e) {
-      document.getElementById("config-panel").innerHTML =
+      console.error("Config load failed", e);
+      document.getElementById("tab-panel-preset").innerHTML =
         '<p class="dz-muted">Erreur de chargement des configs</p>';
     }
   }
 
-  function renderConfigPanel() {
-    const panel = document.getElementById("config-panel");
+  // ---- Onglets ----
+  function bindTabs() {
+    document.querySelectorAll(".dz-tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const target = btn.dataset.tab;
+        document.querySelectorAll(".dz-tab").forEach((b) => {
+          const active = b.dataset.tab === target;
+          b.classList.toggle("active", active);
+          b.setAttribute("aria-selected", active ? "true" : "false");
+        });
+        document.querySelectorAll(".dz-tab-panel").forEach((p) => {
+          const active = p.id === `tab-panel-${target}`;
+          p.classList.toggle("active", active);
+          p.hidden = !active;
+        });
+      });
+    });
+  }
+
+  // ---- Onglet "Preset" : 4 radios C1/C2/C3/Ctopo + custom ----
+  function renderPresetPanel() {
+    const panel = document.getElementById("tab-panel-preset");
     panel.innerHTML = "";
-    // Si un preset != "custom" est actif, on masque les toggles marques
-    // csp_constraint (ils sont alors imposes par le preset).
-    const presetActive = configState.preset && configState.preset !== "custom";
-    for (const c of configSchema) {
-      if (c.csp_constraint && presetActive) {
-        continue;  // masque les contraintes CSP individuelles
-      }
-      if (c.cluster_feature && !clusterEnabled) {
-        continue;  // cluster globalement desactive : on masque la case
-      }
-      const row = document.createElement("div");
-      row.className = "dz-config-row";
+    const list = document.createElement("div");
+    list.className = "dz-radio-list";
 
-      const label = document.createElement("label");
-      let input;
-      if (c.type === "bool") {
-        input = document.createElement("input");
-        input.type = "checkbox";
-        input.checked = !!configState[c.key];
-        input.addEventListener("change", () => {
-          configState[c.key] = input.checked;
-        });
-        label.appendChild(input);
-        label.appendChild(document.createTextNode(" " + c.label));
-      } else if (c.type === "int") {
-        const txt = document.createElement("span");
-        txt.textContent = c.label + " : ";
-        input = document.createElement("input");
-        input.type = "number";
-        input.value = configState[c.key];
-        if (c.min !== undefined) input.min = c.min;
-        if (c.max !== undefined) input.max = c.max;
-        input.addEventListener("change", () => {
-          configState[c.key] = parseInt(input.value, 10);
-        });
-        label.appendChild(txt);
-        label.appendChild(input);
-      } else if (c.type === "select") {
-        const txt = document.createElement("div");
-        txt.textContent = c.label;
-        input = document.createElement("select");
-        for (const opt of (c.options || [])) {
-          const o = document.createElement("option");
-          o.value = opt.value;
-          o.textContent = opt.label;
-          if (opt.value === configState[c.key]) o.selected = true;
-          input.appendChild(o);
+    // Les 4 presets canoniques
+    for (const p of presetsCanonical) {
+      const row = document.createElement("label");
+      row.className = "dz-radio-row";
+      if (configState.preset === p.key) row.classList.add("selected");
+
+      const input = document.createElement("input");
+      input.type = "radio";
+      input.name = "preset";
+      input.value = p.key;
+      input.checked = (configState.preset === p.key);
+      input.addEventListener("change", () => {
+        if (input.checked) {
+          configState.preset = p.key;
+          renderPresetPanel();
+          renderAdvancedPanel();  // recalcule disabled state
         }
-        // Capture la cle pour la closure (sinon 'c' est partage par toutes
-        // les iterations).
-        const ck = c.key;
-        input.addEventListener("change", () => {
-          configState[ck] = input.value;
-          // Le changement de preset peut masquer/afficher des toggles
-          // marques csp_constraint : on re-rend le panneau.
-          if (ck === "preset") {
-            renderConfigPanel();
-          }
-        });
-        label.style.flexDirection = "column";
-        label.style.alignItems = "flex-start";
-        label.appendChild(txt);
-        label.appendChild(input);
-      }
-      row.appendChild(label);
+      });
 
-      if (c.help) {
-        const help = document.createElement("p");
-        help.className = "dz-config-help";
-        help.textContent = c.help;
-        row.appendChild(help);
-      }
-      panel.appendChild(row);
+      const content = document.createElement("div");
+      content.className = "dz-radio-content";
+      const title = document.createElement("div");
+      title.className = "dz-radio-title";
+      title.textContent = p.label;
+      const help = document.createElement("div");
+      help.className = "dz-radio-help";
+      help.textContent = p.help || "";
+      content.appendChild(title);
+      content.appendChild(help);
+
+      row.appendChild(input);
+      row.appendChild(content);
+      list.appendChild(row);
     }
+
+    // Option "custom" : utilise les valeurs de l'onglet Avance
+    const customRow = document.createElement("label");
+    customRow.className = "dz-radio-row";
+    if (configState.preset === "custom") customRow.classList.add("selected");
+
+    const customInput = document.createElement("input");
+    customInput.type = "radio";
+    customInput.name = "preset";
+    customInput.value = "custom";
+    customInput.checked = (configState.preset === "custom");
+    customInput.addEventListener("change", () => {
+      if (customInput.checked) {
+        configState.preset = "custom";
+        renderPresetPanel();
+        renderAdvancedPanel();
+      }
+    });
+
+    const customContent = document.createElement("div");
+    customContent.className = "dz-radio-content";
+    const customTitle = document.createElement("div");
+    customTitle.className = "dz-radio-title";
+    customTitle.textContent = "Custom (utiliser l'onglet Avance)";
+    const customHelp = document.createElement("div");
+    customHelp.className = "dz-radio-help";
+    customHelp.textContent =
+      "Aucun preset force. Les contraintes individuelles du tableau de bord " +
+      "(onglet Avance) seront prises en compte.";
+    customContent.appendChild(customTitle);
+    customContent.appendChild(customHelp);
+
+    customRow.appendChild(customInput);
+    customRow.appendChild(customContent);
+    list.appendChild(customRow);
+
+    panel.appendChild(list);
+  }
+
+  // ---- Onglet "Avance" : tableau de bord groupe par theme ----
+  function renderAdvancedPanel() {
+    const panel = document.getElementById("tab-panel-advanced");
+    panel.innerHTML = "";
+
+    // Banniere d'info si un preset != custom est actif
+    const presetActive = configState.preset && configState.preset !== "custom";
+    if (presetActive) {
+      const banner = document.createElement("div");
+      banner.className = "dz-config-help";
+      banner.style.background = "#fef3c7";
+      banner.style.padding = "0.5rem";
+      banner.style.borderRadius = "4px";
+      banner.style.paddingLeft = "0.5rem";
+      banner.textContent =
+        `Preset ${configState.preset} actif : les contraintes CSP ci-dessous ` +
+        `sont ignorees (le preset les ecrase). Passe en mode 'Custom' dans ` +
+        `l'onglet Preset pour les utiliser.`;
+      panel.appendChild(banner);
+    }
+
+    // Render chaque groupe
+    for (const group of advancedGroups) {
+      const inGroup = advancedOptions.filter((o) => o.group === group.key);
+      if (inGroup.length === 0) continue;
+
+      const sec = document.createElement("div");
+      sec.className = "dz-group";
+      const title = document.createElement("h4");
+      title.className = "dz-group-title";
+      title.textContent = group.label;
+      sec.appendChild(title);
+
+      for (const c of inGroup) {
+        sec.appendChild(renderConfigRow(c, presetActive));
+      }
+      panel.appendChild(sec);
+    }
+  }
+
+  // ---- Bloc "Validation xTB" : method + n_runs + cluster ----
+  function renderValidationPanel() {
+    const panel = document.getElementById("validation-panel");
+    panel.innerHTML = "";
+    for (const c of validationOptions) {
+      if (c.cluster_feature && !clusterEnabled) continue;
+      panel.appendChild(renderConfigRow(c, false));
+    }
+  }
+
+  // ---- Helper generique de rendu d'une ligne (bool / int / int_or_none / select) ----
+  function renderConfigRow(c, disabled) {
+    const row = document.createElement("div");
+    row.className = "dz-config-row";
+
+    const label = document.createElement("label");
+    let input;
+
+    if (c.type === "bool") {
+      input = document.createElement("input");
+      input.type = "checkbox";
+      input.checked = !!configState[c.key];
+      input.disabled = !!disabled;
+      input.addEventListener("change", () => {
+        configState[c.key] = input.checked;
+      });
+      label.appendChild(input);
+      label.appendChild(document.createTextNode(" " + c.label));
+    } else if (c.type === "int" || c.type === "int_or_none") {
+      const txt = document.createElement("span");
+      txt.textContent = c.label + " : ";
+      input = document.createElement("input");
+      input.type = "number";
+      input.disabled = !!disabled;
+      if (c.min !== undefined) input.min = c.min;
+      if (c.max !== undefined) input.max = c.max;
+      if (configState[c.key] === null || configState[c.key] === undefined) {
+        input.value = "";
+        if (c.type === "int_or_none") {
+          input.placeholder = "(vide = pas de contrainte)";
+        }
+      } else {
+        input.value = configState[c.key];
+      }
+      input.addEventListener("change", () => {
+        if (input.value === "" && c.type === "int_or_none") {
+          configState[c.key] = null;
+        } else {
+          const v = parseInt(input.value, 10);
+          configState[c.key] = isNaN(v) ? null : v;
+        }
+      });
+      label.appendChild(txt);
+      label.appendChild(input);
+    } else if (c.type === "select") {
+      const txt = document.createElement("div");
+      txt.textContent = c.label;
+      input = document.createElement("select");
+      input.disabled = !!disabled;
+      for (const opt of (c.options || [])) {
+        const o = document.createElement("option");
+        o.value = opt.value;
+        o.textContent = opt.label;
+        if (opt.value === configState[c.key]) o.selected = true;
+        input.appendChild(o);
+      }
+      const ck = c.key;
+      input.addEventListener("change", () => {
+        configState[ck] = input.value;
+      });
+      label.style.flexDirection = "column";
+      label.style.alignItems = "flex-start";
+      label.appendChild(txt);
+      label.appendChild(input);
+    }
+    row.appendChild(label);
+
+    if (c.help) {
+      const help = document.createElement("p");
+      help.className = "dz-config-help";
+      help.textContent = c.help;
+      row.appendChild(help);
+    }
+    return row;
   }
 
   // ====================================================================
