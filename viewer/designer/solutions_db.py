@@ -307,6 +307,12 @@ def ingest_local_job(db_path: str, job_id: str, output_dir: Path,
                     angle_deg = plan.get("angle_deg")
                     rmsd = plan.get("rmsd")
                     height = plan.get("height")
+                    # Mode skip xTB : la planarite est calculee sur la
+                    # reconstruction plate (source.xyz). On marque le verdict
+                    # comme "skipped" pour que l'UI sache que ce n'est pas
+                    # une vraie validation xtb.
+                    if plan.get("verdict_mode") == "skipped":
+                        md_verdict = "skipped"
 
                 _insert_solution(conn, job_id, sol_dir.name, sol_idx, sizes,
                                  source_rel, md_rel, md_verdict, n_attempts,

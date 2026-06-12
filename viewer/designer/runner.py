@@ -148,11 +148,18 @@ def _test_original_benzenoid(graph_path: Path, output_dir: Path,
 
 
 def _compute_solutions_planarity(output_dir: Path, project_root: Path) -> int:
-    """Pour chaque sol_dir/md_validation/md_final_opt.xyz, calcule la planarite
-    et persiste dans sol_dir/planarity.json.
+    """Pour chaque sol_dir, calcule la planarite et persiste dans
+    sol_dir/planarity.json.
 
-    Ce fichier est ensuite lu par l'endpoint /api/designer/jobs/<id>/solutions
-    pour eviter de recomputer a chaque requete.
+    Strategie de lecture du XYZ :
+      1. md_validation/md_final_opt.xyz (xtb --opt finalise, cas normal)
+      2. source.xyz (reconstruction 3D plate, cas method=skip)
+      3. Placeholder success=False si aucun des deux
+
+    Cas method=skip : la reconstruction est plate par construction (z=0
+    a la perturbation pres), donc angle_deg sera ~0 et planar=True. On
+    annote alors verdict="skipped" dans le JSON pour que le frontend
+    sache que ce n'est pas une vraie validation xtb.
 
     Returns le nombre de sol traites.
     """
@@ -167,17 +174,30 @@ def _compute_solutions_planarity(output_dir: Path, project_root: Path) -> int:
         if not sol_dir.is_dir():
             continue
         md_final = sol_dir / "md_validation" / "md_final_opt.xyz"
+        source_xyz = sol_dir / "source.xyz"
         plan_json = sol_dir / "planarity.json"
-        if not md_final.is_file():
-            # Pas de geometrie optimisee : on ecrit un placeholder pour signaler
-            # que ce sol n'a pas ete materialise (probablement validate=false)
+
+        # Determine le fichier a lire et le verdict associe
+        xyz_to_read = None
+        verdict_mode = None
+        if md_final.is_file():
+            xyz_to_read = md_final
+            verdict_mode = "validated"
+        elif source_xyz.is_file():
+            # Pas d'optim xtb : on lit la reconstruction plate (mode skip)
+            xyz_to_read = source_xyz
+            verdict_mode = "skipped"
+
+        if xyz_to_read is None:
+            # Ni md_final ni source : sol non materialisee
             if not plan_json.exists():
                 plan_json.write_text(json.dumps({
-                    "success": False, "message": "md_final_opt.xyz absent"
+                    "success": False,
+                    "message": "Aucun XYZ trouve (ni md_final_opt.xyz ni source.xyz)",
                 }, indent=2), encoding="utf-8")
             continue
         try:
-            coords = read_optimized_coords(str(md_final))
+            coords = read_optimized_coords(str(xyz_to_read))
             metrics = plan_mod.compute_planarity(coords)
             planar = plan_mod.is_planar(metrics, PLANARITY_THRESHOLD_DEG)
             result = {
@@ -187,6 +207,7 @@ def _compute_solutions_planarity(output_dir: Path, project_root: Path) -> int:
                 "rmsd": float(metrics["rmsd_plane"]),
                 "height": float(metrics["height"]),
                 "threshold_deg": PLANARITY_THRESHOLD_DEG,
+                "verdict_mode": verdict_mode,  # "validated" | "skipped"
             }
             plan_json.write_text(json.dumps(result, indent=2), encoding="utf-8")
             n_done += 1
@@ -301,7 +322,13 @@ def _build_command(python_exe: str, main_py: Path, graph_path: Path,
 
 
 def _count_outputs(output_dir: Path) -> Dict[str, int]:
-    """Compte les outputs presents dans le dossier de sortie."""
+    """Compte les outputs presents dans le dossier de sortie.
+
+    n_with_xyz : sols avec source.xyz (reconstruction 3D plate)
+    n_with_md  : sols avec md_validation/md_final_opt.xyz (xtb finalise)
+
+    En mode skip xTB : n_with_xyz > 0 mais n_with_md = 0.
+    """
     if not output_dir.is_dir():
         return {"n_sol_dirs": 0, "n_with_xyz": 0, "n_with_md": 0}
     sol_dirs = list(output_dir.glob("sol_*"))
