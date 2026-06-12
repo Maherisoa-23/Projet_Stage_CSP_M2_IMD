@@ -86,61 +86,6 @@ DEFAULT_MD_PARAMS = {
 }
 
 
-def _format_md_value(val):
-    """Convertit une valeur Python en representation d'input file xTB."""
-    if isinstance(val, bool):
-        return "true" if val else "false"
-    return val
-
-
-def _write_md_inp(path: Path, params: dict):
-    """Ecrit un fichier $md/$end exploitable par xtb --input."""
-    with open(path, "w") as f:
-        f.write("$md\n")
-        for key, val in params.items():
-            f.write(f"   {key}={_format_md_value(val)}\n")
-        f.write("$end\n")
-
-
-def _read_n_atoms(xyz_path: Path) -> int:
-    """Lit le nombre d'atomes (ligne 1) d'un fichier XYZ."""
-    with open(xyz_path) as f:
-        return int(f.readline().strip())
-
-
-def _extract_last_frame(traj_path: Path, n_atoms: int, output_path: Path):
-    """Extrait la derniere frame d'une trajectoire xTB (xtb.trj).
-
-    Chaque frame fait n_atoms+2 lignes (1 ligne nb atomes, 1 ligne commentaire,
-    n_atoms lignes de coordonnees). On prend les n_atoms+2 dernieres lignes
-    du fichier.
-    """
-    frame_lines = n_atoms + 2
-    with open(traj_path) as f:
-        lines = f.readlines()
-    if len(lines) < frame_lines:
-        raise ValueError(f"Trajectoire trop courte : {len(lines)} lignes, attendu >= {frame_lines}")
-    last_frame = lines[-frame_lines:]
-    with open(output_path, "w") as f:
-        f.writelines(last_frame)
-
-
-def _count_frames(traj_path: Path, n_atoms: int) -> int:
-    """Compte le nombre de frames dans une trajectoire xTB.
-
-    Chaque frame fait n_atoms+2 lignes. Tolerant aux fichiers vides ou
-    trop courts (retourne 0 dans ces cas).
-    """
-    frame_lines = n_atoms + 2
-    if not traj_path.exists():
-        return 0
-    n_lines = 0
-    with open(traj_path) as f:
-        for _ in f:
-            n_lines += 1
-    return n_lines // frame_lines
-
-
 def _has_aberrant_atom(xyz_path: Path, threshold: float = 30.0) -> bool:
     """Detecte si la geometrie contient un atome ejecte (coords aberrantes).
 
@@ -196,22 +141,6 @@ def _build_xtb_env(deterministic: bool):
         env["MKL_NUM_THREADS"] = "1"
         env["OMP_STACKSIZE"] = env.get("OMP_STACKSIZE", "1G")
     return env
-
-
-def _expected_frames(md_params: dict) -> int:
-    """[Legacy MD] Calcule le nb de frames attendu dans xtb.trj.
-
-    Conserve pour retro-compat de tests / scripts qui auraient importe ce
-    helper. Plus utilise dans le pipeline det-opt actuel (pas de trajectoire).
-    """
-    try:
-        time_ps = float(md_params.get("time", 1.0))
-        dump_fs = float(md_params.get("dump", 50.0))
-    except (TypeError, ValueError):
-        return 21
-    if dump_fs <= 0:
-        return 0
-    return int(time_ps * 1000.0 / dump_fs) + 1
 
 
 def _apply_structured_z_perturbation(input_path: Path, output_path: Path,

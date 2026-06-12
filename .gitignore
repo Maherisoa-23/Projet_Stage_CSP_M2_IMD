@@ -1,14 +1,29 @@
 # ===== Python =====
 **/__pycache__/
 *.pyc
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-data/
+# Donnees brutes a la racine (les .graph des h6-h9 sont dans
+# experiments/v1/plane/benzdb/, gitignored separement)
+/data/
 
 # ===== Environnement Python =====
 venv/
+.venv/
 
 # ===== Outils IDE / agents =====
 .claude/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
 
 # ===== Bases SQLite (regenerables via viewer/build_db.py) =====
 *.db

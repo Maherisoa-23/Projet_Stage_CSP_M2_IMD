@@ -208,25 +208,6 @@ def filter_table_for_vertex(graph: BenzenoidGraph, v: int,
     return sorted(compatible)
 
 
-def _is_consecutive_block(positions: list, n: int) -> bool:
-    """Verifie que les positions forment un bloc consecutif (cyclique)."""
-    if not positions:
-        return True
-    if len(positions) == 1:
-        return True
-
-    # Trier et verifier la consecutivite cyclique
-    positions = sorted(positions)
-    for i in range(len(positions) - 1):
-        if positions[i + 1] - positions[i] != 1:
-            # Verifier le wrap-around : le dernier et le premier
-            if i == len(positions) - 2:
-                if positions[0] == 0 and positions[-1] == n - 1:
-                    continue
-            return False
-    return True
-
-
 def compute_automorphisms(graph: BenzenoidGraph) -> list:
     """Calcule les generateurs du groupe d'automorphismes de G_D.
 
@@ -360,37 +341,3 @@ def preprocess(graph: BenzenoidGraph, freeze_b2: bool = True) -> dict:
         'frozen': frozen,
         'free': free,
     }
-
-
-# --- Test ---
-if __name__ == "__main__":
-    import sys
-    from pathlib import Path
-    from parser import parse
-
-    if len(sys.argv) < 2:
-        filepath = str(Path(__file__).parent / "data" / "example_3hex.ben")
-    else:
-        filepath = sys.argv[1]
-
-    graph = parse(filepath)
-    print(graph.summary())
-    print()
-
-    result = preprocess(graph)
-    print(f"Geles: {result['frozen']}")
-    print(f"Libres: {result['free']}")
-    print(f"Generateurs Aut(G_D): {len(result['generators'])}")
-
-    for gen in result['generators']:
-        print(f"  pi: {gen}")
-
-    for v in result['free']:
-        if v in result['tables']:
-            t = result['tables'][v]
-            print(f"Table filtree v{v}: {len(t)} entrees")
-            if len(t) <= 10:
-                for entry in t:
-                    print(f"    {entry}")
-        else:
-            print(f"v{v}: deg={graph.degree(v)}, pas de contrainte de table")
