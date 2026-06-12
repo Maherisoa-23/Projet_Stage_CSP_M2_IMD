@@ -238,14 +238,29 @@ def build_and_solve(graph, preprocessed, enumerate_all=True,
                 continue
             scope = [x[v]] + [x[u] for u in nbrs]
             # Pour chaque taille centrale candidate (5, 6 ou 7), construire
-            # la liste des tuples ordonnes a interdire
-            forbidden = []
+            # la liste des tuples ordonnes a interdire (deduplique via dict)
+            forbidden_set = {}
             for center_size in (5, 6, 7):
-                forbidden.extend(
-                    _ctopo_forbidden_tuples(d, center_size)
+                for t in _ctopo_forbidden_tuples(d, center_size):
+                    forbidden_set[t] = True
+            forbidden = list(forbidden_set.keys())
+            if not forbidden:
+                continue
+            # PyCSP3 : pour chaque tuple interdit, exprimer "au moins une
+            # coordonnee differente" via Sum(scope[i] != tup[i]) >= 1.
+            # C'est strictement equivalent a "le tuple complet est different"
+            # (logique du OR sur des comparaisons).
+            #
+            # On evite `scope not in tuples` qui demande la syntaxe
+            # NegativeTable de PyCSP3, et qui plante avec `set(forbidden)`
+            # car Python essaie de hash scope (qui est une list).
+            #
+            # Pour d=2 (scope de taille 3) : ~5 tuples interdits typiques.
+            # Pour d=4 (scope de taille 5) : ~10-20 tuples max.
+            for tup in forbidden:
+                satisfy(
+                    Sum(scope[i] != tup[i] for i in range(len(tup))) >= 1
                 )
-            if forbidden:
-                satisfy(scope not in set(forbidden))
 
     # --- Generer le XML ---
     xml_path = str(Path.cwd() / "model.xml")
