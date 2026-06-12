@@ -24,6 +24,14 @@ from typing import Optional
 from flask import Blueprint, abort, jsonify, render_template, request, current_app
 
 from . import graph_io, jobs, runner, solutions_db
+from .csp_presets import (
+    CSP_PRESETS_CANONICAL,
+    CSP_PRESETS_LEGACY,
+    CSP_ADVANCED_OPTIONS,
+    ADVANCED_GROUPS,
+    VALIDATION_OPTIONS,
+    resolve_preset_flags,
+)
 
 
 _HERE = Path(__file__).resolve().parent
@@ -34,140 +42,8 @@ bp = Blueprint(
 )
 
 
-# =====================================================================
-#  Options CSP exposees au frontend
-# =====================================================================
-
-# =====================================================================
-#  Presets CSP (depuis experiments_v3 -- rapport_exp_v3.tex)
-# =====================================================================
-# Chaque preset = un ensemble de flags additionnels. Le runner les
-# traduit en arguments de ligne de commande. Le preset "custom" laisse
-# l'utilisateur configurer manuellement les toggles individuels.
-#
-# Les presets non-custom IGNORENT les toggles individuels CSP (adj_57,
-# K_pb, etc.) ; seuls validate/no_freeze/no_table/method/n_runs restent
-# pris en compte.
-CSP_PRESETS = {
-    "custom": {
-        "label": "Custom (configurer manuellement)",
-        "flags": {},
-        "help": "Utiliser les toggles individuels ci-dessous.",
-    },
-    "baseline": {
-        "label": "Baseline (aucune contrainte)",
-        "flags": {},  # aucun flag CSP additionnel
-        "help": "Aucune contrainte additionnelle. Reference pour comparaison.",
-    },
-    "pb1": {
-        "label": "pb1 (au plus 1 pent en bord)",
-        "flags": {"K_pb": 1},
-        "help": "Cap C-PB=1 : au plus un pentagone au bord du squelette. "
-                "+9 a +19 pts de taux de planarite vs baseline.",
-    },
-    "pb1_adj57": {
-        "label": "pb1 + adj-57 (recommande)",
-        "flags": {"K_pb": 1, "adj_57": True},
-        "help": "Combinaison gagnante de v3 : pb1 + adjacence 5-7. "
-                "+17 a +32 pts vs baseline (motif Stone-Wales).",
-    },
-    "sym1": {
-        "label": "sym1 (equilibre 5/7)",
-        "flags": {"K_sym": 1},
-        "help": "|n_pent - n_hept| <= 1. Effet marginal en pratique.",
-    },
-    "sym1_pb2": {
-        "label": "sym1 + pb2",
-        "flags": {"K_sym": 1, "K_pb": 2},
-        "help": "Symetrie + cap pent en bord moyen.",
-    },
-    "all_strict": {
-        "label": "all_strict (sym=0, pb=2, hb=3)",
-        "flags": {"K_sym": 0, "K_pb": 2, "K_hb": 3},
-        "help": "Equilibre strict + caps bord. Plus restrictif.",
-    },
-}
-
-
-# Liste declarative des configs CSP disponibles. Le frontend lit ce JSON
-# pour construire dynamiquement le panneau de configuration. Ajouter une
-# option = ajouter une entree ici (puis l'utiliser dans runner._build_command).
-CSP_CONFIGS = [
-    {
-        "key": "preset", "type": "select", "default": "pb1_adj57",
-        "options": [
-            {"value": k, "label": v["label"], "help": v["help"]}
-            for k, v in CSP_PRESETS.items()
-        ],
-        "label": "Preset CSP",
-        "help": "Choisit un ensemble de contraintes. Les toggles "
-                "individuels CSP (adj-57, etc.) sont ignores sauf en mode "
-                "'Custom'. Recommande : pb1 + adj-57.",
-    },
-    {
-        "key": "validate", "type": "bool", "default": True,
-        "label": "Validation xTB (MD + opt)",
-        "help": "Valide chaque solution avec une dynamique moleculaire courte "
-                "+ optimisation xTB. Recommande, mais lent (plusieurs minutes "
-                "par solution).",
-    },
-    {
-        "key": "no_freeze", "type": "bool", "default": False,
-        "label": "Desactiver le gel b(v)>=2",
-        "help": "Sans cette option, les hexagones a deux blocs d'aretes "
-                "libres separes sont geles. Avec cette option, ils sont "
-                "consideres libres (--no-freeze).",
-    },
-    {
-        "key": "no_table", "type": "bool", "default": False,
-        "label": "Desactiver la table de voisinage",
-        "help": "Sans cette option (defaut), la contrainte de table "
-                "restreint les substitutions. Avec, le CSP explore plus de "
-                "solutions mais beaucoup seront geom-infaisables.",
-    },
-    {
-        "key": "adj_57", "type": "bool", "default": False,
-        "label": "Forcer l'adjacence 5-7 (C5)",
-        "help": "Si active, chaque pentagone doit avoir au moins un voisin "
-                "heptagone (et inversement). Favorise les motifs azuleniques, "
-                "suspectes plus stables chimiquement.",
-        "csp_constraint": True,  # masque quand un preset != custom est actif
-    },
-    {
-        "key": "count_hexagon", "type": "bool", "default": False,
-        "label": "Inclure le benzenoide original",
-        "help": "Si active, garde la solution tout-hexagones dans les "
-                "resultats. Par defaut elle est exclue (objectif = enumerer "
-                "les substitutions non-benzenoides).",
-    },
-    {
-        "key": "n_runs", "type": "int", "default": 1, "min": 1, "max": 10,
-        "label": "Nombre d'optimisations xTB",
-        "help": "Pour la methode multi-runs : nombre d'optimisations "
-                "xTB par solution (validation statistique). Ignore avec MD.",
-    },
-    {
-        "key": "method", "type": "select", "default": "md",
-        "options": [
-            {"value": "md",         "label": "MD + opt (recommande)"},
-            {"value": "multi-runs", "label": "Multi-runs (ancien)"},
-            {"value": "z-perturb",  "label": "Perturbation Z deterministe"},
-        ],
-        "label": "Strategie de validation",
-        "help": "MD : dynamique moleculaire courte + opt (par defaut). "
-                "Multi-runs : N optimisations independantes. Z-perturb : "
-                "perturbation deterministe (byte-reproductible).",
-    },
-    {
-        "key": "cluster", "type": "bool", "default": False,
-        "label": "Executer sur cluster (xTB distant)",
-        "help": "Si active, le calcul xTB tourne sur la frontale du cluster "
-                "au lieu de votre PC. Beaucoup plus rapide pour h>=5. "
-                "Necessite SSH sans password configure et la variable "
-                "d'environnement DESIGNER_CLUSTER_ENABLED=1 cote serveur.",
-        "cluster_feature": True,  # masque quand cluster_enabled=False
-    },
-]
+# Definitions des configs/presets/options : extraites dans csp_presets.py
+# pour ne pas alourdir ce fichier (~150 lignes de declarations).
 
 
 def _cluster_globally_enabled() -> bool:
@@ -212,13 +88,27 @@ def page_designer():
 
 @bp.route("/api/designer/configs")
 def api_configs():
-    """Retourne la liste declarative des options CSP + flags globaux.
+    """Retourne la structure declarative pour construire le panneau designer.
+
+    Format de la reponse :
+      {
+        "presets_canonical": [...],   // 4 presets C1/C2/C3/Ctopo (radios)
+        "advanced_options": [...],    // options du tableau de bord
+        "advanced_groups": [...],     // groupes thematiques (ordre + label)
+        "validation_options": [...],  // options xTB (bloc separe)
+        "cluster_enabled": bool,      // masque l'option cluster si False
+      }
 
     Le frontend utilise `cluster_enabled` pour decider d'afficher ou non
-    la case "Executer sur cluster". Quand False, l'option est masquee.
+    la case "Executer xTB sur cluster". Quand False, l'option est masquee.
     """
     return jsonify({
-        "configs": CSP_CONFIGS,
+        "presets_canonical": CSP_PRESETS_CANONICAL,
+        "advanced_options": CSP_ADVANCED_OPTIONS,
+        "advanced_groups": [
+            {"key": k, "label": label} for k, label in ADVANCED_GROUPS
+        ],
+        "validation_options": VALIDATION_OPTIONS,
         "cluster_enabled": _cluster_globally_enabled(),
     })
 

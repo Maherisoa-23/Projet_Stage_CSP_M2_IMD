@@ -217,33 +217,35 @@ _STAGE_MARKERS = [
 def _resolve_preset_flags(config: Dict) -> Dict:
     """Transforme un preset (config['preset']) en flags concrets.
 
-    Si preset == 'custom' (ou absent), garde les toggles individuels
-    fournis dans config. Sinon, REMPLACE les flags CSP (adj_57, K_sym,
-    K_pb, K_hb, K_tot) par ceux du preset.
+    Cherche le preset_key dans :
+      - CSP_PRESETS_CANONICAL : C1, C2, C3, Ctopo (UI radios)
+      - CSP_PRESETS_LEGACY    : baseline, pb1, pb1_adj57, ... (compat)
+
+    Si preset == 'custom' (ou absent), garde les toggles individuels du
+    tableau de bord. Sinon, REMPLACE les flags CSP par ceux du preset.
 
     Returns:
         Un nouveau dict de config avec les flags resolus. Les options
-        orthogonales au CSP (validate, no_freeze, no_table, method,
-        n_runs, count_hexagon) sont preservees telles quelles.
+        orthogonales (validate, no_freeze, no_table, method, n_runs,
+        count_hexagon, cluster) sont preservees.
     """
-    # Import differe pour eviter le couplage circulaire
     try:
-        from .api import CSP_PRESETS
+        from .csp_presets import resolve_preset_flags as _resolve
     except ImportError:
-        from viewer.designer.api import CSP_PRESETS
+        from viewer.designer.csp_presets import resolve_preset_flags as _resolve
 
-    preset_key = (config.get("preset") or "custom").lower()
-    if preset_key not in CSP_PRESETS:
-        preset_key = "custom"
-
+    preset_key = (config.get("preset") or "custom")
     resolved = dict(config)  # copie
+
     if preset_key == "custom":
         return resolved
 
     # Mode preset : on efface les overrides CSP individuels, puis on injecte
-    for csp_flag in ("adj_57", "K_sym", "K_pb", "K_hb", "K_tot"):
+    for csp_flag in ("adj_57", "K_sym", "K_pb", "K_hb", "K_tot",
+                     "tau_gb", "radius_gb",
+                     "ctopo_filter", "ctopo_min_n_peri"):
         resolved.pop(csp_flag, None)
-    resolved.update(CSP_PRESETS[preset_key]["flags"])
+    resolved.update(_resolve(preset_key))
     return resolved
 
 
@@ -252,8 +254,21 @@ def _build_command(python_exe: str, main_py: Path, graph_path: Path,
     """Construit la commande subprocess depuis le dict de config."""
     config = _resolve_preset_flags(config)
     cmd = [python_exe, str(main_py), str(graph_path)]
-    if config.get("validate", True):
-        cmd.append("--validate")
+
+    # --- Validation xTB ---
+    # method=skip : pas d'opt xTB, juste reconstruction plate (z=0)
+    # Pour le solveur CSP en ligne de commande, on traduit ca par
+    # 'pas de --validate' + flag dedie --method skip que main.py interprete.
+    method = (config.get("method") or "det-opt").lower()
+    if method == "skip":
+        # Pas de --validate : on ne lance pas xtb, on garde juste la
+        # reconstruction 3D plate
+        pass
+    else:
+        if config.get("validate", True):
+            cmd.append("--validate")
+
+    # --- Contraintes CSP ---
     if config.get("no_freeze"):
         cmd.append("--no-freeze")
     if config.get("no_table"):
@@ -262,7 +277,6 @@ def _build_command(python_exe: str, main_py: Path, graph_path: Path,
         cmd.append("--adj-57")
     if config.get("count_hexagon"):
         cmd.append("--count-hexagon")
-    # Nouveaux flags CSP issus des presets v2/v3
     if config.get("K_sym") is not None:
         cmd.extend(["--sym", str(int(config["K_sym"]))])
     if config.get("K_pb") is not None:
@@ -271,12 +285,17 @@ def _build_command(python_exe: str, main_py: Path, graph_path: Path,
         cmd.extend(["--hb", str(int(config["K_hb"]))])
     if config.get("K_tot") is not None:
         cmd.extend(["--tot", str(int(config["K_tot"]))])
+    if config.get("tau_gb") is not None:
+        cmd.extend(["--tau-gb", str(int(config["tau_gb"]))])
+    if config.get("radius_gb") is not None and config.get("radius_gb") != 2:
+        cmd.extend(["--radius-gb", str(int(config["radius_gb"]))])
+
+    # --- Output et validation ---
     cmd.extend(["--output-dir", str(output_dir)])
     n_runs = config.get("n_runs")
-    if n_runs and int(n_runs) > 1:
+    if n_runs and int(n_runs) > 1 and method == "multi-runs":
         cmd.extend(["--n-runs", str(int(n_runs))])
-    method = config.get("method", "md")
-    if method:
+    if method and method != "skip":
         cmd.extend(["--method", str(method)])
     return cmd
 
