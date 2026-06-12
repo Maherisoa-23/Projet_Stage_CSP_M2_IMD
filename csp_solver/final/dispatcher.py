@@ -4,7 +4,7 @@ Orchestre le traitement des sols pending dans la DB Final :
   - Pool de N threads SSH (1 par machine cible, defaut 16 : 49..64)
   - Chaque thread :
       1. claim_batch(batch_size, hostname)
-      2. SSH host -> python -m csp_solver._worker_batch < json > json
+      2. SSH host -> python -m csp_solver.final.worker < json > json
       3. commit_result pour chaque sol
       4. Si SSH fail (timeout, broken pipe) : mark_failed_or_retry par sol
   - Heartbeat dans la DB toutes les 60s
@@ -12,14 +12,21 @@ Orchestre le traitement des sols pending dans la DB Final :
   - A la fin : mark_run_completed quand toutes les sols sont done/failed
 
 Lance via :
-  nohup python -m csp_solver._dispatcher --db ~/projet/final_h3_h9.db \
-      --run-id <id> --workers "49,50,...,64" --batch-size 40 \
-      --max-parallel-xtb 40 --timeout-xtb 50000 \
+  nohup python -m csp_solver.final.dispatcher --db ~/projet/final_h3_h9.db \\
+      --run-id <id> --workers "49,50,...,64" --batch-size 40 \\
+      --max-parallel-xtb 40 --timeout-xtb 50000 \\
       > ~/dispatcher.log 2>&1 &
+
+Variables d'environnement (sinon defauts COALA) :
+  CSP_CLUSTER_CONDA_INIT  : commande shell pour activer le bon env conda
+                            (defaut : eval "$(/home/COALA/ramaherisoa/miniforge3/bin/conda
+                                              shell.bash hook)" && conda activate nonbenz)
+  CSP_CLUSTER_PROJECT_PATH : chemin du repo cote workers (defaut : ~/projet)
 """
 
 import argparse
 import json
+import os
 import shlex
 import subprocess
 import sys
@@ -29,24 +36,24 @@ from pathlib import Path
 
 
 def _ensure_imports():
+    """Assure que csp_solver/ est dans sys.path."""
     here = Path(__file__).resolve().parent
-    parent = here.parent
-    if str(here) not in sys.path:
-        sys.path.insert(0, str(here))
-    if str(parent) not in sys.path:
-        sys.path.insert(0, str(parent))
+    csp_solver_dir = here.parent
+    if str(csp_solver_dir) not in sys.path:
+        sys.path.insert(0, str(csp_solver_dir))
 
 
 _ensure_imports()
 
-from csp_solver import _final_db  # noqa: E402
+from csp_solver.final import db as _final_db  # noqa: E402
 
 
-CONDA_INIT = (
+CONDA_INIT = os.environ.get(
+    "CSP_CLUSTER_CONDA_INIT",
     'eval "$(/home/COALA/ramaherisoa/miniforge3/bin/conda shell.bash hook)" '
-    '&& conda activate nonbenz'
+    '&& conda activate nonbenz',
 )
-REMOTE_PROJECT_PATH = "~/projet"
+REMOTE_PROJECT_PATH = os.environ.get("CSP_CLUSTER_PROJECT_PATH", "~/projet")
 
 
 def _now_str():
@@ -64,7 +71,7 @@ def _ssh_run_worker(host: str, batch_input: dict, ssh_timeout_s: int) -> dict:
     """
     remote_cmd = (
         f'{CONDA_INIT} && cd {REMOTE_PROJECT_PATH} '
-        f'&& python -m csp_solver._worker_batch'
+        f'&& python -m csp_solver.final.worker'
     )
     ssh_cmd = [
         "ssh",

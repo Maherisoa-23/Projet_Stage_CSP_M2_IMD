@@ -6,14 +6,14 @@
   status   : affiche les stats du run
 
 Workflow typique :
-  python -m csp_solver._run_final setup --db ~/final.db --sizes 3,4,5,6,7,8,9
-  python -m csp_solver._run_final dispatch --db ~/final.db --run-id 1
+  python -m csp_solver.final.run setup --db ~/final.db --sizes 3,4,5,6,7,8,9
+  python -m csp_solver.final.run dispatch --db ~/final.db --run-id 1
   # En parallele depuis un autre shell :
-  python -m csp_solver._run_final status --db ~/final.db
+  python -m csp_solver.final.run status --db ~/final.db
 
 Recommande sur cluster :
-  nohup python -m csp_solver._run_final setup ... > setup.log 2>&1 &
-  nohup python -m csp_solver._run_final dispatch ... > dispatcher.log 2>&1 &
+  nohup python -m csp_solver.final.run setup ... > setup.log 2>&1 &
+  nohup python -m csp_solver.final.run dispatch ... > dispatcher.log 2>&1 &
 """
 
 import argparse
@@ -24,12 +24,12 @@ from pathlib import Path
 
 
 def _ensure_imports():
+    """Assure que csp_solver/ est dans sys.path (pour les imports flat
+    `from utils.X import ...` historiques)."""
     here = Path(__file__).resolve().parent
-    parent = here.parent
-    if str(here) not in sys.path:
-        sys.path.insert(0, str(here))
-    if str(parent) not in sys.path:
-        sys.path.insert(0, str(parent))
+    csp_solver_dir = here.parent
+    if str(csp_solver_dir) not in sys.path:
+        sys.path.insert(0, str(csp_solver_dir))
 
 
 _ensure_imports()
@@ -43,7 +43,7 @@ def _log(msg):
 # === Commande setup ===
 
 def cmd_setup(args):
-    from csp_solver import _final_db, _final_configs, _enumerate
+    from csp_solver.final import db as _final_db, configs as _final_configs, enumerate as _enumerate
 
     sizes = [int(s) for s in args.sizes.split(",")] if args.sizes else [3, 4, 5, 6, 7, 8, 9]
     configs = args.configs.split(",") if args.configs else ["C1", "C2", "C3"]
@@ -113,7 +113,7 @@ def cmd_setup(args):
 # === Commande dispatch ===
 
 def cmd_dispatch(args):
-    from csp_solver import _dispatcher
+    from csp_solver.final import dispatcher as _dispatcher
 
     workers = [f"192.168.200.{s.strip()}" for s in args.workers.split(",") if s.strip()]
     _log(f"Workers: {workers}")
@@ -133,7 +133,7 @@ def cmd_dispatch(args):
 # === Commande status ===
 
 def cmd_status(args):
-    from csp_solver import _final_db
+    from csp_solver.final import db as _final_db
 
     run_info = _final_db.get_run_info(args.db, args.run_id)
     if run_info is None:

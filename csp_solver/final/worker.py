@@ -20,7 +20,7 @@ sans tuer le batch entier.
 Erreurs globales (JSON malforme, etc) -> exit 1 + message sur stderr.
 
 Lance via SSH :
-  ssh host 'cd ~/projet && python -m csp_solver._worker_batch' < batch.json > result.json
+  ssh host 'cd ~/projet && python -m csp_solver.final.worker' < batch.json > result.json
 """
 
 import json
@@ -35,12 +35,12 @@ from pathlib import Path
 
 
 def _ensure_imports():
+    """Pour que `from utils.parser import parse` (et autres imports flat)
+    fonctionnent, on ajoute csp_solver/ a sys.path."""
     here = Path(__file__).resolve().parent
-    parent = here.parent
-    if str(here) not in sys.path:
-        sys.path.insert(0, str(here))
-    if str(parent) not in sys.path:
-        sys.path.insert(0, str(parent))
+    csp_solver_dir = here.parent
+    if str(csp_solver_dir) not in sys.path:
+        sys.path.insert(0, str(csp_solver_dir))
 
 
 _ensure_imports()
@@ -97,7 +97,7 @@ def _process_one_sol(sol_dict, timeout_xtb, host, perturb_params=None, fallback_
         from reconstruction import reconstruct_molecule, export_xyz
         from xtb.md import md_then_optimize
         from planarity.pca import compute_planarity
-        from _xtb_metrics import parse_xtb_logfile
+        from csp_solver.final.xtb_metrics import parse_xtb_logfile
 
         # Reconstruire la sol avec cles int (JSON les sauve en str)
         sol_raw = sol_dict["csp_solution"]
@@ -199,7 +199,7 @@ def _parse_xtb_metrics_from_artifacts(workdir: Path, final_xyz: Path) -> dict:
       2. Sinon, parser le commentaire (ligne 2) du XYZ final qui contient
          souvent "energy: -X.XXXX gnorm: ..." cree par xTB
     """
-    from _xtb_metrics import parse_xtb_stdout
+    from csp_solver.final.xtb_metrics import parse_xtb_stdout
 
     # Strategie 1 : log xtb dans le workdir (si md.py patche pour le sauver)
     for cand in (workdir / "xtb.log", workdir / "opt.log"):

@@ -12,14 +12,12 @@ import sys
 
 
 def _ensure_imports():
-    """csp_solver/utils est importable comme `utils.X`. Assure que le
-    parent (.../csp_solver/) est dans sys.path."""
+    """csp_solver/utils est importable comme `utils.X`. Assure que
+    csp_solver/ (le parent de final/) est dans sys.path."""
     here = Path(__file__).resolve().parent
-    parent = here.parent
-    if str(here) not in sys.path:
-        sys.path.insert(0, str(here))
-    if str(parent) not in sys.path:
-        sys.path.insert(0, str(parent))
+    csp_solver_dir = here.parent
+    if str(csp_solver_dir) not in sys.path:
+        sys.path.insert(0, str(csp_solver_dir))
 
 
 def enumerate_solutions(graph_path: str, config: dict) -> list:
