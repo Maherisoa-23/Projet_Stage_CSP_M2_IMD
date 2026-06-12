@@ -27,9 +27,15 @@ from typing import List, Tuple, Optional
 import numpy as np
 
 
-# Seuils en Angstroms (calibres pour structures optimisees xTB)
+# Seuils en Angstroms.
+# BOND_MAX a 1.75 pour tolerer les reconstructions non-relaxees du designer
+# en mode skip xTB : a l'interface 5-6-7, le placement BFS rigide a 1.42 A
+# fait sortir certaines aretes a ~1.69 A, juste au-dessus du seuil 1.65 A
+# initial. 1.75 reste tres en dessous des distances non-liees (~2.4 A+),
+# et n'introduit pas de bonds parasites sur les structures optimisees xTB
+# (ou les liaisons C-C aromatiques font 1.39-1.42 A et les single C-C 1.54 A).
 BOND_MIN = 1.20    # < : on est sur d'une triple ou d'une erreur
-BOND_MAX = 1.65    # > : pas de liaison
+BOND_MAX = 1.75    # > : pas de liaison
 
 
 @dataclass
