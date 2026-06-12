@@ -148,20 +148,64 @@ async function loadDashboard() {
   for (const c of data.configs) {
     const pct = c.n_solutions > 0 ? (100 * c.n_plans / c.n_solutions) : 0;
     const infeasible = c.n_geom_infeasible || 0;
+    const desc = (window.getConfigDescription && window.getConfigDescription(c.name)) || null;
+    const subtitle = desc
+      ? `<div class="config-card-subtitle${desc.kind === "virtual" ? " virtual" : ""}">${desc.kind === "virtual" ? "[virtuelle] " : ""}${desc.short}</div>`
+      : "";
     const card = document.createElement("div");
-    card.className = "config-card";
+    card.className = "config-card" + (desc && desc.kind === "virtual" ? " virtual" : "");
+    const maxAngle = c.max_angle != null ? `${c.max_angle.toFixed(2)}°` : "—";
+    const medAngle = c.median_angle != null ? `${c.median_angle.toFixed(2)}°` : "—";
     card.innerHTML = `
       <h3>${c.name}</h3>
+      ${subtitle}
       <div class="row"><span class="label">Molécules</span><span>${c.n_molecules}</span></div>
       <div class="row"><span class="label">Solutions validées</span><span>${c.n_solutions.toLocaleString()}</span></div>
       <div class="row"><span class="label">Plans</span><span style="color:var(--success)">${c.n_plans.toLocaleString()} (${pct.toFixed(1)}%)</span></div>
       <div class="row"><span class="label">Non plans</span><span style="color:var(--danger)">${c.n_non_plans.toLocaleString()}</span></div>
+      <div class="row" title="Angle hors-plan max observe sur toutes les solutions validees de la config"><span class="label">Angle max</span><span>${maxAngle}</span></div>
+      <div class="row" title="Mediane de l'angle hors-plan sur les solutions validees (50% des sols sont sous cette valeur)"><span class="label">Angle médian</span><span>${medAngle}</span></div>
       ${infeasible > 0 ? `<div class="row"><span class="label">Géom. infaisables</span><span style="color:var(--muted)">${infeasible.toLocaleString()}</span></div>` : ""}
       <div class="pct-bar"><div style="width:${pct}%"></div></div>
     `;
     card.addEventListener("click", () => loadConfig(c.name));
     grid.appendChild(card);
   }
+}
+
+// Rendu du bloc descriptif d'une config dans la vue config (sous le titre).
+// Si pas de description connue : on cache la zone.
+function renderConfigDescription(configName) {
+  const box = document.getElementById("config-description");
+  if (!box) return;
+  const desc = (window.getConfigDescription && window.getConfigDescription(configName)) || null;
+  if (!desc) {
+    box.innerHTML = "";
+    box.classList.add("hidden");
+    return;
+  }
+  const kindBadge = desc.kind === "virtual"
+    ? `<span class="kind-badge virtual" title="Configuration obtenue par filtrage a posteriori des solutions C1">virtuelle</span>`
+    : `<span class="kind-badge real" title="Configuration produite par un run du solveur CSP">reelle (solveur)</span>`;
+  const constraints = (desc.constraints || []).map((c) => `<li>${c}</li>`).join("");
+  box.classList.remove("hidden");
+  box.innerHTML = `
+    <div class="config-desc-header">
+      <span class="config-desc-short">${desc.short}</span>
+      ${kindBadge}
+    </div>
+    <p class="config-desc-summary">${desc.summary}</p>
+    <div class="config-desc-grid">
+      <div>
+        <h4>Contraintes appliquees</h4>
+        <ul class="config-desc-list">${constraints}</ul>
+      </div>
+      <div>
+        <h4>Motivation</h4>
+        <p class="config-desc-motivation">${desc.motivation}</p>
+      </div>
+    </div>
+  `;
 }
 
 // ===== Config view (liste mols) =====
@@ -175,6 +219,7 @@ async function loadConfig(config) {
   $("#mol-sort").value = "name";
   setView("config");
   $("#config-title").textContent = `Configuration : ${config}`;
+  renderConfigDescription(config);
   await fetchMolecules();
 }
 

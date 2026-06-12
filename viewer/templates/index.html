@@ -38,6 +38,7 @@
     <!-- Vue 2 : liste des molécules d'une config -->
     <section id="view-config" class="view hidden">
       <h2 id="config-title"></h2>
+      <div id="config-description" class="config-description"></div>
       <div class="toolbar">
         <input type="text" id="mol-search" placeholder="Filtrer par nom (ex: 0-10-19-…)" />
         <label>
@@ -131,6 +132,7 @@
   </main>
 
   <script src="/molviz_static/molviz.js"></script>
+  <script src="{{ url_for('static', filename='config_descriptions.js') }}"></script>
   <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

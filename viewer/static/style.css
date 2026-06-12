@@ -345,3 +345,100 @@ tr.row-xtb-failed td:nth-child(3) {
   color: var(--muted);
   font-style: italic;
 }
+
+/* ===== Config card subtitle (dashboard) ===== */
+.config-card-subtitle {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin: -0.2rem 0 0.6rem;
+  font-style: italic;
+  line-height: 1.3;
+}
+.config-card-subtitle.virtual {
+  color: #7c3aed;
+  font-style: normal;
+  font-weight: 500;
+}
+.config-card.virtual {
+  border-left: 3px solid #a78bfa;
+}
+.config-card.virtual h3 {
+  color: #7c3aed;
+}
+
+/* ===== Bloc descriptif dans la vue config ===== */
+.config-description {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+  margin: 0.5rem 0 1rem;
+}
+.config-description.hidden { display: none; }
+
+.config-desc-header {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 0.5rem;
+}
+.config-desc-short {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+.kind-badge {
+  display: inline-block;
+  padding: 0.12rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.kind-badge.real {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.kind-badge.virtual {
+  background: #ede9fe;
+  color: #7c3aed;
+}
+.config-desc-summary {
+  margin: 0.3rem 0 0.8rem;
+  color: #374151;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+.config-desc-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.2rem;
+  margin-top: 0.4rem;
+}
+.config-desc-grid h4 {
+  margin: 0 0 0.4rem;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  font-weight: 600;
+}
+.config-desc-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.88rem;
+  color: #374151;
+  line-height: 1.55;
+}
+.config-desc-list li { margin-bottom: 0.18rem; }
+.config-desc-motivation {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #374151;
+  line-height: 1.55;
+}
+@media (max-width: 720px) {
+  .config-desc-grid { grid-template-columns: 1fr; }
+}

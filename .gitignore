@@ -46,3 +46,12 @@ experiments/**/_ev3_val/
 # soit ajoutee). Cette regle empeche les NOUVEAUX dossiers (viewer/output/,
 # viewer/missing_export/, viewer/__pycache__/, etc.) d'etre tracks.
 viewer/
+
+# ===== doc/ : artefacts d'experimentations (PDFs, captures, .tex generes) =====
+# Tout ce qu'on a genere durant les experimentations CSP/motifs est ignore.
+# Seul experimentation.md (synthese) est versionne dans doc/.
+# Les fichiers de doc/ pre-existants (memoire.tex, etc.) restent tracks
+# normalement -- .gitignore n'affecte pas les fichiers deja indexes.
+doc/captures/
+doc/motifs_bord_h8.tex
+doc/motifs_bord_h8.pdf

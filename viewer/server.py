@@ -79,24 +79,49 @@ def api_datasets():
 
 @app.route("/api/summary")
 def api_summary():
-    """Stats par config pour UN dataset donne (param ?h=hN)."""
+    """Stats par config pour UN dataset donne (param ?h=hN).
+
+    Pour chaque config :
+      - max_angle : agrege depuis molecules.max_angle (deja precalcule)
+      - median_angle : calcule a la volee sur solutions via ORDER+OFFSET
+        (cout : ~4 s sur h9 entier, acceptable pour une page de stats)
+    """
     h = request.args.get("h", "")
     if not h:
         abort(400, description="missing 'h' parameter")
     with db() as conn:
         rows = conn.execute(
-            "SELECT name, n_molecules, n_solutions, n_geom_infeasible, "
-            "       n_plans, n_non_plans "
-            "FROM configs WHERE h = ? ORDER BY name",
+            "SELECT c.name, c.n_molecules, c.n_solutions, c.n_geom_infeasible, "
+            "       c.n_plans, c.n_non_plans, "
+            "       (SELECT MAX(m.max_angle) FROM molecules m "
+            "          WHERE m.h = c.h AND m.config = c.name) AS max_angle "
+            "FROM configs c WHERE c.h = ? ORDER BY c.name",
             (h,),
         ).fetchall()
+        configs = [dict(r) for r in rows]
+        for c in configs:
+            n_angle = conn.execute(
+                "SELECT COUNT(*) FROM solutions "
+                "WHERE h = ? AND config = ? AND angle_deg IS NOT NULL",
+                (h, c["name"]),
+            ).fetchone()[0]
+            if n_angle == 0:
+                c["median_angle"] = None
+                continue
+            med = conn.execute(
+                "SELECT angle_deg FROM solutions "
+                "WHERE h = ? AND config = ? AND angle_deg IS NOT NULL "
+                "ORDER BY angle_deg LIMIT 1 OFFSET ?",
+                (h, c["name"], n_angle // 2),
+            ).fetchone()
+            c["median_angle"] = med[0] if med else None
         total_mols = conn.execute(
             "SELECT COUNT(DISTINCT mol) FROM molecules WHERE h = ?",
             (h,),
         ).fetchone()[0]
     return jsonify({
         "h": h,
-        "configs": [dict(r) for r in rows],
+        "configs": configs,
         "n_unique_molecules": total_mols,
     })
 
