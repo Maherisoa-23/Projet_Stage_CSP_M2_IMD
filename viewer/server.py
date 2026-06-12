@@ -350,40 +350,71 @@ def _resolve_local_path(rel):
     return None
 
 
+# Pattern pour les rel_path issus du run final :
+# final/h{size_h}/{config}/{graph_name}/sol{sol_index}/md_validation/md_final_opt.xyz
+# Si on match ce pattern, on peut faire un SELECT DIRECT sur final_solutions
+# (INDEX seek via idx_copy_lookup, ~10 ms) au lieu de passer par la VIEW
+# xyz_files qui force un SCAN FULL des 1.5M rows (~5000 ms). Gain : 500x.
+_FINAL_REL_PATH_RE = re.compile(
+    r"^final/h(\d+)/([^/]+)/([^/]+)/sol(\d+)/md_validation/md_final_opt\.xyz$"
+)
+
+
 def _load_xyz_text(rel: str) -> str | None:
     """Charge le contenu d'un xyz par chemin relatif (depuis project_root).
-    Strategie : filesystem d'abord (via _resolve_local_path qui gere les
-    reecritures cluster <-> local), DB en fallback (table xyz_files).
 
-    Retourne le contenu texte (str), ou None si introuvable des deux cotes.
-    Utilise par /file (suffix .xyz) et par molviz (api.py) pour eviter de
-    dependre du filesystem quand le repertoire output a ete supprime apres
-    ingestion en DB.
+    Strategie de lookup (par ordre de cout croissant) :
+      1. Filesystem (via _resolve_local_path) si le fichier existe
+      2. SELECT DIRECT sur final_solutions par composants (size_h, config,
+         graph_name, sol_index) si le rel_path matche le pattern run-final.
+         Utilise idx_copy_lookup -> ~10 ms.
+      3. VIEW xyz_files -> SCAN FULL final_solutions (~5000 ms). Fallback de
+         derniere chance pour les paths qui ne matchent pas (3).
+      4. Table designer_xyz_files (sols designer mode skip ou DB designer-only).
+
+    Retourne le contenu texte (str), ou None si introuvable.
     """
     rel_norm = rel.replace("\\", "/").lstrip("/")
+
+    # 1. Filesystem
     target = _resolve_local_path(rel_norm)
     if target is not None and target.is_file():
         try:
             return target.read_text(encoding="utf-8", errors="replace")
         except OSError:
             pass
-    # Fallback DB : xyz_files d'abord (table ou VIEW sur final_solutions),
-    # puis designer_xyz_files (sols issues du designer quand xyz_files est
-    # une VIEW non-modifiable, cf. viewer/designer/solutions_db.py)
-    with db() as conn:
-        row = conn.execute(
-            "SELECT content_gz FROM xyz_files WHERE rel_path = ?", (rel_norm,)
-        ).fetchone()
-        if not row:
-            # Verifier que designer_xyz_files existe avant de la query
-            has_designer_xyz = conn.execute(
-                "SELECT 1 FROM sqlite_master WHERE name='designer_xyz_files' AND type='table'"
+
+    # 2. Fast path : SELECT direct sur final_solutions via composants
+    row = None
+    m = _FINAL_REL_PATH_RE.match(rel_norm)
+    if m:
+        size_h, config, graph_name, sol_index = m.groups()
+        with db() as conn:
+            row = conn.execute(
+                "SELECT xyz_optimized_gz AS content_gz "
+                "FROM final_solutions "
+                "WHERE size_h=? AND config=? AND graph_name=? AND sol_index=? "
+                "  AND status='done' AND xyz_optimized_gz IS NOT NULL",
+                (int(size_h), config, graph_name, int(sol_index)),
             ).fetchone()
-            if has_designer_xyz:
-                row = conn.execute(
-                    "SELECT content_gz FROM designer_xyz_files WHERE rel_path = ?",
-                    (rel_norm,),
+
+    # 3. Fallback : VIEW xyz_files (SCAN) ou table designer_xyz_files
+    if row is None:
+        with db() as conn:
+            row = conn.execute(
+                "SELECT content_gz FROM xyz_files WHERE rel_path = ?", (rel_norm,)
+            ).fetchone()
+            if not row:
+                has_designer_xyz = conn.execute(
+                    "SELECT 1 FROM sqlite_master "
+                    "WHERE name='designer_xyz_files' AND type='table'"
                 ).fetchone()
+                if has_designer_xyz:
+                    row = conn.execute(
+                        "SELECT content_gz FROM designer_xyz_files WHERE rel_path = ?",
+                        (rel_norm,),
+                    ).fetchone()
+
     if not row:
         return None
     try:
