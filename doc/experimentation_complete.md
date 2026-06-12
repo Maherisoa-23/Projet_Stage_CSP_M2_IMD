@@ -83,7 +83,7 @@ Puis `xtb perturbed.xyz --opt tight` avec `OMP_NUM_THREADS=1`,
 Le pipeline complet est byte-deterministe : md5(`md_final_opt.xyz`) est
 constant pour un meme input.
 
-Source : `csp_solver/xtb/md.py` (les noms `md_*` sont conserves pour
+Source : `csp_solver/xtb/det_opt.py` (les noms `md_*` sont conserves pour
 retro-compat avec les scripts existants).
 
 ### 1.4 Verdict planarite
@@ -143,7 +143,7 @@ de courbure +pi/3 / -pi/3) tout en limitant la concentration de pentagones.
 }
 ```
 
-Source : `csp_solver/_final_configs.py`.
+Source : `csp_solver/final/configs.py`.
 
 ### 2.4 Resultats numeriques du run final
 
@@ -188,7 +188,7 @@ final/h{size_h}/{config}/{graph_name}/sol{sol_index}/md_validation/md_final_opt.
 Mapping verdict : `PLAN -> plan`, `NON_PLAN -> non_plan`,
 `LIMITE -> non_plan`, `status=failed -> xtb_failed`.
 
-Script : `tmp/migrate_final_to_viewer.py`.
+Script : `viewer/migrations/final_to_viewer.py`.
 
 ---
 
@@ -208,10 +208,10 @@ VIRTUAL_CONFIGS = {
 }
 ```
 
-Features calculees par `tmp/compute_adjacencies_all.py` (table `sol_features`,
+Features calculees par `csp_solver/analysis/compute_adjacencies.py` (table `sol_features`,
 776 598 rows en ~17s avec multiprocessing).
 
-Materialisation par `tmp/materialize_virtual_configs.py`.
+Materialisation par `csp_solver/analysis/exploration/materialize_virtual_configs.py`.
 
 ### 4.2 Resultats
 
@@ -241,7 +241,7 @@ Pour comprendre **pourquoi** C3 echoue sur h9, on a regarde les 10 sols h9
 avec les plus grands angles (~89.5-89.9°), dedoublonnees par
 `(mol, sol_idx)`.
 
-Script : `tmp/analyze_h9_top10.py`.
+Script : `csp_solver/analysis/exploration/analyze_h9_top10.py`.
 
 ### 5.1 Caracteristiques communes
 
@@ -292,7 +292,7 @@ C9 = Pb1 + adj_77 = 0 + n_sum <= 4 + triple_jct_defect = 0
 ou `triple_jct_defect` = atomes peri-condenses qui appartiennent a au moins
 un cycle pent ou hept.
 
-Features calculees par `tmp/compute_c9_features.py` (table
+Features calculees par `csp_solver/analysis/exploration/compute_c9_features.py` (table
 `sol_features_c9`).
 
 ### 6.2 Resultats
@@ -394,7 +394,7 @@ minimum plat).
 Puis `xtb perturbed.xyz --opt tight` avec `OMP_NUM_THREADS=1`,
 `MKL_NUM_THREADS=1`.
 
-Source : `csp_solver/xtb/md.py` (le nom `md.py` est conserve pour
+Source : `csp_solver/xtb/det_opt.py` (un shim `csp_solver/xtb/md.py` re-exporte pour
 retro-compat avec les scripts existants ; la docstring du module documente
 le changement).
 
@@ -424,7 +424,7 @@ Exemple sur h8 : un sol avec sequence de bord `6-5-6-7-6-5-6-7-6` donne en
 w=4 les motifs `(6,5,6,7)`, `(5,6,7,6)`, `(6,7,6,5)`, etc. apres
 canonisation.
 
-Script : `tmp/extract_boundary_motifs.py` ou `tmp/extract_boundary_motifs_h8.py`.
+Script : `csp_solver/analysis/extract_boundary_motifs.py` (ou la version historique `exploration/extract_boundary_motifs_h8.py`).
 
 ### 8.2 Resultats h8 (baseline 60.08% PLAN)
 
@@ -503,7 +503,7 @@ Motif `5-7` adjacent compense localement (Stone-Wales). Casse :
 Avant d'investir dans les motifs comme contrainte, on a verifie qu'ils sont
 **reproductibles sur les 3 tailles** (h7, h8, h9).
 
-Script : `tmp/extract_boundary_motifs.py` (parametrable par h).
+Script : `csp_solver/analysis/extract_boundary_motifs.py` (parametrable par h).
 
 ### 9.1 Couverture combinatoire
 
@@ -566,7 +566,7 @@ BLACKLIST_W5_STRICT = {
 
 Favorisants : `6-6-6-7`, `5-6-6-6`, `5-7-6-6`, etc.
 
-Script : `tmp/test_config_motifs.py`.
+Script : `csp_solver/analysis/exploration/test_config_motifs.py`.
 
 ### 10.2 Resultats
 
@@ -613,7 +613,7 @@ pentagone, deux heptagones.
 Un sol contient un **multiset** de ces motifs. On compte pour chaque motif
 distinct combien de sols qui le contiennent sont PLAN vs NON_PLAN.
 
-Script : `tmp/test_radius2_motifs.py`.
+Script : `csp_solver/analysis/exploration/analyze_radius2_motifs.py`.
 
 ### 11.2 Resultats h8 (baseline 60.08% PLAN)
 
@@ -671,7 +671,7 @@ dediee (contrairement aux motifs de bord qui ont 40 captures 3D dans
 Hypothese : la forme du squelette (**avant** assignment des 5/6/7) influence
 deja la planarite, par la **rigidite mecanique** intrinseque.
 
-Script : `tmp/test_skeleton_topology.py`.
+Script : `csp_solver/analysis/exploration/analyze_skeleton_topology.py`.
 
 ### 12.1 Categories
 
@@ -741,7 +741,7 @@ meilleur predicteur post-hoc.
 
 ### 13.1 Predicats testes
 
-Script : `tmp/test_combined_r2_skel.py`.
+Script : `csp_solver/analysis/compute_combined_features.py`.
 
 ```python
 BL_R2_LOOSE = {
@@ -809,7 +809,7 @@ l'interaction avec la topologie peri-condensee globale.
 
 ### 13.5 Materialisation
 
-Script : `tmp/materialize_ctopo.py`. INSERT depuis C1 done filtre, sol_dir
+Script : `csp_solver/analysis/materialize_ctopo.py`. INSERT depuis C1 done filtre, sol_dir
 pointant vers C1 (pas de duplication XYZ).
 
 Tables modifiees : `solutions` (+ 53 522 rows), `molecules` (+ 352 rows),
@@ -823,7 +823,7 @@ Tout dans `doc/` (les .pdf/.png sont gitignored sauf experimentation.md).
 
 ### 14.1 doc/motifs_bord_h8.pdf
 
-6 pages, 3.1 MB, genere par `tmp/gen_motifs_latex_with_images.py` :
+6 pages, 3.1 MB, genere par `scripts/figures/gen_motifs_latex_with_images.py` :
 - p1 : methodologie
 - p2 : top 10 favorisants w=4 (10 captures 3D)
 - p3 : top 10 defavorisants w=4
@@ -836,7 +836,7 @@ fenetre du motif surlignee.
 
 ### 14.2 doc/captures/ (40 PNG)
 
-Captures 3D top-down realisees par `tmp/capture_motif_views.py` avec
+Captures 3D top-down realisees par `scripts/figures/capture_motif_views.py` avec
 Playwright + 3Dmol.js. Aligne la camera sur l'axe principal d'inertie de
 la molecule. Couleurs : pent rouge clair, hex gris, hept bleu clair, cycles
 de la fenetre du motif en couleurs saturees.
@@ -929,17 +929,38 @@ TABLES en DB experiments/final/final_h3_h9.db :
 ```
 
 ```
-SCRIPTS canoniques dans tmp/ :
-  migrate_final_to_viewer.py        migration DB
-  compute_adjacencies_all.py        adj_55/57/77
-  compute_c9_features.py            n_pent, triple_jct
+SCRIPTS PIPELINE CANONIQUE  csp_solver/analysis/
+  compute_adjacencies.py            adj_55/57/77 (table sol_features)
+  compute_combined_features.py      rayon-2 + topologie squelette
   extract_boundary_motifs.py        motifs de bord (parametrable h)
-  test_radius2_motifs.py            motifs rayon-2 dual
-  test_skeleton_topology.py         classification squelette
-  test_combined_r2_skel.py          combinaison rayon-2 + topologie
-  materialize_ctopo.py              materialisation Ctopo
+  materialize_ctopo.py              materialisation Ctopo dans DB viewer
+  postprocess_clar_rbo.py           ajout Clar/RBO sur table solutions
+
+SCRIPTS EXPLORATION         csp_solver/analysis/exploration/
+  analyze_h9_top10.py               top-10 sols non-planes h9
+  analyze_radius2_motifs.py         decouverte motifs rayon-2
+  analyze_skeleton_topology.py      n_peri, shape, max_deg
+  compute_c9_features.py            tentative C9 (echec)
+  test_c9_virtual.py                test C9 (echec confirme)
+  compare_motifs_h7h8h9.py          universalite h7/h8/h9
+  test_config_motifs.py             config C-motifs (echec)
+  rank_motifs_h8.py                 ranking motifs h8
+
+SCRIPTS MIGRATION DB        viewer/migrations/
+  final_to_viewer.py                final_h3_h9.db -> schema viewer
+
+SCRIPTS FIGURES MEMOIRE     scripts/figures/
   gen_motifs_latex_with_images.py   generation PDF figures
   capture_motif_views.py            captures Playwright 3Dmol
+  select_motif_samples.py           selection sols exemple par motif
+
+SCRIPTS OPS CLUSTER         cluster/ops/
+  run_final_h3_h9.sh                relance prod cluster
+  deploy_cluster.sh                 sync vers workers
+  finalize_stuck.py                 finalisation sequentielle
+  retry_failed.py                   retry sols echouees
+  copy_C1_results.py                copie C1->C2/C3
+  plafond_h9_C1.py                  plafonnement h9
 ```
 
 ### C. References externes

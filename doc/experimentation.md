@@ -227,11 +227,11 @@ Resultats Ctopo vs C1/C2/C3 :
 
 | Domaine                       | Chemin                                         |
 |-------------------------------|------------------------------------------------|
-| Configs CSP                   | `csp_solver/_final_configs.py`                 |
-| det-opt xTB                   | `csp_solver/xtb/md.py`                         |
-| DB unifiee                    | `experiments/final/final_h3_h9.db`             |
-| Features rayon-2 + topologie  | `tmp/test_combined_r2_skel.py`                 |
-| Materialisation Ctopo         | `tmp/materialize_ctopo.py`                     |
-| Analyse motifs bord (annexe)  | `tmp/extract_boundary_motifs.py`               |
-| Viewer Flask                  | `viewer/server.py`                             |
-| Descriptions configs (front)  | `viewer/static/config_descriptions.js`         |
+| Configs CSP                   | `csp_solver/final/configs.py`                       |
+| det-opt xTB                   | `csp_solver/xtb/det_opt.py`                         |
+| DB unifiee                    | `experiments/final/final_h3_h9.db`                  |
+| Features rayon-2 + topologie  | `csp_solver/analysis/compute_combined_features.py`  |
+| Materialisation Ctopo         | `csp_solver/analysis/materialize_ctopo.py`          |
+| Analyse motifs bord (annexe)  | `csp_solver/analysis/extract_boundary_motifs.py`    |
+| Viewer Flask                  | `viewer/server.py`                                  |
+| Descriptions configs (front)  | `viewer/static/config_descriptions.js`              |

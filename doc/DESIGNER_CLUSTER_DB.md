@@ -477,6 +477,6 @@ Les modifications ont été déployées en plusieurs commits sur la branche
   branche DB de `/solutions`, helpers `_build_sol_dict_from_db` etc.
 - `viewer/designer/static/designer.js` — case à cocher conditionnelle,
   liste compacte des sols, bouton viewer principal
-- `tmp/test_cluster_xtb.py` — test SSH+xtb end-to-end (validation phase 1)
-- `tmp/test_phase2_smoke.py` — 7 smoke tests
-- `tmp/cleanup_old_designer_workdirs.py` — purge one-shot des anciens workdirs
+- `viewer/designer/tests/test_cluster_xtb.py` — test SSH+xtb end-to-end (validation phase 1)
+- `viewer/designer/tests/test_phase2_smoke.py` — 7 smoke tests
+- `viewer/designer/scripts/cleanup_old_workdirs.py` — purge one-shot des anciens workdirs
