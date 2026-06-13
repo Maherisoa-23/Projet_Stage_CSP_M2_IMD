@@ -1963,10 +1963,13 @@ terme à terme aux autres sur le même corpus.
 \toprule
 $h$ & $h_3$ & $h_4$ & $h_5$ & $h_6$ & $h_7$ & $h_8$ & $h_9$ \\
 \midrule
-nombre de squelettes & \tbd & \tbd & \tbd & $44$ & $126$ & $376$ & $2\,418$ \\
+nombre de squelettes & $3$ & $6$ & $16$ & $44$ & $126$ & $376$ & $2\,418$ \\
 \bottomrule
 \end{tabular}
-\caption{Nombre de squelettes benzénoïdes de BenzaiDB par taille $h$.}
+\caption{Nombre de squelettes benzénoïdes du corpus par taille $h$. Les
+tailles $h_3$--$h_5$ proviennent d'une énumération directe (peu de
+squelettes possibles à cette échelle) ; les tailles $h_6$--$h_9$ sont
+issues de la base BenzaiDB.}
 \label{tab:corpus}
 \end{table}
 
@@ -2090,26 +2093,39 @@ l'aval.
 \cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9}
 $h$ & N & \%plan & N & \%plan & N & \%plan & N & \%plan \\
 \midrule
-$h_6$ & $2\,146$    & $78{,}5$ & $254$    & $88{,}2$ & $75$    & $93{,}3$ & $90$       & $\mathbf{100{,}0}$ \\
-$h_7$ & $15\,004$   & $65{,}9$ & $900$    & $83{,}3$ & $178$   & $95{,}5$ & $1\,035$   & $\mathbf{95{,}6}$ \\
-$h_8$ & $112\,800$  & $57{,}4$ & $3\,292$ & $82{,}0$ & $512$   & $\mathbf{97{,}3}$ & $9\,340$   & $86{,}6$ \\
-$h_9$ & $646\,319$  & $38{,}2$ & $21\,127$& $49{,}7$ & $2\,845$& $60{,}1$ & $43\,057$  & $\mathbf{71{,}4}$ \\
+$h_3$ & $7$        & $\mathbf{100{,}0}$ & $5$      & $\mathbf{100{,}0}$ & $5$     & $\mathbf{100{,}0}$ & \multicolumn{2}{c}{n.a.} \\
+$h_4$ & $44$       & $95{,}5$           & $16$     & $\mathbf{100{,}0}$ & $12$    & $\mathbf{100{,}0}$ & \multicolumn{2}{c}{n.a.} \\
+$h_5$ & $278$      & $\mathbf{88{,}1}$  & $62$     & $88{,}7$           & $28$    & $85{,}7$           & \multicolumn{2}{c}{n.a.} \\
+$h_6$ & $2\,146$   & $78{,}5$           & $254$    & $88{,}2$           & $75$    & $93{,}3$           & $90$       & $\mathbf{100{,}0}$ \\
+$h_7$ & $15\,004$  & $65{,}9$           & $900$    & $83{,}3$           & $178$   & $95{,}5$           & $1\,035$   & $\mathbf{95{,}6}$ \\
+$h_8$ & $112\,800$ & $57{,}4$           & $3\,292$ & $82{,}0$           & $512$   & $\mathbf{97{,}3}$  & $9\,340$   & $86{,}6$ \\
+$h_9$ & $646\,319$ & $38{,}2$           & $21\,127$& $49{,}7$           & $2\,845$& $60{,}1$           & $43\,057$  & $\mathbf{71{,}4}$ \\
 \bottomrule
 \end{tabular}
 \caption{Comparaison des quatre configurations $C_1$, $C_2$, $C_3$ et
 $C_{\text{topo}}$ : nombre total de solutions générées ($N$) et taux de
 planéité (\% plan, validation \emph{det-opt}). Pour chaque taille, la
-meilleure valeur est en gras. Tailles $h_3$--$h_5$ omises (volumes trop
-faibles pour des statistiques significatives).}
+meilleure valeur est en gras. La mention \og n.a. \fg{} pour
+$C_{\text{topo}}$ sur $h_3$--$h_5$ traduit que ces squelettes sont trop
+petits pour vérifier le pré-filtre $n_{\text{péri}} \ge 4$ ($n_{\text{péri}}$
+vaut au plus $1$, $2$ et $3$ pour $h_3$, $h_4$ et $h_5$ respectivement) ;
+$C_{\text{topo}}$ n'est donc applicable qu'à partir de $h_6$.}
 \label{tab:c1-c2-c3-ctopo}
 \end{table}
 
 \subsection{Bilan expérimental}
 
-L'étude désigne deux configurations recommandées selon la taille du
-squelette d'entrée :
+L'étude désigne trois régimes selon la taille du squelette d'entrée :
 
 \begin{itemize}[leftmargin=1.4em]
+  \item \textbf{Pour $h_3$--$h_5$ :} les volumes restent faibles ($\le 280$
+    solutions par configuration sur tout le corpus), le taux de planéité de
+    $C_1$ seul est déjà élevé ($88$--$100\,\%$), et $C_2$ ou $C_3$ atteignent
+    typiquement $100\,\%$ de pureté. À cette échelle, le filtrage par
+    contraintes additionnelles est essentiellement superflu, et la
+    configuration $C_{\text{topo}}$ n'est pas applicable (le pré-filtre
+    $n_{\text{péri}} \ge 4$ exclut tous les squelettes, $n_{\text{péri}}$ ne
+    dépassant pas $3$ avant $h_6$) ;
   \item \textbf{Pour $h_6$--$h_8$ :} $C_3$ reste la plus pure
     ($93$--$97\,\%$ de planéité), au prix d'un volume réduit ; à
     utiliser lorsqu'on cherche très peu de candidats mais très
