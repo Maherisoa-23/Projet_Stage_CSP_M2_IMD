@@ -74,11 +74,13 @@ Dossiers gitignored : `venv/`, `data/`, `divers/`, `tmp/`, `experiments/**/outpu
 
 ---
 
-## 3 configurations CSP reelles + 1 virtuelle
+## 4 configurations CSP (C1, C2, C3, Ctopo)
 
-Le run final a teste 3 configurations CSP differentes (`csp_solver/final/configs.py`),
-plus une 4eme **virtuelle** materialisee a posteriori (`csp_solver/analysis/materialize_ctopo.py`).
-Source de verite : `experiments/final/final_h3_h9.db`.
+Le run final cluster a teste 3 configurations CSP (`csp_solver/final/configs.py`).
+La 4eme (Ctopo) a d'abord ete materialisee a posteriori dans la DB du viewer
+(`csp_solver/analysis/materialize_ctopo.py`), puis re-implementee comme vraie
+contrainte CSP solveur en Phase E (blacklist rayon-2 + pre-check n_peri,
+cf. `csp_solver/utils/model.py`). Source de verite : `experiments/final/final_h3_h9.db`.
 
 | Config | Description courte | h9 %PLAN |
 |---|---|---:|

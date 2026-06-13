@@ -1,12 +1,17 @@
-"""Materialise la configuration virtuelle Ctopo (= recommandation finale)
-dans la DB du viewer, et SUPPRIME les anciennes configs virtuelles
-(C4, C5, C8, C48) qui ont ete remplacees.
+"""Materialise la configuration Ctopo (= recommandation finale) dans la DB
+du viewer en post-traitement d'un run C1, et SUPPRIME les anciennes configs
+exploratoires (C4, C5, C8, C48) qui ont ete remplacees.
 
 Ctopo (Topologie complete) :
     - has_bl_r2_loose = 0  (aucun motif rayon-2 de la blacklist universelle
       observe dans la solution)
     - skel_n_peri >= 4     (squelette compact : au moins 4 atomes
       partages par >=3 cycles)
+
+Note : depuis la Phase E (juin 2026), Ctopo existe aussi comme vraie
+contrainte CSP solveur (cf. `csp_solver/utils/model.py`, flags
+`ctopo_filter` + `ctopo_min_n_peri`). Ce script reste utile pour rejouer
+le filtre sur une DB C1 existante sans relancer le solveur.
 
 Sols sources : C1 done h3-h9. Aucun XYZ duplique (sol_dir pointe vers C1).
 """

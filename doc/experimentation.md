@@ -196,18 +196,24 @@ Resultats Ctopo vs C1/C2/C3 :
 
 ## 5. Limites identifiees
 
-1. **Filtre a posteriori uniquement** : Ctopo n'a pas ete validee par un run
-   xTB ciblant ses sols. Le %PLAN est mesure sur les sols C1 deja validees
-   par xTB qui satisfont le predicat. Une validation par un run xTB
-   independant reste a faire.
+1. **Validation initiale par filtre a posteriori sur les sols C1** : le %PLAN
+   est mesure sur les sols C1 deja validees par xTB qui satisfont le predicat
+   (rayon-2 + squelette). Un run xTB ciblant directement les sols generees
+   par la contrainte CSP Ctopo (Phase E) confirmerait independamment ce %PLAN
+   sans passer par C1, mais n'a pas encore ete realise sur tout h9.
 2. **h6-h8 : C3 reste imbattable en purete** (97% vs 87%). Ctopo n'est
    superieure que sur h9.
 3. **L'angle max plafonne a 89-90° sur h7+** : meme Ctopo garde des outliers.
    Mais la mediane chute fortement (h9 : C1 = 19.8°, Ctopo = 0.4°). C'est la
    distribution qui compte, pas le maximum.
-4. **Aucune contrainte solveur CSP ne reproduit Ctopo** : son effet vient en
-   partie de la topologie du squelette **avant** assignment, ce qui n'est pas
-   exprimable comme contrainte sur l'affectation 5/6/7.
+4. **Le pre-check n_peri >= 4 est un filtre sur le SQUELETTE, pas sur
+   l'affectation 5/6/7** : il s'applique avant le CSP (cf. `count_peri_atoms`
+   dans `csp_solver/utils/model.py`). En revanche, la blacklist rayon-2 EST
+   bien une contrainte CSP solveur exprimee sur les variables x_v (Phase E,
+   juin 2026). Ce decoupage est volontaire : la topologie du squelette n'est
+   pas exprimable comme contrainte sur l'affectation, donc on la traite en
+   amont. Aucun benzenoide d'entree au n_peri insuffisant ne lancera de
+   resolution CSP Ctopo.
 
 ---
 
