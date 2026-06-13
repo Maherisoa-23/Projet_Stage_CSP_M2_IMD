@@ -71,6 +71,9 @@ doc/captures/
 doc/motifs_bord_h8.tex
 doc/motifs_bord_h8.pdf
 
+# Docs personnels d'auto-formation pour la soutenance (NE PAS PUSH)
+doc/apprentissage_*.md
+
 
 # ===== PyCSP3 generated XML (race condition entre test CLI et CSP) =====
 main.xml
