@@ -73,7 +73,7 @@ complet sur ~776k solutions h3-h9) :
 | **C3** | C2 + `tau_gb = 0` rayon 2 | Interdire les paires d'heptagones adjacents (concentration de courbure negative). |
 
 Symetrie C1/C3 activee, gel d'hexagone desactive, table de voisinage active.
-Source : `csp_solver/_final_configs.py`.
+Source : `csp_solver/final/configs.py`.
 
 ### Resultats numeriques C1/C2/C3
 
@@ -155,12 +155,23 @@ squelette etendu (catacondense lineaire ou branche) se replie facilement.
 
 ### 4.3 Configuration recommandee : **Ctopo**
 
+Predicat de Ctopo :
+
 ```
-Ctopo : sol C1 done qui satisfait
+Ctopo : sol qui satisfait
         (1) has_bl_r2_loose = 0   (aucun motif rayon-2 deletere)
         ET
         (2) skel_n_peri >= 4      (squelette compact)
 ```
+
+Ce predicat existe sous deux formes equivalentes :
+- **Filtre a posteriori** sur la DB C1 done (validation initiale,
+  `csp_solver/analysis/materialize_ctopo.py`) — les chiffres ci-dessous.
+- **Vraie contrainte CSP solveur** (Phase E, juin 2026,
+  `csp_solver/utils/model.py` flags `ctopo_filter` + `ctopo_min_n_peri`) :
+  la blacklist rayon-2 est codee en contraintes negatives sur les variables
+  x_v, et le pre-check `n_peri >= 4` s'applique au squelette avant CSP.
+  Permet de generer des sols Ctopo directement, sans passer par C1.
 
 Resultats Ctopo vs C1/C2/C3 :
 
@@ -219,13 +230,16 @@ Resultats Ctopo vs C1/C2/C3 :
 
 ## 6. Pistes pour la suite
 
-- **Validation xTB de Ctopo** : lancer un run xTB sur l'ensemble des sols
-  Ctopo h9 (43 k sols) pour confirmer le %PLAN de 71.4%.
-- **Selection des squelettes h10/h11** : filtrer en amont les squelettes par
-  `n_peri >= 3` avant generation CSP.
-- **Encoder le rayon-2 comme contrainte solveur** : ajouter une table de
-  voisinage rayon-2 dans PyCSP3. Probablement gros (10^5-10^6 tuples) mais
-  applicable sur cluster.
+- **Validation xTB de Ctopo** : lancer un run xTB cluster sur l'ensemble des
+  sols generees par la contrainte CSP Ctopo (Phase E) sur h9 (43 k sols
+  attendues) pour confirmer independamment le %PLAN de 71.4% mesure
+  initialement comme filtre a posteriori sur C1.
+- **Extension a h10/h11** : la contrainte CSP Ctopo est applicable telle
+  quelle a des squelettes plus grands. Le pre-check `n_peri >= 4` filtre
+  automatiquement les squelettes etales (trop flexibles) avant resolution.
+- **Enrichir la blacklist rayon-2** : la liste actuelle (10 motifs) a ete
+  identifiee sur h7-h9. Une analyse a echelle h10+ pourrait reveler de
+  nouveaux motifs deleteres specifiques aux grandes tailles.
 
 ---
 
@@ -233,11 +247,13 @@ Resultats Ctopo vs C1/C2/C3 :
 
 | Domaine                       | Chemin                                         |
 |-------------------------------|------------------------------------------------|
-| Configs CSP                   | `csp_solver/final/configs.py`                       |
+| Configs CSP (run final)       | `csp_solver/final/configs.py`                       |
+| Modele CSP + contrainte Ctopo | `csp_solver/utils/model.py`                         |
 | det-opt xTB                   | `csp_solver/xtb/det_opt.py`                         |
 | DB unifiee                    | `experiments/final/final_h3_h9.db`                  |
 | Features rayon-2 + topologie  | `csp_solver/analysis/compute_combined_features.py`  |
-| Materialisation Ctopo         | `csp_solver/analysis/materialize_ctopo.py`          |
+| Materialisation Ctopo (post)  | `csp_solver/analysis/materialize_ctopo.py`          |
 | Analyse motifs bord (annexe)  | `csp_solver/analysis/extract_boundary_motifs.py`    |
 | Viewer Flask                  | `viewer/server.py`                                  |
+| Designer (UI generation)      | `viewer/designer/`                                  |
 | Descriptions configs (front)  | `viewer/static/config_descriptions.js`              |
