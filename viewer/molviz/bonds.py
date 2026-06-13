@@ -28,14 +28,20 @@ import numpy as np
 
 
 # Seuils en Angstroms.
-# BOND_MAX a 1.75 pour tolerer les reconstructions non-relaxees du designer
+# BOND_MAX a 2.00 pour tolerer les reconstructions non-relaxees du designer
 # en mode skip xTB : a l'interface 5-6-7, le placement BFS rigide a 1.42 A
-# fait sortir certaines aretes a ~1.69 A, juste au-dessus du seuil 1.65 A
-# initial. 1.75 reste tres en dessous des distances non-liees (~2.4 A+),
-# et n'introduit pas de bonds parasites sur les structures optimisees xTB
-# (ou les liaisons C-C aromatiques font 1.39-1.42 A et les single C-C 1.54 A).
+# fait sortir certaines aretes jusqu'a ~1.98 A (mesure empirique sur 200 sol :
+# 97 ont au moins un bond > 1.75 A, pire cas 1.98 A). Sous le seuil 1.75
+# precedent, ces aretes etaient ratees -> carbones sous-coordonnes -> Kekule
+# les marquait radicaux -> rendu en spheres violettes "flottantes" au-dessus
+# du squelette.
+# 2.00 reste sous les distances non-liees (~2.4 A+), et le filtre cycle<=8
+# de _build_mol_graph_from_atoms rejette toute diagonale accidentelle qui ne
+# participerait a aucune face raisonnable.
+# Pas d'effet de bord sur les structures optimisees xTB (aromatique 1.39-1.42 A,
+# single 1.54 A, tres en dessous de 2.00 A).
 BOND_MIN = 1.20    # < : on est sur d'une triple ou d'une erreur
-BOND_MAX = 1.75    # > : pas de liaison
+BOND_MAX = 2.00    # > : pas de liaison
 
 
 @dataclass
