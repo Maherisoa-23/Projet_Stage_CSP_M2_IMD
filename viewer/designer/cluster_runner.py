@@ -263,7 +263,7 @@ def _run_job_cluster_inner(db_path, job_id, project_root, job, config,
     # ingest_local_job lira ensuite output_dir_local/original/ et stockera
     # le bloc dans summary['original']. ~5-15s, best-effort.
     # Skip si test_original=False dans la config.
-    if job.get("config", {}).get("test_original", True):
+    if job.get("config", {}).get("test_original", False):
         jobs.update_job(db_path, job_id, current_stage="original", progress=0.04)
         try:
             _test_original_benzenoid(graph_local, output_dir_local, project_root)

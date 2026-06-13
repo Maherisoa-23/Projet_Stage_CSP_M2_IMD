@@ -215,20 +215,20 @@ ADVANCED_GROUPS = [
 # =====================================================================
 VALIDATION_OPTIONS = [
     {
-        "key": "method", "type": "select", "default": "det-opt",
+        "key": "method", "type": "select", "default": "skip",
         "options": [
-            {"value": "det-opt",    "label": "det-opt (recommande, reproductible)"},
+            {"value": "skip",       "label": "Skip xTB (geometrie plate z=0, pas d'opt)"},
+            {"value": "det-opt",    "label": "det-opt (reproductible, ~5-15s par sol)"},
             {"value": "md",         "label": "MD + opt (non-deterministe, legacy)"},
             {"value": "multi-runs", "label": "Multi-runs (N optimisations independantes)"},
-            {"value": "skip",       "label": "Skip xTB (geometrie plate z=0, pas d'opt)"},
         ],
         "label": "Methode de validation",
-        "help": "det-opt : perturbation analytique deterministe + xtb --opt "
-                "(byte-reproductible, recommande). "
+        "help": "Skip (defaut) : reconstruit la geometrie plate (z=0) sans optimiser, "
+                "tres rapide pour visualiser la sol CSP sans xTB. "
+                "det-opt : perturbation analytique deterministe + xtb --opt "
+                "(byte-reproductible, recommande pour valider la planarite). "
                 "MD : ancienne methode, non-deterministe. "
-                "Multi-runs : N optimisations independantes. "
-                "Skip : reconstruit la geometrie plate (z=0) sans optimiser, "
-                "tres rapide pour visualiser la sol CSP sans xTB.",
+                "Multi-runs : N optimisations independantes.",
     },
     {
         "key": "n_runs", "type": "int", "default": 1, "min": 1, "max": 10,
@@ -237,12 +237,12 @@ VALIDATION_OPTIONS = [
                 "avec methode = multi-runs. Ignore sinon.",
     },
     {
-        "key": "test_original", "type": "bool", "default": True,
+        "key": "test_original", "type": "bool", "default": False,
         "label": "Tester le benzenoide d'origine (xTB sur tout-hexagones)",
         "help": "Avant les sols substituees, lance xTB sur le benzenoide pur "
                 "(tous cycles = hex) pour servir de reference de planarite. "
-                "Cout : ~5-15s. Decoche pour gagner du temps quand seule la "
-                "topologie t'interesse.",
+                "Cout : ~5-15s. Coche pour comparer les sols a la geometrie "
+                "optimisee du benzenoide d'entree.",
     },
     {
         "key": "cluster", "type": "bool", "default": False,

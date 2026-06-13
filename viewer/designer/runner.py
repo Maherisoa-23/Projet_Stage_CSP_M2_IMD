@@ -280,7 +280,7 @@ def _build_command(python_exe: str, main_py: Path, graph_path: Path,
     # method=skip : pas d'opt xTB, juste reconstruction plate (z=0)
     # Pour le solveur CSP en ligne de commande, on traduit ca par
     # 'pas de --validate' + flag dedie --method skip que main.py interprete.
-    method = (config.get("method") or "det-opt").lower()
+    method = (config.get("method") or "skip").lower()
     if method == "skip":
         # Pas de --validate : on ne lance pas xtb, on garde juste la
         # reconstruction 3D plate
@@ -406,7 +406,7 @@ def run_job(db_path: str, job_id: str, project_root: Path,
     # Permet d'afficher dans la vue job la planarite de la molecule
     # d'origine, en plus des solutions substituees. Rapide (~5-15s).
     # Skip si test_original=False dans la config (gain ~5-15s).
-    if job.get("config", {}).get("test_original", True):
+    if job.get("config", {}).get("test_original", False):
         jobs.update_job(db_path, job_id, state="running",
                          current_stage="original", progress=0.03)
         try:
