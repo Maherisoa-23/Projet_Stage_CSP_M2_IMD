@@ -1531,7 +1531,7 @@ sont dans le plan $z = 0$. C'est l'étape de validation \xtb{} (section
 suivante) qui révélera si la molécule est réellement plane à l'équilibre, ou
 si l'optimisation la fait quitter le plan.
 
-\subsubsection{Validation par \xtb{} : protocole de dynamique moléculaire}
+\subsubsection{Validation par \xtb{} : protocole d'optimisation déterministe}
 \label{sec:md}
 
 L'optimisation \xtb{} procède par descente de gradient. Or si la géométrie
@@ -1542,30 +1542,58 @@ Nous l'avons constaté en comparant deux géométries initiales planes du même
 benzénoïde, qui convergeaient l'une vers une forme plane, l'autre vers une
 forme courbée à $58{,}6^\circ$.
 
-Le protocole retenu contourne ce piège par une \textbf{dynamique
-moléculaire} (MD) courte qui « secoue » la molécule en lui donnant une
-énergie cinétique thermique : les atomes acquièrent des vitesses aléatoires
-compatibles avec la température, ce qui suffit à briser la symétrie planaire
-parasite et à laisser la molécule explorer ses degrés de liberté
-perpendiculaires au plan. La trajectoire MD est ensuite suivie d'une
-\emph{optimisation de géométrie} repartant de la dernière configuration, qui
-ramène la molécule jusqu'à son minimum local d'énergie : on obtient alors la
-véritable géométrie d'équilibre. C'est l'équivalent numérique de la
-procédure suggérée par le chimiste : \emph{déplacer un atome et vérifier
-s'il revient à sa place}.
+Une première version du pipeline contournait ce piège par une
+\emph{dynamique moléculaire} courte (\texttt{xtb --md} à $298$~K pendant
+$1$~ps) qui « secoue » la molécule pour briser la symétrie planaire
+parasite, suivie d'une optimisation. Cette approche, recommandée
+initialement par les chimistes, s'est révélée \textbf{non reproductible} :
+\xtb{} initialise les vitesses MD à partir de l'horloge système et n'expose
+aucune graine accessible (confirmé par lecture du code source de \xtb{}
+et par l'issue GitHub \#$730$ du dépôt \texttt{grimme-lab/xtb} ouverte
+depuis $2022$ et restée sans réponse). Sur des structures tendues
+($h_8$--$h_9$ avec amas $5$/$7$ denses), deux exécutions identiques
+basculaient parfois entre les verdicts \textsc{plan} et \textsc{non-plan},
+ce qui rendait toute campagne expérimentale invalidable.
 
-\todo{Bloc de commande \xtb{} à compléter ici : commande exacte utilisée
-dans le pipeline (paramètres \texttt{--md}, fichier d'input
-\texttt{md.inp} avec \texttt{temp}, \texttt{time}, \texttt{step}, etc.,
-puis appel \texttt{--opt tight}). Précisera la version de \xtb{} et le
-niveau de théorie (GFN2). À insérer une fois la commande définitive
-arrêtée.}
+Le protocole finalement retenu remplace la MD stochastique par une
+\textbf{perturbation analytique déterministe} appliquée à la composante~$z$
+des coordonnées avant l'optimisation. Soit $\mathbf{x}_1, \dots, \mathbf{x}_N$
+les positions des $N$ atomes, ordonnés canoniquement. On définit
+\[
+  z_i' \;=\; z_i \;+\; A \sin\!\Bigl(\frac{2\pi\,i}{N} + \varphi\Bigr),
+  \qquad A = 0{,}05\ \text{\AA},\quad \varphi = 0{,}5\ \text{rad},
+\]
+les valeurs de $A$ et $\varphi$ étant fixées une fois pour toutes. Cette
+perturbation, totalement indépendante d'un tirage aléatoire, brise la
+symétrie $z = 0$ \emph{de manière reproductible bit-à-bit} et suffit à
+sortir l'optimiseur du minimum plat parasite. La géométrie perturbée est
+ensuite passée à \xtb{} en optimisation locale standard :
 
-Un filtre anti-fragmentation rejette les trajectoires où un atome s'éjecte
-de la molécule pendant la phase MD (cas pathologique observé sur quelques
-structures très tendues, où la perturbation thermique brise une liaison).
-Lorsque le filtre déclenche, la solution reçoit le verdict
-\textsc{échec MD}.
+\begin{quote}
+\ttfamily
+xtb perturbed.xyz \texttt{--}opt tight
+\end{quote}
+
+avec \xtb{} 6.7.1 en niveau de théorie \textbf{GFN2-\xtb{}}~\cite{xtb}.
+Les variables d'environnement \texttt{OMP\_NUM\_THREADS=1},
+\texttt{MKL\_NUM\_THREADS=1}, \texttt{OPENBLAS\_NUM\_THREADS=1} et
+\texttt{NUMEXPR\_NUM\_THREADS=1} sont imposées avant l'appel, ce qui force
+un seul fil d'exécution et élimine la dernière source de non-déterminisme
+(l'ordre d'agrégation des contributions en BLAS multi-thread). L'ensemble
+du pipeline (reconstruction $\to$ perturbation $\to$ optimisation) est
+ainsi \emph{byte-déterministe} : même fichier d'entrée et même
+configuration produisent la même géométrie finale, au bit près. Le
+résultat est conservé dans \texttt{md\_final\_opt.xyz} sous chaque
+solution. Cette approche, équivalent numérique de la procédure suggérée
+par le chimiste (\emph{déplacer un atome et vérifier s'il revient à sa
+place}), restitue la même information physique que la MD courte tout en
+restant reproductible.
+
+Un filtre anti-fragmentation rejette les optimisations où un atome
+s'éjecte de la molécule pendant la convergence (cas pathologique observé
+sur quelques structures très tendues, où l'optimisation brise une liaison
+et fait fuir un fragment au-delà de $30$~\AA{} du barycentre). Lorsque le
+filtre déclenche, la solution reçoit le verdict \textsc{échec \xtb{}}.
 
 \subsubsection{Test de planéité par analyse en composantes principales}
 \label{sec:acp}
@@ -1742,42 +1770,77 @@ benzénoïde ou choisir un squelette importé depuis BenzaiDB.}
 
 \subsubsection{Configuration des contraintes et exécution}
 
-Une fois l'instance posée, l'utilisateur sélectionne dans un panneau les
-contraintes à activer : conservation du carbone (C1, toujours active),
-table de voisinage (C3), rupture de symétrie (C4), contraintes
-optionnelles (C2.2, C5, \texttt{pb1}, etc.) avec leurs paramètres. Ce
-panneau permet de comparer \emph{rapidement} plusieurs configurations
-sur la même instance, ce qui est central pour l'étude expérimentale.
+Une fois l'instance posée, l'utilisateur configure le solveur depuis un
+panneau organisé en deux onglets. L'onglet \textbf{Préréglage} propose
+quatre configurations canoniques, sélectionnables d'un clic, qui
+correspondent exactement aux configurations étudiées
+expérimentalement (section~\ref{sec:xp}) :
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{C1 --- Baseline} : contraintes structurelles
+    uniquement (C1+C2.1+C3+C4).
+  \item \textbf{C2 --- Pb1 + adj\_57} : C1 plus pentagones plafonnés au
+    bord et appariement Stone--Wales obligatoire.
+  \item \textbf{C3 --- Pb1 + adj\_57 + pas de $7$--$7$ adjacents} :
+    durcissement local de la courbure (Gauss--Bonnet locale à zéro
+    dans un rayon de $2$ dans \GD{}).
+  \item \textbf{Ctopo --- Topologie complète} : C3 plus une blacklist
+    de motifs de rayon~$2$ du graphe dual et un pré-filtre exigeant un
+    squelette compact (au moins $4$ atomes péri-condensés). Recommandé
+    pour les grands squelettes ($h_9$).
+\end{itemize}
+L'onglet \textbf{Avancé} expose individuellement chaque flag (Pb1,
+adj\_57, tau\_gb, ctopo\_filter, etc.) pour les expérimentations
+fines.
+
+Un second panneau gère la \textbf{validation \xtb{}}. Le mode par
+défaut est \emph{skip xTB} : le pipeline s'arrête après la
+reconstruction 3D et produit directement les géométries planes
+(non optimisées), ce qui est très rapide et suffit pour visualiser les
+sorties du CSP. Pour valider la planéité physique, l'utilisateur bascule
+sur \emph{det-opt} (le protocole déterministe décrit
+section~\ref{sec:md}), ou plus rarement sur les modes \emph{md} et
+\emph{multi-runs} conservés pour comparaison historique. Une option
+permet aussi de comparer la planéité des solutions à celle du
+benzénoïde d'entrée pur (tout-hexagones).
 
 Le lancement d'une génération orchestre, derrière l'interface,
 l'ensemble du pipeline : compilation du modèle en XCSP3, appel à
-\ace{}, reconstruction 3D des solutions, soumission à \xtb{}, test de
-planéité, et calcul des métriques électroniques. Les résultats ---
-solutions, géométries XYZ compressées, statistiques par campagne ---
-sont persistés dans une base SQLite, ce qui rend chaque campagne
-facilement rejouable et comparable. Les exécutions sur le grand corpus
-($h \ge 7$, jusqu'à plusieurs milliers de squelettes) sont distribuées
-sur le cluster décrit ci-dessous.
+\ace{}, reconstruction 3D des solutions, validation \xtb{} (si
+demandée), test de planéité par ACP et calcul des métriques
+électroniques. Les résultats --- solutions, géométries XYZ compressées,
+statistiques par campagne --- sont persistés dans une base SQLite, ce
+qui rend chaque campagne facilement rejouable et comparable. Les
+exécutions sur le grand corpus ($h \ge 7$, jusqu'à plusieurs milliers
+de squelettes) sont distribuées sur le cluster décrit ci-dessous.
 
-\subsubsection{Exploration des solutions}
+\subsubsection{Exploration des solutions et visualiseur intégré}
 
 Une fois une campagne terminée, le designer présente l'ensemble des
 solutions produites sous forme d'une \textbf{liste paginée}
 (figure~\ref{fig:designer-list}). Chaque ligne récapitule les
-caractéristiques d'une solution : identifiant, taille du benzénoïde de
-départ, composition $(n_5, n_6, n_7)$, verdict de planéité, et énergie
-\xtb{}.
+caractéristiques d'une solution : identifiant, composition
+$(n_5, n_6, n_7)$, verdict de planéité, angle maximal hors-plan, et
+distances quadratique / extrême au plan moyen.
 
 Plusieurs leviers facilitent l'exploration :
 \begin{itemize}
-  \item \textbf{Tri} sur n'importe quelle colonne (énergie croissante,
-    taille, composition, etc.) ;
+  \item \textbf{Tri} sur n'importe quelle colonne (angle croissant ou
+    décroissant, identifiant, etc.) ;
   \item \textbf{Filtrage} par verdict de planéité (\textsc{plan},
-    \textsc{non-plan}, \textsc{échec MD}), par configuration de
-    contraintes, ou par squelette de départ ;
-  \item navigation directe vers le visualiseur 3D d'une solution donnée
-    pour inspecter sa géométrie (cf.\ section~\ref{sec:analyse-elec}).
+    \textsc{non-plan}, géométrie infaisable, échec \xtb{}), par
+    sous-chaîne de la composition, ou par squelette de départ ;
+  \item navigation directe vers le \textbf{visualiseur 3D} d'une
+    solution donnée pour inspecter sa géométrie en relief, lire ses
+    structures de Kekulé, ses couvertures de Clar et ses RBO/CBO
+    (section~\ref{sec:analyse-elec}).
 \end{itemize}
+
+Le visualiseur, intégré à la même application web, est aussi accessible
+indépendamment du designer pour explorer la base de résultats du run
+final ($\sim$$1{,}5$~M de solutions sur $h_3$--$h_9$). Il sert à la fois
+d'outil d'exploration pour les chimistes et de banc de débogage pour le
+développement (vérifier en 3D qu'une géométrie produite par le pipeline
+ressemble à ce que l'on attend).
 
 \begin{figure}[h]
 \centering
@@ -1829,12 +1892,18 @@ Jinja2      & 3.1.6  & dépendance Flask (templates) \\
 
 \paragraph{Validation quantique.}
 La validation utilise le binaire \textbf{\xtb{} 6.7.1} avec la méthode
-\textbf{GFN2-\xtb{}}, appelé en sous-processus depuis Python. Le
-déterminisme byte-pour-byte est garanti par
-(i)~la perturbation $z$ analytique (sans RNG), (ii)~le forçage de
-\texttt{OMP\_NUM\_THREADS=1}, \texttt{MKL\_NUM\_THREADS=1},
-\texttt{OPENBLAS\_NUM\_THREADS=1}, \texttt{NUMEXPR\_NUM\_THREADS=1},
-et (iii)~\texttt{PYTHONHASHSEED=0}, dans tous les scripts du cluster.
+\textbf{GFN2-\xtb{}}, appelé en sous-processus depuis Python via le
+protocole \emph{det-opt} décrit section~\ref{sec:md}. Le déterminisme
+byte-pour-byte est garanti par
+(i)~la perturbation $z$ analytique
+$z_i' = z_i + A \sin(2\pi i / N + \varphi)$ (sans RNG),
+(ii)~le forçage de \texttt{OMP\_NUM\_THREADS=1},
+\texttt{MKL\_NUM\_THREADS=1}, \texttt{OPENBLAS\_NUM\_THREADS=1},
+\texttt{NUMEXPR\_NUM\_THREADS=1} avant chaque appel à \xtb{},
+(iii)~\texttt{PYTHONHASHSEED=0} dans tous les scripts du pipeline,
+et (iv)~l'ordre canonique \texttt{sorted(\dots)} appliqué partout où
+des collections non ordonnées (ensembles d'atomes, de liaisons)
+seraient itérées.
 
 \paragraph{Cluster de calcul.}
 Les campagnes de grande taille tournent sur le cluster \textbf{COALA}
@@ -1872,13 +1941,9 @@ Comme établi en section~\ref{sec:probleme}, la planéité est une propriété
 globale qu'aucun jeu de contraintes locales ne capture exactement. La question
 pratique devient alors : \emph{quelles contraintes additionnelles augmentent le
 plus la proportion de molécules planes parmi celles que le modèle génère ?} Nous
-y répondons par une démarche expérimentale en trois temps.
-
-\begin{remarque}
-Les valeurs chiffrées de cette section sont laissées en attente
-(\tbd, \todo{}) : le corpus de résultats doit être régénéré sur la version
-définitive de la table de voisinage avant intégration au mémoire.
-\end{remarque}
+y répondons par une étude comparative de quatre configurations $\mathbf{C_1}$,
+$\mathbf{C_2}$, $\mathbf{C_3}$ et $\mathbf{C_{\text{topo}}}$, des plus simples
+aux plus contraintes, qui isolent successivement chaque levier identifié.
 
 \subsection{Protocole et banc d'essai}
 
@@ -1886,9 +1951,11 @@ Le banc d'essai utilise les squelettes benzénoïdes canoniques de la base
 \emph{BenzaiDB}, de $h_3$ à $h_9$ hexagones (tableau~\ref{tab:corpus}). La
 métrique principale est le \textbf{taux de planéité} : la proportion de
 solutions jugées planes par le pipeline \xtb{}+ACP, complétée par le
-\emph{nombre absolu} de molécules planes produites. Les campagnes sont
-reproductibles, agrégées en base SQLite, et chaque configuration de contraintes
-est comparée terme à terme aux autres sur le même corpus.
+\emph{nombre absolu} de molécules planes produites (souvent plus parlant pour
+l'aval, qui s'intéresse au nombre de candidats exploitables). Les campagnes
+sont reproductibles (validation \emph{det-opt}, section~\ref{sec:md}),
+agrégées en base SQLite, et chaque configuration de contraintes est comparée
+terme à terme aux autres sur le même corpus.
 
 \begin{table}[h]
 \centering
@@ -1903,94 +1970,168 @@ nombre de squelettes & \tbd & \tbd & \tbd & $44$ & $126$ & $376$ & $2\,418$ \\
 \label{tab:corpus}
 \end{table}
 
-\subsection{v1 --- Modèle de base}
+\subsection{$\mathbf{C_1}$ --- Baseline (contraintes structurelles seules)}
 
-La première campagne mesure la référence : avec les seules contraintes
-structurelles (section~\ref{sec:modele}), quelle proportion des solutions est
-réellement plane après \xtb{} ? Le constat est que ce taux est médiocre et
-\emph{décroît fortement} quand $h$ augmente (\tbd). Au-delà de la mesure, v1 a
-surtout servi à mettre au point et stabiliser le pipeline complet
-(reconstruction $\to$ MD $\to$ optimisation $\to$ ACP).
+La première configuration mesure la référence : avec les seules contraintes
+structurelles (section~\ref{sec:modele}) --- conservation du carbone C1, gel
+des hexagones de degré $6$ (C2.1), table de voisinage (C3) et rupture de
+symétrie (C4) ---, quelle proportion des solutions est réellement plane après
+validation \xtb{}~?
 
-\subsection{v2 --- Contraintes globales : pentagones en bord}
+Le constat est sans appel (tableau~\ref{tab:c1-c2-c3-ctopo}, colonnes C1) :
+le taux de planéité est correct sur les petits squelettes ($78{,}5\,\%$ sur
+$h_6$) mais s'\emph{effondre} avec la taille, jusqu'à
+$\mathbf{38{,}2\,\%}$ sur $h_9$. Le volume absolu de solutions, lui, explose :
+$646\,319$ solutions sur $h_9$, dont seulement $246\,855$ planes. C'est le
+point de départ qui justifie toute la suite : sur $h_9$, six solutions sur dix
+seront éliminées par la validation \xtb{} ; il faut donc des contraintes
+additionnelles pour mieux cibler.
 
-L'idée de v2 est de traduire en contraintes \emph{a priori} deux régularités
-empiriques observées sur les premières données : un équilibre entre pentagones
-et heptagones, et la localisation des pentagones sur le bord. On introduit donc
-deux contraintes optionnelles paramétrées :
+\subsection{$\mathbf{C_2}$ --- Pb1 + adjacence $5$--$7$ (motif Stone--Wales)}
+
+$C_2$ ajoute à $C_1$ deux contraintes complémentaires, identifiées comme les
+plus efficaces parmi les variantes locales explorées :
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{Pb1} (\texttt{K\_pb=1}) :
+    $\sum_{v \in \partial \GD} \mathbf{1}[x_v = 5] \le 1$, c'est-à-dire
+    \emph{au plus un pentagone au bord} du squelette. Cette contrainte traduit
+    l'observation empirique que les pentagones de bord, qui introduisent une
+    courbure locale non compensée par un voisin opposé, sont particulièrement
+    déstabilisants ; la limiter améliore fortement le taux de planéité.
+  \item \textbf{adj\_57} (contrainte C5, section~\ref{sec:c5}) :
+    appariement Stone--Wales obligatoire (tout pentagone a un heptagone
+    voisin, et réciproquement). Localement, la paire $5$--$7$ compense
+    exactement la courbure de Gauss--Bonnet ($+\pi/3 - \pi/3 = 0$).
+\end{itemize}
+Une troisième contrainte testée parallèlement, $|n_5 - n_7| \le K_{\text{sym}}$
+(notée C-SYM), s'est révélée \emph{sans effet mesurable} : l'équilibre
+$n_5 = n_7$ est déjà imposé par C1, et le filtrage par la table produit
+naturellement des compositions équilibrées.
+
+Le tableau~\ref{tab:c1-c2-c3-ctopo} (colonnes $C_2$) montre que $C_2$ améliore
+nettement $C_1$ : $+10$ à $+25$ points de planéité selon la taille. Le volume
+de solutions chute en revanche fortement ($21\,127$ solutions sur $h_9$
+contre $646\,319$ pour $C_1$), ce qui est un compromis attendu : on
+sélectionne plus durement, on filtre donc beaucoup en amont.
+
+\subsection{$\mathbf{C_3}$ --- Interdire les paires $7$--$7$ adjacentes}
+
+$C_3$ durcit $C_2$ en interdisant la concentration locale de courbure
+négative. Concrètement, on impose une \textbf{contrainte de Gauss--Bonnet
+locale} de paramètre $\tau_{\text{gb}} = 0$ et rayon $2$ dans le graphe dual :
 \[
-  \text{(C-SYM)}\ |n_5 - n_7| \le K_{\text{sym}},
-  \qquad
-  \text{(C-PB)}\ \sum_{v \in \partial \GD} \mathbf{1}[x_v = 5] \le K_{\text{pb}} .
+  \forall v \in V_D,\quad
+  \bigl|\,|\{u : x_u = 5, \mathrm{d}_{\GD}(u,v) \le 2\}|
+       - |\{u : x_u = 7, \mathrm{d}_{\GD}(u,v) \le 2\}|\,\bigr| \le 0 .
 \]
-Les résultats sont nets. La contrainte de symétrie \textbf{C-SYM est sans effet}
-mesurable : l'équilibre $n_5 = n_7$ est déjà imposé par C1, et le filtrage par la
-table produit des compositions équilibrées. En revanche, \textbf{plafonner les
-pentagones de bord est le levier dominant} : avec $K_{\text{pb}} = 1$ (préréglage
-\texttt{pb1}), le taux de planéité gagne \todo{+X à +Y points} sur l'ensemble des
-tailles, tandis que $K_{\text{pb}} = 0$ rend le problème insatisfiable. Le
-préréglage \texttt{pb1} génère beaucoup moins de solutions, mais une proportion
-bien plus élevée d'entre elles est plane (compromis volume / qualité favorable à
-l'aval).
+En pratique, cela revient à interdire que deux heptagones soient à distance
+$\le 2$ dans le dual sans être compensés par autant de pentagones dans le
+même voisinage, ce qui exclut notamment les paires $7$--$7$ adjacentes.
+
+C'est la configuration \textbf{la plus pure} sur les tailles intermédiaires :
+$95{,}5\,\%$ de planéité sur $h_7$, $\mathbf{97{,}3\,\%}$ sur $h_8$. Mais elle
+s'effondre sur $h_9$ ($60{,}1\,\%$) et son volume devient marginal
+($2\,845$ solutions sur $h_9$, dont $1\,711$ planes). C'est le signal que
+les contraintes purement locales ne suffisent plus aux grands squelettes :
+les défauts de courbure s'accumulent au-delà de ce qu'un rayon de $2$
+peut contrôler.
+
+\subsection{$\mathbf{C_{\text{topo}}}$ --- Topologie complète}
+\label{sec:ctopo}
+
+Pour traiter $h_9$, nous avons cherché des contraintes \emph{non
+redondantes} avec Pb1 et qui capturent un mécanisme d'échec différent. Une
+analyse \emph{a posteriori} des solutions $C_1$ non planes a fait émerger
+deux descripteurs topologiques complémentaires, qui forment ensemble la
+configuration $C_{\text{topo}}$.
+
+\paragraph{Descripteur 1 --- motifs de rayon~$2$ dans le graphe dual.}
+Pour chaque cycle $v$ d'une solution, on définit son \emph{motif de
+rayon~$2$} comme le couple
+$(x_v, \text{multiset}(\,x_u : u \in \mathcal{N}_{\GD}(v)\,))$.
+Par exemple, le motif $7\,|\,[6,7,7]$ désigne un heptagone entouré d'un
+hexagone et de deux heptagones. L'analyse statistique sur le corpus $h_7$,
+$h_8$, $h_9$ a identifié une \emph{blacklist} d'une dizaine de motifs
+fortement corrélés à la non-planéité, indépendamment de la taille du
+benzénoïde : par exemple $7\,|\,[6,7,7]$ ne produit que $9{,}2\,\%$ de
+solutions planes sur $h_8$, contre une moyenne de $\sim$$60\,\%$. La
+contrainte $C_{\text{topo}}$ interdit explicitement tous ces motifs ;
+elle est implémentée par une famille de contraintes négatives sur les
+tuples $(x_v, x_{u_1}, \dots, x_{u_k})$, intégrées dans le modèle PPC.
+
+\paragraph{Descripteur 2 --- topologie du squelette.}
+Le second descripteur est calculé \emph{avant} l'assignment des tailles :
+le nombre $n_{\text{péri}}$ d'atomes péri-condensés du squelette, c'est-à-dire
+partagés par au moins trois cycles. Empiriquement, les squelettes
+$n_{\text{péri}} \ge 4$ (péri-condensés, type coronène) résistent
+beaucoup mieux à la déformation que les squelettes étalés, où les défauts
+peuvent se replier sans coût énergétique majeur. La contrainte impose donc
+$n_{\text{péri}} \ge 4$, ce qui est un \emph{pré-filtre sur le squelette
+d'entrée} : si le benzénoïde fourni ne le satisfait pas, $C_{\text{topo}}$
+ne génère aucune solution.
+
+\paragraph{Résultats.}
+Le tableau~\ref{tab:c1-c2-c3-ctopo} (colonnes $C_{\text{topo}}$) montre que
+$C_{\text{topo}}$ \emph{bat} $C_3$ sur $h_9$ à la fois en pureté
+($\mathbf{71{,}4\,\%}$ contre $60{,}1\,\%$) et en volume ($43\,057$
+solutions contre $2\,845$, soit \emph{quinze fois plus} de candidats
+explorés, dont $30\,742$ planes contre $1\,711$, c'est-à-dire
+\emph{dix-huit fois plus} de plans). Sur les tailles $h_6$--$h_8$,
+$C_3$ reste plus pure (les chiffres sont plus serrés sur des petits
+volumes), mais $C_{\text{topo}}$ génère un volume bien plus utile pour
+l'aval.
 
 \begin{table}[h]
 \centering
-\begin{tabular}{lcc}
+\small
+\begin{tabular}{l*{8}{c}}
 \toprule
-$h$ & \texttt{baseline} (\% plan) & \texttt{pb1} (\% plan) \\
+& \multicolumn{2}{c}{$C_1$} & \multicolumn{2}{c}{$C_2$} & \multicolumn{2}{c}{$C_3$} & \multicolumn{2}{c}{$C_{\text{topo}}$} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9}
+$h$ & N & \%plan & N & \%plan & N & \%plan & N & \%plan \\
 \midrule
-$h_6$ & \tbd & \tbd \\
-$h_7$ & \tbd & \tbd \\
-$h_8$ & \tbd & \tbd \\
-$h_9$ & \tbd & \tbd \\
+$h_6$ & $2\,146$    & $78{,}5$ & $254$    & $88{,}2$ & $75$    & $93{,}3$ & $90$       & $\mathbf{100{,}0}$ \\
+$h_7$ & $15\,004$   & $65{,}9$ & $900$    & $83{,}3$ & $178$   & $95{,}5$ & $1\,035$   & $\mathbf{95{,}6}$ \\
+$h_8$ & $112\,800$  & $57{,}4$ & $3\,292$ & $82{,}0$ & $512$   & $\mathbf{97{,}3}$ & $9\,340$   & $86{,}6$ \\
+$h_9$ & $646\,319$  & $38{,}2$ & $21\,127$& $49{,}7$ & $2\,845$& $60{,}1$ & $43\,057$  & $\mathbf{71{,}4}$ \\
 \bottomrule
 \end{tabular}
-\caption{Taux de planéité : modèle de base contre préréglage \texttt{pb1}.}
-\label{tab:v2}
-\end{table}
-
-\subsection{v3 --- Contraintes locales : appariement $5$--$7$ (Stone--Wales)}
-
-v3 explore deux raffinements \emph{locaux}. Le premier borne la courbure de
-Gauss--Bonnet dans un disque de rayon $R$ autour de chaque hexagone
-($|n_5 - n_7| \le \tau$ localement, contrainte C-LC) ; il s'avère
-\textbf{redondant} avec \texttt{pb1}. Le second impose l'\textbf{adjacence
-$5$--$7$} (contrainte C5) : tout pentagone doit avoir un heptagone parmi ses
-voisins immédiats, et réciproquement. C'est l'analogue discret du défaut
-\emph{Stone--Wales} : un pentagone isolé porte une courbure $+\pi/3$ qui ne peut
-être compensée qu'à distance ; en l'accolant à un heptagone ($-\pi/3$), la
-courbure s'annule localement, condition nécessaire à un plongement plan.
-
-La combinaison \texttt{pb1\_adj57} est la \textbf{configuration gagnante} : elle
-améliore encore \texttt{pb1} et atteint un gain de \todo{+X à +Y points} par
-rapport au modèle de base.
-
-\begin{table}[h]
-\centering
-\begin{tabular}{lccc}
-\toprule
-$h$ & \texttt{baseline} & \texttt{pb1} & \texttt{pb1\_adj57} \\
-\midrule
-$h_6$ & \tbd & \tbd & \tbd \\
-$h_7$ & \tbd & \tbd & \tbd \\
-$h_8$ & \tbd & \tbd & \tbd \\
-$h_9$ & \tbd & \tbd & \tbd \\
-\bottomrule
-\end{tabular}
-\caption{Taux de planéité (\%) selon la configuration de contraintes.}
-\label{tab:v3}
+\caption{Comparaison des quatre configurations $C_1$, $C_2$, $C_3$ et
+$C_{\text{topo}}$ : nombre total de solutions générées ($N$) et taux de
+planéité (\% plan, validation \emph{det-opt}). Pour chaque taille, la
+meilleure valeur est en gras. Tailles $h_3$--$h_5$ omises (volumes trop
+faibles pour des statistiques significatives).}
+\label{tab:c1-c2-c3-ctopo}
 \end{table}
 
 \subsection{Bilan expérimental}
 
-L'étude désigne \texttt{pb1\_adj57} comme configuration recommandée (et par
-défaut dans l'outil) : elle combine le plafond combinatoire des pentagones de
-bord et l'appariement local $5$--$7$, et domine les autres réglages en taux de
-planéité comme en coût de validation. Ses limites confirment l'analyse de la
-section~\ref{sec:probleme} : sur les grands squelettes ($h_9$), le taux de
-planéité s'effondre (\tbd), car les défauts de courbure s'accumulent au-delà de
-ce que des contraintes locales peuvent contrôler --- ce qui rappelle la nature
-intrinsèquement globale de la planéité.
+L'étude désigne deux configurations recommandées selon la taille du
+squelette d'entrée :
+
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{Pour $h_6$--$h_8$ :} $C_3$ reste la plus pure
+    ($93$--$97\,\%$ de planéité), au prix d'un volume réduit ; à
+    utiliser lorsqu'on cherche très peu de candidats mais très
+    fiables ;
+  \item \textbf{Pour $h_9$ et au-delà :} $C_{\text{topo}}$ est
+    nettement supérieure ($\mathbf{71{,}4\,\%}$ contre $60{,}1\,\%$
+    pour $C_3$), \emph{et} produit dix-huit fois plus de candidats
+    plans en absolu. C'est la configuration par défaut recommandée
+    pour les grandes tailles.
+\end{itemize}
+
+L'effet $C_{\text{topo}}$ illustre une difficulté méthodologique
+identifiée à la section~\ref{sec:probleme} : la planéité est une
+propriété \emph{globale}, et les leviers les plus efficaces ne s'expriment
+pas comme contraintes locales \og naturelles \fg{} sur les tailles
+$5/6/7$. Ils nécessitent d'une part une exploration statistique du
+corpus $C_1$ pour identifier des motifs déstabilisants (descripteur~1,
+\emph{a posteriori}), et d'autre part une caractérisation du squelette
+\emph{avant assignment} (descripteur~2, indépendant de la solution).
+Cette démarche --- générer un corpus, analyser ses échecs, en extraire
+des contraintes, ré-énumérer --- préfigure une boucle d'apprentissage
+que nous discutons en perspective (section~\ref{sec:conclusion}).
 
 % =====================================================================
 \section{Conclusion et perspectives}
@@ -1999,7 +2140,76 @@ intrinsèquement globale de la planéité.
 
 \subsection{Conclusion}
 
-\todo{À compléter.}
+Ce stage a abordé un problème laissé ouvert par la thèse de
+Varet~\cite{varet2022} : étendre la génération exhaustive par
+programmation par contraintes des HAP aux \emph{non-benzénoïdes}, c'est-à-dire
+aux structures comportant des cycles à $5$ et $7$ atomes.
+
+\paragraph{Modélisation.} Nous avons proposé un modèle PPC complet
+(section~\ref{sec:modele}) qui assigne à chaque hexagone du benzénoïde
+d'entrée une taille de cycle dans $\{5, 6, 7\}$. Il s'articule autour
+de cinq contraintes : conservation du carbone (C1), gel des hexagones
+contraints (C2.1 et C2.2), \textbf{table de voisinage} extensionnelle
+encodant les configurations locales chimiquement réalisables (C3),
+rupture de symétrie par lex-leader sur le groupe d'automorphismes du
+graphe dual (C4), et appariement Stone--Wales optionnel (C5). La table
+de voisinage --- $721$ entrées --- est sensible à la disposition des
+voisins, ce qui la distingue de celles des benzénoïdes purs et corrige
+un défaut subtil que nous avons identifié dans les premières versions
+du modèle.
+
+\paragraph{Validation physique.} Le pipeline complet
+(section~\ref{sec:realisation}) reconstruit chaque solution du modèle
+en une géométrie 3D, puis l'optimise par \xtb{} (GFN2). Nous avons
+constaté que le protocole MD initialement adopté
+n'était pas reproductible (\xtb{} n'expose aucune graine pour ses
+vitesses initiales), ce qui faisait basculer aléatoirement le verdict
+de planéité sur des structures tendues. Nous l'avons remplacé par un
+protocole d'\textbf{optimisation déterministe} (\emph{det-opt}) : une
+perturbation analytique en $\sin(2\pi i / N + \varphi)$ de la
+coordonnée~$z$, suivie d'une optimisation locale standard, le tout en
+mono-thread. Le pipeline est ainsi byte-déterministe, condition
+\emph{sine qua non} pour comparer rigoureusement deux configurations
+de contraintes. Le verdict de planéité est tranché par une analyse en
+composantes principales locale, qui mesure l'angle maximal entre la
+normale de chaque cycle et celle du plan moyen.
+
+\paragraph{Outillage.} L'ensemble du pipeline est intégré dans une
+application web --- le \emph{designer} (section~\ref{sec:logiciel})
+--- qui sert à la fois à dessiner ou importer un benzénoïde, à
+configurer les contraintes (quatre préréglages canoniques + mode
+avancé), à lancer une campagne (locale ou distribuée sur le cluster
+COALA, jusqu'à $320$ instances \xtb{} en parallèle), et à explorer
+les résultats avec un visualiseur 3D intégré. Le visualiseur étend
+les outils existants (Kekulé, couvertures de Clar, RBO) aux cycles
+à $5$ et $7$ atomes, là où la littérature se limitait aux hexagones.
+
+\paragraph{Étude expérimentale.} Nous avons comparé quatre
+configurations sur les squelettes $h_3$--$h_9$ de BenzaiDB
+(section~\ref{sec:xp}). La configuration de base $C_1$ produit des
+taux de planéité qui s'effondrent avec la taille ($38\,\%$ sur $h_9$).
+$C_2$ (Pb1 + adjacence $5$--$7$) et $C_3$ (interdiction des paires
+$7$--$7$) améliorent significativement la pureté sur $h_6$--$h_8$
+(jusqu'à $\mathbf{97\,\%}$ sur $h_8$), mais s'effondrent sur $h_9$
+car les contraintes locales ne suffisent plus à grande taille. Pour
+$h_9$, nous avons identifié $C_{\text{topo}}$, une configuration
+combinant une \textbf{blacklist de motifs de rayon~$2$} dans le graphe
+dual et un \textbf{pré-filtre sur le squelette d'entrée}
+($n_{\text{péri}} \ge 4$). $C_{\text{topo}}$ atteint
+$\mathbf{71{,}4\,\%}$ de planéité sur $h_9$ et produit
+\textbf{dix-huit fois plus} de plans absolus que $C_3$. C'est la
+configuration recommandée pour les grands squelettes.
+
+\paragraph{Confirmation expérimentale du caractère intrinsèquement
+global de la planéité.} L'effondrement de $C_3$ sur $h_9$ et le
+gain de $C_{\text{topo}}$ illustrent concrètement ce que nous avions
+posé théoriquement à la section~\ref{sec:probleme} : la planéité ne
+se laisse pas capturer par des contraintes purement locales sur les
+tailles $5/6/7$. Les leviers les plus efficaces nécessitent
+soit une analyse statistique post-hoc du corpus (descripteurs de
+rayon~$2$), soit un pré-filtre sur le squelette d'entrée
+($n_{\text{péri}}$). C'est précisément cette difficulté qui motive
+les perspectives ci-après.
 
 \subsection{Perspectives}
 
