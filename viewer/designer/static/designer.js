@@ -26,11 +26,18 @@
 
   const SQRT3 = Math.sqrt(3);
 
+  // Taille par defaut d'un hex (pixels). Choisie pour qu'une rangee de ~10 hex
+  // remplisse ~87% du canvas (~880 px effectif) -- visuellement, l'utilisateur
+  // sent que h10-h11 est la limite. Le solveur peut traiter plus, mais le cout
+  // explose au-dela. L'utilisateur peut TOUJOURS dezoomer manuellement
+  // (bornes [8, 80] dans onWheel et boutons +/-).
+  const DEFAULT_HEX_SIZE = 44;
+
   // Etat du canvas : un set de "q,r" pour les hex selectionnes,
   // origine + scale pour le pan/zoom.
   const grid = {
     hexes: new Set(),      // keys "q,r"
-    size: 28,              // pixel radius d'un hex
+    size: DEFAULT_HEX_SIZE,  // pixel radius d'un hex (modifiable au zoom)
     originX: 0, originY: 0,  // pixel offset (pan)
     canvasW: 0, canvasH: 0,
     hover: null,           // {q, r} de l'hex survole
@@ -304,8 +311,10 @@
     onHexesChanged();
   }
 
-  // Recadre la vue pour que tous les hex soient visibles
+  // Recadre la vue pour que tous les hex soient visibles.
+  // Remet aussi le zoom a sa valeur par defaut (DEFAULT_HEX_SIZE).
   function recenterView() {
+    grid.size = DEFAULT_HEX_SIZE;
     if (grid.hexes.size === 0) {
       grid.originX = grid.canvasW / 2;
       grid.originY = grid.canvasH / 2;
