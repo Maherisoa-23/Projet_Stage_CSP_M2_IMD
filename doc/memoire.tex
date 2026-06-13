@@ -2140,76 +2140,38 @@ que nous discutons en perspective (section~\ref{sec:conclusion}).
 
 \subsection{Conclusion}
 
-Ce stage a abordé un problème laissé ouvert par la thèse de
-Varet~\cite{varet2022} : étendre la génération exhaustive par
-programmation par contraintes des HAP aux \emph{non-benzénoïdes}, c'est-à-dire
-aux structures comportant des cycles à $5$ et $7$ atomes.
+Ce stage a étendu aux non-benzénoïdes le cadre de génération exhaustive par
+programmation par contraintes proposé par Varet~\cite{varet2022}. Nous avons
+proposé un modèle PPC qui assigne à chaque hexagone d'un benzénoïde d'entrée
+une taille dans $\{5, 6, 7\}$, articulé autour d'une \emph{table de voisinage}
+extensionnelle de $721$ entrées sensible à la disposition des voisins, et
+d'une rupture de symétrie par lex-leader sur le groupe d'automorphismes du
+graphe dual. Chaque solution du modèle est reconstruite en géométrie 3D, puis
+validée par un pipeline \xtb{}+ACP, dont le protocole d'optimisation
+déterministe (perturbation analytique en $\sin(2\pi i / N + \varphi)$ suivie
+de \texttt{xtb --opt} en mono-thread) garantit la reproductibilité
+byte-pour-byte, contrairement à la dynamique moléculaire initialement
+employée. L'ensemble est intégré dans une application web --- le
+\emph{designer} et son visualiseur 3D --- qui étend également aux cycles à
+$5$ et $7$ atomes l'analyse électronique (structures de Kekulé, couvertures
+de Clar, ring bond order), restreinte jusqu'ici aux hexagones.
 
-\paragraph{Modélisation.} Nous avons proposé un modèle PPC complet
-(section~\ref{sec:modele}) qui assigne à chaque hexagone du benzénoïde
-d'entrée une taille de cycle dans $\{5, 6, 7\}$. Il s'articule autour
-de cinq contraintes : conservation du carbone (C1), gel des hexagones
-contraints (C2.1 et C2.2), \textbf{table de voisinage} extensionnelle
-encodant les configurations locales chimiquement réalisables (C3),
-rupture de symétrie par lex-leader sur le groupe d'automorphismes du
-graphe dual (C4), et appariement Stone--Wales optionnel (C5). La table
-de voisinage --- $721$ entrées --- est sensible à la disposition des
-voisins, ce qui la distingue de celles des benzénoïdes purs et corrige
-un défaut subtil que nous avons identifié dans les premières versions
-du modèle.
-
-\paragraph{Validation physique.} Le pipeline complet
-(section~\ref{sec:realisation}) reconstruit chaque solution du modèle
-en une géométrie 3D, puis l'optimise par \xtb{} (GFN2). Nous avons
-constaté que le protocole MD initialement adopté
-n'était pas reproductible (\xtb{} n'expose aucune graine pour ses
-vitesses initiales), ce qui faisait basculer aléatoirement le verdict
-de planéité sur des structures tendues. Nous l'avons remplacé par un
-protocole d'\textbf{optimisation déterministe} (\emph{det-opt}) : une
-perturbation analytique en $\sin(2\pi i / N + \varphi)$ de la
-coordonnée~$z$, suivie d'une optimisation locale standard, le tout en
-mono-thread. Le pipeline est ainsi byte-déterministe, condition
-\emph{sine qua non} pour comparer rigoureusement deux configurations
-de contraintes. Le verdict de planéité est tranché par une analyse en
-composantes principales locale, qui mesure l'angle maximal entre la
-normale de chaque cycle et celle du plan moyen.
-
-\paragraph{Outillage.} L'ensemble du pipeline est intégré dans une
-application web --- le \emph{designer} (section~\ref{sec:logiciel})
---- qui sert à la fois à dessiner ou importer un benzénoïde, à
-configurer les contraintes (quatre préréglages canoniques + mode
-avancé), à lancer une campagne (locale ou distribuée sur le cluster
-COALA, jusqu'à $320$ instances \xtb{} en parallèle), et à explorer
-les résultats avec un visualiseur 3D intégré. Le visualiseur étend
-les outils existants (Kekulé, couvertures de Clar, RBO) aux cycles
-à $5$ et $7$ atomes, là où la littérature se limitait aux hexagones.
-
-\paragraph{Étude expérimentale.} Nous avons comparé quatre
-configurations sur les squelettes $h_3$--$h_9$ de BenzaiDB
-(section~\ref{sec:xp}). La configuration de base $C_1$ produit des
-taux de planéité qui s'effondrent avec la taille ($38\,\%$ sur $h_9$).
-$C_2$ (Pb1 + adjacence $5$--$7$) et $C_3$ (interdiction des paires
-$7$--$7$) améliorent significativement la pureté sur $h_6$--$h_8$
-(jusqu'à $\mathbf{97\,\%}$ sur $h_8$), mais s'effondrent sur $h_9$
-car les contraintes locales ne suffisent plus à grande taille. Pour
-$h_9$, nous avons identifié $C_{\text{topo}}$, une configuration
-combinant une \textbf{blacklist de motifs de rayon~$2$} dans le graphe
-dual et un \textbf{pré-filtre sur le squelette d'entrée}
-($n_{\text{péri}} \ge 4$). $C_{\text{topo}}$ atteint
-$\mathbf{71{,}4\,\%}$ de planéité sur $h_9$ et produit
-\textbf{dix-huit fois plus} de plans absolus que $C_3$. C'est la
-configuration recommandée pour les grands squelettes.
-
-\paragraph{Confirmation expérimentale du caractère intrinsèquement
-global de la planéité.} L'effondrement de $C_3$ sur $h_9$ et le
-gain de $C_{\text{topo}}$ illustrent concrètement ce que nous avions
-posé théoriquement à la section~\ref{sec:probleme} : la planéité ne
-se laisse pas capturer par des contraintes purement locales sur les
-tailles $5/6/7$. Les leviers les plus efficaces nécessitent
-soit une analyse statistique post-hoc du corpus (descripteurs de
-rayon~$2$), soit un pré-filtre sur le squelette d'entrée
-($n_{\text{péri}}$). C'est précisément cette difficulté qui motive
-les perspectives ci-après.
+L'étude expérimentale sur les squelettes $h_3$--$h_9$ de BenzaiDB a comparé
+quatre configurations, du modèle de base $C_1$ à la configuration
+$C_{\text{topo}}$ combinant une blacklist de motifs de rayon~$2$ et un
+pré-filtre sur le squelette ($n_{\text{péri}} \ge 4$). Les configurations
+purement locales $C_2$ et $C_3$ atteignent une pureté élevée sur les tailles
+intermédiaires (jusqu'à $97\,\%$ sur $h_8$) mais s'effondrent sur $h_9$, où
+$C_{\text{topo}}$ s'impose nettement ($71{,}4\,\%$ de planéité, et
+\emph{dix-huit fois plus} de candidats plans absolus que $C_3$). Ce résultat
+confirme expérimentalement ce que nous avions identifié théoriquement~: la
+planéité est une propriété globale qui ne se capture pas, sur les grands
+squelettes, par des contraintes purement locales sur les tailles $5/6/7$. Les
+leviers les plus efficaces nécessitent soit une analyse statistique
+\emph{a posteriori} du corpus généré (descripteurs de rayon~$2$), soit un
+pré-filtre sur le squelette d'entrée indépendant de l'assignment
+($n_{\text{péri}}$) --- difficulté qui motive directement les perspectives
+ci-après.
 
 \subsection{Perspectives}
 
