@@ -494,12 +494,14 @@ internes n'ont pas d'hydrogène.
 
 \underline{Électrons $\sigma$ et $\pi$} : les électrons d'une liaison
 covalente se répartissent en deux types selon la géométrie du
-recouvrement orbitalaire. Les électrons $\sigma$ forment le squelette
-rigide de la molécule (un $\sigma$ par liaison simple, et un $\sigma$
-dans chaque liaison double). Les électrons $\pi$, présents uniquement
-dans les liaisons doubles, occupent des orbitales perpendiculaires au
-plan local et sont \emph{plus faiblement localisés}. Ce sont eux qui
-portent les propriétés aromatiques et opto-électroniques des HAP.
+recouvrement orbitalaire. Une liaison simple est constituée d'une paire
+d'électrons formant une \emph{liaison} $\sigma$, qui appartient au
+squelette rigide de la molécule. Une liaison double comporte deux
+paires : la première forme également une liaison $\sigma$, la seconde
+une \emph{liaison} $\pi$, dont les électrons occupent des orbitales
+perpendiculaires au plan local et sont \emph{plus faiblement
+localisés}. Ce sont ces électrons $\pi$ qui portent les propriétés
+aromatiques et opto-électroniques des HAP.
 
 \underline{Hybridation $sp^2$ et $sp^3$} : l'\emph{hybridation} décrit la
 géométrie locale des liaisons d'un atome de carbone. En hybridation
@@ -830,10 +832,10 @@ définies au sens classique.
 Lorsqu'une molécule n'admet aucun couplage parfait (par exemple à cause d'un
 nombre impair d'atomes ou d'une topologie particulière), certains carbones
 restent non couverts : ils portent un \textbf{électron $\pi$ non apparié},
-appelé aussi \emph{électron radicalaire} ou \emph{électron célibataire}. La
-parité impaire des cycles à $5$ et $7$ atomes favorise précisément
-l'apparition de tels sites, ce qui rend les structures non-benzénoïdes
-intéressantes pour la chimie radicalaire.
+appelé aussi \emph{électron célibataire}. La molécule devient dans ce cas
+un (mono)radical. La parité impaire des cycles à $5$ et $7$ atomes favorise
+précisément l'apparition de tels sites, ce qui rend les structures
+non-benzénoïdes intéressantes pour la chimie radicalaire.
 
 L'exemple le plus simple est celui d'un pentagone accolé à un hexagone
 (figure~\ref{fig:radical-5-6}) : le squelette compte $5 + 6 - 2 = 9$ atomes
@@ -885,12 +887,9 @@ site radicalaire est \emph{forcé} par la topologie.
   \dblr{RA}{RB}{CR}
   % Le sommet RC reste sans double : site radicalaire
   \fill (RC) circle (1.6pt);
-  \draw (RC) ++(0.18, -0.18) node[anchor=west,font=\scriptsize] {$\bullet$ (radical)};
+  \node[anchor=west, font=\scriptsize, inner sep=1.5pt] at (RC) {\;(radical)};
 \end{tikzpicture}
-\caption{Un pentagone accolé à un hexagone : 9 carbones (impair), donc tout
-couplage laisse au moins un atome non couvert. Le carbone marqué d'un point
-porte un électron $\pi$ non apparié : c'est un site radicalaire imposé par la
-topologie du squelette.}
+\caption{Un pentagone accolé à un hexagone}
 \label{fig:radical-5-6}
 \end{figure}
 
@@ -906,11 +905,12 @@ effectivement. On dit alors qu'une molécule est \textbf{plane} si tous ses
 atomes se placent, à l'équilibre énergétique, dans un même plan.
 
 Pour un pavage d'hexagones réguliers, la somme des angles autour de chaque
-sommet vaut $360^\circ$ et la structure est plane. Un pentagone (angle interne
-$108^\circ$) introduit localement un \emph{défaut d'angle} positif et la
-matière tend à se refermer, comme dans un fullerène ; un heptagone
-($\approx 128{,}6^\circ$) introduit un défaut négatif et la matière tend à
-onduler.
+sommet vaut $360^\circ$ et la structure est plane. Un pentagone (angle
+interne $108^\circ$) introduit localement un \emph{défaut d'angle} par
+rapport à un hexagone et la tension de cycle est plus importante : la
+molécule tend à se refermer, comme dans un fullerène. À l'inverse, dans un
+heptagone ($\approx 128{,}6^\circ$), les angles sont plus ouverts que ceux
+d'un hexagone et la molécule tend à être plus flexible, donc à onduler.
 
 \subsubsection{Validation quantique semi-empirique (\xtb{})}
 
@@ -1145,62 +1145,69 @@ haut ($3{+}2$).
   \end{scope}
 
   % ============================================================
-  % (b) VARIANTE 1 EN BAS GAUCHE : heptagone central etiquete 2+3
+  % (b) VARIANTE 1 EN BAS GAUCHE : heptagone REGULIER central, etiquete 2+3
   % ============================================================
+  % Geometrie : heptagone regulier de rayon r7 = 1.4/(2 sin(pi/7)) ~ 1.6132,
+  % apex haut a (0, r7). Les 2 hex voisins partagent les aretes V1-V2
+  % (cote gauche, oblique) et V5-V6 (cote droit, oblique). Du coup leurs
+  % centres ne sont plus alignes a y=0 : ils sont surrieleves a y=+0.593
+  % et orientes de telle sorte qu'un sommet tombe a angle ~17.15°.
   \begin{scope}[shift={(-5.5, -3.8)}]
-    % Heptagone central (irregulier : etiré vers le bas)
-    \coordinate (V1) at (1.21, 0.7);   % haut-droite (partage avec hex droit)
-    \coordinate (V2) at (0, 1.4);      % apex haut
-    \coordinate (V3) at (-1.21, 0.7);  % haut-gauche (partage avec hex gauche)
-    \coordinate (V4) at (-1.21, -0.7); % bas-gauche (partage avec hex gauche)
-    \coordinate (V5) at (-0.7, -2);    % bas-milieu-gauche
-    \coordinate (V6) at (0.7, -2);     % bas-milieu-droite
-    \coordinate (V7) at (1.21, -0.7);  % bas-droite (partage avec hex droit)
-    % Hex gauche
-    \begin{scope}[shift={(-\dhex, 0)}]
-      \foreach \i in {0,...,5} { \coordinate (L\i) at ({30 + \i*60}:\rsix); }
+    \pgfmathsetmacro{\rsept}{1.4/(2*sin(180/7))}
+    \foreach \i in {0,...,6} {
+      \coordinate (V\i) at ({90 + \i*360/7}:\rsept);
+    }
+    % Hex gauche : centre decale et tourne pour partager l'arete V1-V2
+    \begin{scope}[shift={(-2.599, 0.593)}]
+      \foreach \i in {0,...,5} {
+        \coordinate (L\i) at ({-42.85 + \i*60}:\rsix);
+      }
       \draw[polyL] (L0)--(L1)--(L2)--(L3)--(L4)--(L5)--cycle;
     \end{scope}
-    \begin{scope}[shift={(\dhex, 0)}]
-      \foreach \i in {0,...,5} { \coordinate (R\i) at ({30 + \i*60}:\rsix); }
+    % Hex droit : symetrique (partage l'arete V5-V6)
+    \begin{scope}[shift={(2.599, 0.593)}]
+      \foreach \i in {0,...,5} {
+        \coordinate (R\i) at ({162.85 + \i*60}:\rsix);
+      }
       \draw[polyR] (R0)--(R1)--(R2)--(R3)--(R4)--(R5)--cycle;
     \end{scope}
-    % Heptagone
-    \draw[polyC] (V1)--(V2)--(V3)--(V4)--(V5)--(V6)--(V7)--cycle;
-    % Etiquettes
-    \node[labL] at (-4.0, 0) {$5$};
-    \node[labR] at (4.0, 0) {$5$};
-    \node[labC] at (0, 1.85) {$2$};
-    \node[labC] at (0, -2.45) {$3$};
-    \node[subcap] at (0, -3.3) {(b) variante 1 : $2{+}3$};
+    \draw[polyC] (V0)--(V1)--(V2)--(V3)--(V4)--(V5)--(V6)--cycle;
+    \node[labL] at (-4.3, 0.593) {$5$};
+    \node[labR] at (4.3, 0.593) {$5$};
+    \node[labC] at (0, 2.05) {$2$};
+    \node[labC] at (0, -1.85) {$3$};
+    \node[subcap] at (0, -2.7) {(b) variante 1 : $2{+}3$};
   \end{scope}
 
   % ============================================================
-  % (c) VARIANTE 2 EN BAS DROITE : heptagone central etiquete 3+2
+  % (c) VARIANTE 2 EN BAS DROITE : heptagone REGULIER central, etiquete 3+2
   % ============================================================
+  % Miroir vertical de la variante 1 : apex en bas, hex voisins abaisses.
   \begin{scope}[shift={(5.5, -3.8)}]
-    % Heptagone central (miroir vertical de variante 1 : etire vers le haut)
-    \coordinate (W1) at (1.21, -0.7);
-    \coordinate (W2) at (0, -1.4);
-    \coordinate (W3) at (-1.21, -0.7);
-    \coordinate (W4) at (-1.21, 0.7);
-    \coordinate (W5) at (-0.7, 2);
-    \coordinate (W6) at (0.7, 2);
-    \coordinate (W7) at (1.21, 0.7);
-    \begin{scope}[shift={(-\dhex, 0)}]
-      \foreach \i in {0,...,5} { \coordinate (L\i) at ({30 + \i*60}:\rsix); }
+    \pgfmathsetmacro{\rsept}{1.4/(2*sin(180/7))}
+    \foreach \i in {0,...,6} {
+      \coordinate (W\i) at ({-90 + \i*360/7}:\rsept);
+    }
+    % Hex gauche : partage l'arete W5-W6
+    \begin{scope}[shift={(-2.599, -0.593)}]
+      \foreach \i in {0,...,5} {
+        \coordinate (L\i) at ({42.85 + \i*60}:\rsix);
+      }
       \draw[polyL] (L0)--(L1)--(L2)--(L3)--(L4)--(L5)--cycle;
     \end{scope}
-    \begin{scope}[shift={(\dhex, 0)}]
-      \foreach \i in {0,...,5} { \coordinate (R\i) at ({30 + \i*60}:\rsix); }
+    % Hex droit : partage l'arete W1-W2
+    \begin{scope}[shift={(2.599, -0.593)}]
+      \foreach \i in {0,...,5} {
+        \coordinate (R\i) at ({137.15 + \i*60}:\rsix);
+      }
       \draw[polyR] (R0)--(R1)--(R2)--(R3)--(R4)--(R5)--cycle;
     \end{scope}
-    \draw[polyC] (W1)--(W2)--(W3)--(W4)--(W5)--(W6)--(W7)--cycle;
-    \node[labL] at (-4.0, 0) {$5$};
-    \node[labR] at (4.0, 0) {$5$};
-    \node[labC] at (0, 2.45) {$3$};
-    \node[labC] at (0, -1.85) {$2$};
-    \node[subcap] at (0, -3.3) {(c) variante 2 : $3{+}2$};
+    \draw[polyC] (W0)--(W1)--(W2)--(W3)--(W4)--(W5)--(W6)--cycle;
+    \node[labL] at (-4.3, -0.593) {$5$};
+    \node[labR] at (4.3, -0.593) {$5$};
+    \node[labC] at (0, 1.85) {$3$};
+    \node[labC] at (0, -2.05) {$2$};
+    \node[subcap] at (0, -2.7) {(c) variante 2 : $3{+}2$};
   \end{scope}
 
   % ============================================================
@@ -1371,7 +1378,7 @@ reconstruit en une molécule tridimensionnelle puis validé.
 
 Le modèle de la section~\ref{sec:modele} produit des \emph{vecteurs de tailles}
 $(x_0, \dots, x_{h-1})$ : des objets abstraits. Cette section décrit comment on
-en fait des molécules réelles, comment on tranche leur planéité, et comment on
+en fait des molécules réelles, comment on décide de leur planéité, et comment on
 analyse leurs propriétés électroniques. Elle regroupe l'essentiel du travail
 d'implémentation.
 
@@ -1442,8 +1449,9 @@ longueur $\ell$ vaut
 \[
   r_n \;=\; \frac{\ell}{2\sin(\pi/n)}.
 \]
-Numériquement, $r_5 \approx 1{,}19$, $r_6 \approx 1{,}40$, $r_7 \approx 1{,}61$
-(en angströms).
+Pour $\ell = 1{,}4$~\AA{} (longueur typique d'une liaison carbone--carbone
+dans un benzénoïde), on obtient $r_5 \approx 1{,}19$~\AA, $r_6 \approx
+1{,}40$~\AA, $r_7 \approx 1{,}61$~\AA.
 
 \paragraph{Parcours en largeur du graphe dual.}
 Le placement s'effectue par un parcours en largeur (\emph{BFS}) du graphe
@@ -1754,7 +1762,7 @@ Un canevas hexagonal en SVG permet à l'utilisateur de \emph{dessiner} un
 benzénoïde de départ : on clique sur les hexagones du pavage pour les
 sélectionner, et le graphe dual sous-jacent est construit à la volée.
 La saisie peut aussi se faire par \emph{importation} : un benzénoïde
-déjà enregistré dans la base BenzaiDB (ou venant d'un fichier au format
+déjà enregistré dans la base BenzDB (ou venant d'un fichier au format
 texte adapté) peut être chargé directement, ce qui est utile pour
 rejouer une campagne sur un corpus déjà fixé.
 
@@ -1764,7 +1772,7 @@ rejouer une campagne sur un corpus déjà fixé.
   \emph{[Capture du designer en mode saisie d'instance --- à insérer]}
 \end{minipage}}
 \caption{Designer en mode saisie : canevas hexagonal pour dessiner un
-benzénoïde ou choisir un squelette importé depuis BenzaiDB.}
+benzénoïde ou choisir un squelette importé depuis BenzDB.}
 \label{fig:designer-saisie}
 \end{figure}
 
@@ -1948,7 +1956,7 @@ aux plus contraintes, qui isolent successivement chaque levier identifié.
 \subsection{Protocole et banc d'essai}
 
 Le banc d'essai utilise les squelettes benzénoïdes canoniques de la base
-\emph{BenzaiDB}, de $h_3$ à $h_9$ hexagones (tableau~\ref{tab:corpus}). La
+\emph{BenzDB}, de $h_3$ à $h_9$ hexagones (tableau~\ref{tab:corpus}). La
 métrique principale est le \textbf{taux de planéité} : la proportion de
 solutions jugées planes par le pipeline \xtb{}+ACP, complétée par le
 \emph{nombre absolu} de molécules planes produites (souvent plus parlant pour
@@ -1969,7 +1977,7 @@ nombre de squelettes & $3$ & $6$ & $16$ & $44$ & $126$ & $376$ & $2\,418$ \\
 \caption{Nombre de squelettes benzénoïdes du corpus par taille $h$. Les
 tailles $h_3$--$h_5$ proviennent d'une énumération directe (peu de
 squelettes possibles à cette échelle) ; les tailles $h_6$--$h_9$ sont
-issues de la base BenzaiDB.}
+issues de la base BenzDB.}
 \label{tab:corpus}
 \end{table}
 
@@ -2103,13 +2111,7 @@ $h_9$ & $646\,319$ & $38{,}2$           & $21\,127$& $49{,}7$           & $2\,84
 \bottomrule
 \end{tabular}
 \caption{Comparaison des quatre configurations $C_1$, $C_2$, $C_3$ et
-$C_{\text{topo}}$ : nombre total de solutions générées ($N$) et taux de
-planéité (\% plan, validation \emph{det-opt}). Pour chaque taille, la
-meilleure valeur est en gras. La mention \og n.a. \fg{} pour
-$C_{\text{topo}}$ sur $h_3$--$h_5$ traduit que ces squelettes sont trop
-petits pour vérifier le pré-filtre $n_{\text{péri}} \ge 4$ ($n_{\text{péri}}$
-vaut au plus $1$, $2$ et $3$ pour $h_3$, $h_4$ et $h_5$ respectivement) ;
-$C_{\text{topo}}$ n'est donc applicable qu'à partir de $h_6$.}
+$C_{\text{topo}}$ }
 \label{tab:c1-c2-c3-ctopo}
 \end{table}
 
@@ -2172,7 +2174,7 @@ employée. L'ensemble est intégré dans une application web --- le
 $5$ et $7$ atomes l'analyse électronique (structures de Kekulé, couvertures
 de Clar, ring bond order), restreinte jusqu'ici aux hexagones.
 
-L'étude expérimentale sur les squelettes $h_3$--$h_9$ de BenzaiDB a comparé
+L'étude expérimentale sur les squelettes $h_3$--$h_9$ de BenzDB a comparé
 quatre configurations, du modèle de base $C_1$ à la configuration
 $C_{\text{topo}}$ combinant une blacklist de motifs de rayon~$2$ et un
 pré-filtre sur le squelette ($n_{\text{péri}} \ge 4$). Les configurations
