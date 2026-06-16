@@ -252,219 +252,16 @@ section~\ref{sec:conclusion} conclut.
 \label{sec:prelim}
 % =====================================================================
 
-Notre travail se situe à l'interface de l'informatique et de la chimie
-théorique. Les notions nécessaires à la lecture du mémoire sont d'abord celles
-de la programmation par contraintes, puis le vocabulaire de chimie utilisé
-dans la suite.
-
-\subsection{Programmation par contraintes (PPC)}
-\label{sec:ppc}
-
-La \emph{programmation par contraintes} est un paradigme déclaratif de
-résolution de problèmes combinatoires. Plutôt que de décrire \emph{comment}
-résoudre un problème, on se contente d'en \emph{décrire les solutions}, puis
-on confie la recherche à un solveur générique.
-
-\subsubsection{Réseau de contraintes}
-
-\begin{definition}[Réseau de contraintes / CSP]
-Un \emph{problème de satisfaction de contraintes} est un triplet
-$(X, D, C)$ où $X = \{x_1, \dots, x_n\}$ est un ensemble de \emph{variables},
-$D = \{D_1, \dots, D_n\}$ associe à chaque variable $x_i$ un \emph{domaine}
-fini $D_i$ de valeurs possibles, et $C$ est un ensemble de \emph{contraintes}.
-Chaque contrainte porte sur un sous-ensemble de variables et restreint les
-combinaisons de valeurs qu'elles peuvent prendre simultanément. Une
-\emph{solution} est une affectation de chaque variable à une valeur de son
-domaine satisfaisant toutes les contraintes.
-\end{definition}
-
-\subsubsection{Un exemple : le Sudoku}
-\label{sec:ppc-exemple}
-
-Pour illustrer concrètement ce formalisme, prenons l'exemple, classique
-en PPC, du \textbf{Sudoku}.
-On dispose d'une grille $9 \times 9$ partiellement remplie de chiffres de
-$1$ à $9$ (figure~\ref{fig:sudoku}, à gauche), et l'on cherche à
-compléter les cases vides de telle sorte que chaque chiffre apparaisse
-exactement une fois sur chaque ligne, chaque colonne et chacun des neuf
-sous-blocs $3\times 3$.
-
-\begin{figure}[h]
-\centering
-\begin{tikzpicture}[scale=0.63, baseline=(current bounding box.center)]
-  % grille 9x9
-  \draw[thick] (0,0) rectangle (9,9);
-  \foreach \i in {1,...,8} {
-    \draw (\i,0)--(\i,9);
-    \draw (0,\i)--(9,\i);
-  }
-  \foreach \i in {3,6} {
-    \draw[thick] (\i,0)--(\i,9);
-    \draw[thick] (0,\i)--(9,\i);
-  }
-  % quelques chiffres pre-remplis (illustration)
-  \foreach \x/\y/\v in {
-    0/8/5, 1/8/3, 4/8/7,
-    0/7/6, 3/7/1, 4/7/9, 5/7/5,
-    1/6/9, 2/6/8, 7/6/6,
-    0/5/8, 4/5/6, 8/5/3,
-    0/4/4, 3/4/8, 5/4/3, 8/4/1,
-    0/3/7, 4/3/2, 8/3/6,
-    1/2/6, 6/2/2, 7/2/8,
-    3/1/4, 4/1/1, 5/1/9, 8/1/5,
-    4/0/8, 7/0/7, 8/0/9
-  } {
-    \node[font=\large] at (\x+0.5, \y+0.5) {\v};
-  }
-\end{tikzpicture}
-\hspace{0.6cm}
-\begin{tikzpicture}[scale=0.63, baseline=(current bounding box.center)]
-  % grille partiellement resolue avec une cellule mise en evidence
-  \draw[thick] (0,0) rectangle (9,9);
-  \foreach \i in {1,...,8} {
-    \draw (\i,0)--(\i,9);
-    \draw (0,\i)--(9,\i);
-  }
-  \foreach \i in {3,6} {
-    \draw[thick] (\i,0)--(\i,9);
-    \draw[thick] (0,\i)--(9,\i);
-  }
-  % cellule mise en evidence (ligne 4, colonne 4)
-  \fill[gray!30] (3,4) rectangle (4,5);
-  \node[font=\Large] at (3.5,4.5) {$x_{ij}$};
-  % ligne et colonne et bloc en surbrillance
-  \draw[red, thick] (0,4) rectangle (9,5);            % ligne
-  \draw[red, thick] (3,0) rectangle (4,9);            % colonne
-  \draw[green!60!black, thick] (3,3) rectangle (6,6); % bloc 3x3 (vert)
-\end{tikzpicture}
-\caption{Un Sudoku partiellement rempli (à gauche) et la portée des
-contraintes \texttt{allDifferent} sur la case $x_{ij}$ (à droite) : sa
-valeur doit différer de toutes les autres cases de sa ligne, de sa
-colonne et de son bloc $3\times 3$.}
-\label{fig:sudoku}
-\end{figure}
-
-Ce problème se modélise comme un CSP :
-\begin{itemize}
-  \item \textbf{Variables} : une variable $x_{ij}$ par case
-    ($i, j \in \{1, \dots, 9\}$), soit $81$ variables.
-  \item \textbf{Domaines} : $D_{ij} = \{1, \dots, 9\}$ pour les cases
-    vides ; pour les cases pré-remplies, on fige $D_{ij} = \{v\}$ où $v$
-    est le chiffre donné.
-  \item \textbf{Contraintes} : pour chaque ligne $i$, $\mathit{allDifferent}(x_{i1}, x_{i2}, \dots, x_{i9})$ ;
-    de même pour chaque colonne, et pour chacun des neuf blocs $3\times 3$
-    ($27$ contraintes globales au total).
-\end{itemize}
-Une affectation des $81$ variables est solution si et seulement si elle
-satisfait les $27$ contraintes \texttt{allDifferent}.
-
-\subsubsection{Résolution : propagation et recherche arborescente}
-
-La résolution d'un CSP combine deux mécanismes complémentaires.
-
-\textbf{Propagation de contraintes.} À chaque étape, on retire des
-domaines les valeurs qui ne peuvent appartenir à aucune solution. Le
-critère le plus courant est la \emph{cohérence d'arc} : pour toute
-contrainte $c$ et toute variable $x_i$ de sa portée, on retire de $D_i$
-toute valeur $v$ qui n'a aucun \emph{support} dans les domaines des
-autres variables de $c$ (c'est-à-dire telle qu'aucune affectation des
-autres variables ne satisfasse $c$ avec $v$). Sur l'exemple du Sudoku, si
-une case d'une ligne contient $7$, la propagation retire $7$ du domaine
-de toutes les autres cases de la même ligne, de la même colonne et du
-même bloc.
-
-\textbf{Recherche arborescente.} On affecte les variables une à une dans
-un arbre de décision (figure~\ref{fig:csp-arbre}). À chaque nœud, le
-solveur choisit une variable et lui assigne une valeur de son domaine
-courant ; il descend dans l'arbre tant que la propagation laisse au
-moins une valeur possible à chaque variable, et revient en arrière
-(\emph{backtrack}) lorsqu'un domaine devient vide. L'efficacité du
-solveur dépend de l'ordre de branchement et de la finesse de la
-propagation.
-
-\begin{figure}[h]
-\centering
-\begin{tikzpicture}[
-  level distance=1.0cm,
-  level 1/.style={sibling distance=4.5cm},
-  level 2/.style={sibling distance=2.0cm},
-  every node/.style={font=\small},
-  scale=0.9]
-  \node[draw, rounded corners] {$x_{ij}=?$}
-    child {node[draw, rounded corners] {$x_{i\,j+1}=2$}
-      child {node[draw, rounded corners] {$\dots$}
-        edge from parent node[left,font=\scriptsize] {} }
-      child {node[draw, rounded corners] {$\dots$}
-        edge from parent node[right,font=\scriptsize] {} }
-      edge from parent node[left,font=\scriptsize] {1} }
-    child {node[draw, rounded corners] {$x_{i\,j+1}=4$}
-      child {node[draw, rounded corners] {$\dots$} }
-      child {node[draw, rounded corners] {$\dots$} }
-      edge from parent node[right,font=\scriptsize] {1} };
-\end{tikzpicture}
-\caption{Recherche arborescente pour le Sudoku : à chaque nœud, le
-solveur essaie successivement les valeurs du domaine courant ; la
-propagation élague les branches contradictoires.}
-\label{fig:csp-arbre}
-\end{figure}
-
-L'intérêt majeur du paradigme est qu'il n'est pas nécessaire d'écrire un
-algorithme spécifique à chaque problème : il suffit de formuler le
-modèle, puis d'invoquer un solveur traité comme une \emph{boîte noire}.
-Dans ce travail, nous écrivons les modèles avec la bibliothèque Python
-\textsc{PyCSP3} et nous les résolvons avec le solveur \ace{} (\emph{Abscon
-Constraint Engine})~\cite{pycsp3ace}, qui sait énumérer l'ensemble des
-solutions d'une instance.
-
-\subsubsection{Contraintes en extension et contraintes globales}
-
-Deux familles de contraintes nous seront particulièrement utiles dans la
-suite. Une \textbf{contrainte en extension} (ou \emph{de table}) liste
-explicitement les combinaisons de valeurs autorisées pour un groupe de
-variables : c'est la forme naturelle pour encoder un catalogue de
-configurations admissibles, et c'est elle que nous utiliserons pour la
-\emph{table de voisinage} chimique (section~\ref{sec:modele}). Une
-\textbf{contrainte globale} capture un motif récurrent sur un nombre
-arbitraire de variables, avec une propagation spécialisée plus efficace
-que la décomposition en contraintes binaires : par exemple $\mathit{Sum}$
-(une somme bornée), que nous utiliserons pour exprimer la conservation du
-carbone, ou $\mathit{LexIncreasing}$ (un ordre lexicographique entre deux
-vecteurs de variables), que nous emploierons pour la rupture de symétrie.
-
-La souplesse de la PPC, qui consiste à activer, désactiver ou ajouter une
-contrainte puis ré-énumérer rapidement les solutions, est un atout décisif
-pour un travail mené en dialogue continu avec les chimistes.
-
-\subsubsection{Isomorphisme de graphes}
-\label{sec:ppc-isomorphisme}
-
-Comme une partie centrale de notre modélisation repose sur les automorphismes
-d'un graphe (rupture de symétrie en section~\ref{sec:c4}), nous rappelons
-ici la notion d'\emph{isomorphisme}, qui apparaît dans tout le mémoire.
-
-\begin{definition}[Isomorphisme de graphes]
-Deux graphes non orientés $G = (V_G, E_G)$ et $H = (V_H, E_H)$ sont dits
-\textbf{isomorphes} s'il existe une bijection $f : V_G \to V_H$ qui
-préserve les arêtes, c'est-à-dire telle que
-\[
-  \forall u, v \in V_G,\quad \{u, v\} \in E_G \iff \{f(u), f(v)\} \in E_H .
-\]
-La bijection $f$ est alors appelée un \textbf{isomorphisme} entre $G$ et
-$H$. Si $G = H$, on parle d'\textbf{automorphisme} de $G$ : c'est une
-permutation des sommets qui préserve les arêtes.
-\end{definition}
-
-Intuitivement, deux graphes isomorphes sont « les mêmes » à un
-renommage des sommets près ; ils représentent la même structure
-abstraite. Pour notre problème, deux substitutions d'un benzénoïde qui
-diffèrent uniquement par un automorphisme du graphe dual correspondent
-à la même molécule, et seront comptées une seule fois. La rupture de
-symétrie (section~\ref{sec:c4}) traite explicitement ce point.
+Notre travail se situe à l'interface de la chimie théorique et de
+l'informatique. Les notions nécessaires à la lecture du mémoire sont
+d'abord celles de la chimie des HAP, puis le formalisme de la
+programmation par contraintes.
 
 \subsection{Notions de chimie}
 
-Les termes de chimie employés dans la suite peuvent être lus aussi bien comme
-des définitions sur des graphes que comme le vocabulaire chimique usuel.
+Les termes de chimie employés dans la suite peuvent être lus aussi bien
+comme des définitions sur des graphes que comme le vocabulaire chimique
+usuel.
 
 \subsubsection{Définitions préliminaires}
 \label{sec:chimie-prelim}
@@ -481,16 +278,11 @@ d'atomes reliés par des liaisons covalentes.
 \underline{Liaison covalente, simple et double} : une liaison covalente
 résulte du partage d'une ou plusieurs paires d'électrons entre deux
 atomes. On parle de liaison \emph{simple} lorsqu'une seule paire est
-partagée, de liaison \emph{double} lorsque deux paires le sont. Dans un
-HAP, toutes les liaisons carbone--carbone et carbone--hydrogène sont
-covalentes.
+partagée, de liaison \emph{double} lorsque deux paires le sont.
 
 \underline{Valence} : la valence d'un atome est le nombre de liaisons
 qu'il peut former. Le carbone est tétravalent (quatre liaisons),
-l'hydrogène monovalent (une liaison). Dans un HAP, chaque carbone
-établit trois liaisons avec ses voisins du squelette et, lorsqu'il se
-trouve au bord, une quatrième avec un atome d'hydrogène ; les carbones
-internes n'ont pas d'hydrogène.
+l'hydrogène monovalent (une liaison).
 
 \underline{Électrons $\sigma$ et $\pi$} : les électrons d'une liaison
 covalente se répartissent en deux types selon la géométrie du
@@ -520,65 +312,109 @@ se recouvrent continûment et créent un système d'électrons $\pi$
 décrite à la section~\ref{sec:aromaticite} ci-après.
 
 \subsubsection{HAP, benzénoïdes et graphe dual}
+\label{sec:dual}
 
-Un \textbf{benzénoïde} est un assemblage d'hexagones réguliers du pavage
-hexagonal, fusionnés par des arêtes. On peut le voir de deux façons. Le
-\emph{graphe carbone} a pour sommets les atomes de carbone et pour arêtes les
-liaisons carbone--carbone. Le \emph{graphe dual} \GD{}, central dans tout ce
-travail, résume la combinatoire des hexagones.
+Les \textbf{hydrocarbures aromatiques polycycliques} (HAP) sont des
+molécules formées exclusivement d'atomes de carbone et d'hydrogène, dont
+les carbones constituent un assemblage de cycles fusionnés.
 
-\begin{definition}[Graphe dual]
-Soit $B$ un benzénoïde à $h$ hexagones. Son graphe dual $\GD = (V_D, E_D)$ a
-pour sommets $V_D = \{0, \dots, h-1\}$ (un sommet par hexagone), et
-$(u,v) \in E_D$ si et seulement si les hexagones $u$ et $v$ partagent une arête
-carbone--carbone. Cette construction correspond au \emph{graphe dual intérieur}
-de la littérature, c'est-à-dire le graphe dual classique privé de la face
-externe.
+\begin{definition}[Graphe carbone]
+À toute molécule HAP $M$ on associe son \textbf{graphe carbone}
+$G_C(M) = (V_C, E_C)$ : les sommets $V_C$ sont les atomes de carbone,
+et les arêtes $E_C$ représentent les liaisons covalentes
+carbone--carbone. Les hydrogènes périphériques, déduits des valences
+libres des carbones de bord, n'apparaissent pas dans ce graphe.
 \end{definition}
-
-On appelle \textbf{bord} de \GD{} l'ensemble des hexagones de degré strictement
-inférieur à $6$, c'est-à-dire ceux qui ne sont pas entièrement entourés de
-voisins. La figure~\ref{fig:dual} illustre cette construction sur un benzénoïde
-linéaire à trois hexagones.
 
 \begin{figure}[h]
 \centering
-\begin{tikzpicture}[scale=0.62, baseline=(current bounding box.center)]
+\begin{tikzpicture}[scale=0.55, baseline=(current bounding box.center)]
+  \def\rhex{1.2}
+  \pgfmathsetmacro{\apo}{\rhex*cos(30)}
+  \pgfmathsetmacro{\dyhex}{1.5*\rhex}
+  % Rangee centrale v0, v1, v2
   \foreach \k/\lab in {0/v_0, 1/v_1, 2/v_2} {
-    \begin{scope}[xshift={\k*2*1.2*cos(30)*1cm}]
+    \begin{scope}[shift={({\k*2*\apo}, 0)}]
       \foreach \i in {0,...,5} {
-        \coordinate (P\i) at ({cos(60*\i+30)*1.2}, {sin(60*\i+30)*1.2});
+        \coordinate (P\i) at ({cos(60*\i+30)*\rhex}, {sin(60*\i+30)*\rhex});
       }
       \draw[thick] (P0)--(P1)--(P2)--(P3)--(P4)--(P5)--cycle;
       \node at (0,0) {$\lab$};
     \end{scope}
   }
+  % v3 en haut, entre v0 et v1
+  \begin{scope}[shift={(\apo, \dyhex)}]
+    \foreach \i in {0,...,5} {
+      \coordinate (P\i) at ({cos(60*\i+30)*\rhex}, {sin(60*\i+30)*\rhex});
+    }
+    \draw[thick] (P0)--(P1)--(P2)--(P3)--(P4)--(P5)--cycle;
+    \node at (0,0) {$v_3$};
+  \end{scope}
+  % v4 en bas, entre v1 et v2
+  \begin{scope}[shift={(3*\apo, -\dyhex)}]
+    \foreach \i in {0,...,5} {
+      \coordinate (P\i) at ({cos(60*\i+30)*\rhex}, {sin(60*\i+30)*\rhex});
+    }
+    \draw[thick] (P0)--(P1)--(P2)--(P3)--(P4)--(P5)--cycle;
+    \node at (0,0) {$v_4$};
+  \end{scope}
+  % v5 en bas-droite, voisin de v4 et v2
+  \begin{scope}[shift={(5*\apo, -\dyhex)}]
+    \foreach \i in {0,...,5} {
+      \coordinate (P\i) at ({cos(60*\i+30)*\rhex}, {sin(60*\i+30)*\rhex});
+    }
+    \draw[thick] (P0)--(P1)--(P2)--(P3)--(P4)--(P5)--cycle;
+    \node at (0,0) {$v_5$};
+  \end{scope}
 \end{tikzpicture}
-\hspace{1.2cm}
-\begin{tikzpicture}[scale=1, baseline=(current bounding box.center)]
-  \node[circle,draw,inner sep=2pt] (a) at (0,0) {$0$};
-  \node[circle,draw,inner sep=2pt] (b) at (1.4,0) {$1$};
-  \node[circle,draw,inner sep=2pt] (c) at (2.8,0) {$2$};
-  \draw (a)--(b)--(c);
-\end{tikzpicture}
-\caption{Un benzénoïde linéaire à trois hexagones (gauche) et son graphe
-dual $\GD$ (droite).}
-\label{fig:dual}
+\caption{Un benzénoïde non linéaire à six hexagones ($v_0, \dots, v_5$).}
+\label{fig:graphe-carbone}
 \end{figure}
 
-\subsubsection{Aromaticité et délocalisation}
-\label{sec:aromaticite}
+Parmi les HAP, les \textbf{benzénoïdes} forment la sous-famille
+constituée exclusivement d'hexagones réguliers fusionnés par des arêtes
+du pavage hexagonal. Plus généralement, on s'intéressera également aux
+HAP comportant des cycles à $5$, $6$ ou $7$ atomes. Pour tout HAP, on
+définit son \textbf{graphe dual} $\GD$, qui résume la combinatoire des
+cycles indépendamment de leur taille.
 
-L'\textbf{aromaticité} traduit la stabilité particulière de certains cycles
-conjugués. La \emph{règle de Hückel} en donne le critère classique : un
-cycle est dit aromatique s'il est plan, conjugué (chaque atome du cycle
-porte un électron $\pi$), et contient $\boldsymbol{4n+2}$ électrons $\pi$,
-où $n$ est un entier positif ou nul. Le benzène ($n = 1$, soit $6$
-électrons $\pi$) en est l'exemple fondamental. Dans un tel cycle, les électrons $\pi$ ne sont pas
-localisés sur une liaison précise : ils sont \emph{délocalisés} et circulent
-autour du cycle. Plus une molécule admet de représentations équivalentes de
-ses liaisons doubles, plus la délocalisation est étendue, et plus la molécule
-est stable.
+\begin{definition}[Graphe dual]
+Soit $M$ un HAP formé de $n$ cycles. Son graphe dual $\GD(M) = (V_D, E_D)$
+a pour sommets $V_D = \{0, \dots, n-1\}$ (un sommet par cycle), et
+$(u, v) \in E_D$ si et seulement si les cycles $u$ et $v$ partagent une
+arête carbone--carbone. Cette construction correspond au \emph{graphe
+dual intérieur} de la littérature, c'est-à-dire le graphe dual classique
+privé de la face externe.
+\end{definition}
+
+Pour un benzénoïde $B$, on note $n_H(B)$ son nombre d'hexagones ; ainsi
+$|V_D(B)| = n_H(B)$. On appelle \textbf{bord} de $\GD$ l'ensemble des
+cycles de degré strictement inférieur à $6$, c'est-à-dire ceux qui ne
+sont pas entièrement entourés de voisins. La figure~\ref{fig:dual}
+illustre le graphe dual du benzénoïde de la
+figure~\ref{fig:graphe-carbone}.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[scale=0.9, baseline=(current bounding box.center)]
+  \node[circle,draw,inner sep=2pt] (n0) at (0, 0) {$0$};
+  \node[circle,draw,inner sep=2pt] (n1) at (1.4, 0) {$1$};
+  \node[circle,draw,inner sep=2pt] (n2) at (2.8, 0) {$2$};
+  \node[circle,draw,inner sep=2pt] (n3) at (0.7, 1.2) {$3$};
+  \node[circle,draw,inner sep=2pt] (n4) at (2.1, -1.2) {$4$};
+  \node[circle,draw,inner sep=2pt] (n5) at (3.5, -1.2) {$5$};
+  \draw (n0)--(n1);
+  \draw (n1)--(n2);
+  \draw (n0)--(n3);
+  \draw (n1)--(n3);
+  \draw (n1)--(n4);
+  \draw (n2)--(n4);
+  \draw (n2)--(n5);
+  \draw (n4)--(n5);
+\end{tikzpicture}
+\caption{Graphe dual $\GD$ du benzénoïde de la figure~\ref{fig:graphe-carbone}.}
+\label{fig:dual}
+\end{figure}
 
 \subsubsection{Structures de Kekulé}
 
@@ -657,10 +493,10 @@ le visualiser comme trois liaisons doubles alternées sur le cycle, et on le
 représente conventionnellement par un cercle inscrit dans l'hexagone (voir
 figure~\ref{fig:sextet}). Une \textbf{couverture de Clar} place des sextets
 sur un ensemble d'hexagones deux à deux disjoints, et le \textbf{nombre de
-Clar} est le nombre maximal de sextets que l'on peut placer. La règle de
-Hückel ($4n+2$ électrons $\pi$, soit $6$ pour $n=1$) impose qu'un sextet
-occupe exactement six atomes : seuls les \emph{hexagones} peuvent porter un
-sextet, jamais un pentagone ni un heptagone.
+Clar} est le nombre maximal de sextets que l'on peut placer. La règle de Hückel
+(voir annexe~\ref{app:huckel}) impose qu'un sextet occupe exactement six
+atomes ($4n+2$ électrons $\pi$, $n=1$) : seuls les \emph{hexagones}
+peuvent porter un sextet, jamais un pentagone ni un heptagone.
 
 \begin{figure}[h]
 \centering
@@ -692,12 +528,18 @@ sextet, jamais un pentagone ni un heptagone.
 \label{fig:sextet}
 \end{figure}
 
-La figure~\ref{fig:clar-naphtalene} illustre les couvertures de Clar sur le
-naphtalène.
+Une même couverture de Clar peut correspondre à plusieurs structures de
+Kekulé : sur le naphtalène (figure~\ref{fig:clar-naphtalene}), les
+Kekulé $K_1$ et $K_2$ ne diffèrent que par la rotation des liaisons
+doubles à l'intérieur de l'hexagone gauche et correspondent toutes deux
+à la couverture $C_A$ (sextet sur l'hexagone gauche). $K_3$ correspond
+à la couverture $C_B$ (sextet sur l'hexagone droit). Le nombre de Clar
+du naphtalène vaut donc $1$ : on ne peut placer qu'un seul sextet à la
+fois, les deux hexagones partageant une arête.
 
 \begin{figure}[h]
 \centering
-\begin{tikzpicture}[scale=0.9]
+\begin{tikzpicture}[scale=0.85]
   \def\drawNaph{%
     \coordinate (P0) at (0.693, 0.4);
     \coordinate (P1) at (0, 0.8);
@@ -714,27 +556,52 @@ naphtalène.
     \draw (P0)--(P1)--(P2)--(P3)--(P4)--(P5)--cycle;
     \draw (P0)--(Q1)--(Q0)--(Q5)--(Q4)--(P5);
   }
-  \newcommand{\dbll}[3]{%
-    \draw ($(#1)!0.18!(#3)$) -- ($(#2)!0.18!(#3)$);
-  }
-  % Clar A : sextet dans l'hexagone gauche
-  \begin{scope}[xshift=0cm]
+  \newcommand{\dbn}[3]{\draw ($(#1)!0.18!(#3)$) -- ($(#2)!0.18!(#3)$);}
+
+  % K1 (haut gauche)
+  \begin{scope}[shift={(0, 4)}]
+    \drawNaph
+    \dbn{P0}{P1}{CL}\dbn{P2}{P3}{CL}\dbn{P4}{P5}{CL}
+    \dbn{Q1}{Q0}{CR}\dbn{Q5}{Q4}{CR}
+    \node at (1.04, -1.35) {$K_1$};
+  \end{scope}
+  % K2 (haut milieu)
+  \begin{scope}[shift={(4.2, 4)}]
+    \drawNaph
+    \dbn{P0}{P5}{CL}\dbn{P1}{P2}{CL}\dbn{P3}{P4}{CL}
+    \dbn{Q1}{Q0}{CR}\dbn{Q5}{Q4}{CR}
+    \node at (1.04, -1.35) {$K_2$};
+  \end{scope}
+  % K3 (haut droite)
+  \begin{scope}[shift={(9.5, 4)}]
+    \drawNaph
+    \dbn{P0}{Q1}{CR}\dbn{P5}{Q4}{CR}\dbn{Q0}{Q5}{CR}
+    \dbn{P1}{P2}{CL}\dbn{P3}{P4}{CL}
+    \node at (1.04, -1.35) {$K_3$};
+  \end{scope}
+
+  % CA (bas gauche)
+  \begin{scope}[shift={(2.1, 0)}]
     \drawNaph
     \draw[thick] (0,0) circle (0.45);
-    \dbll{Q1}{Q0}{CR}
-    \dbll{Q5}{Q4}{CR}
-    \node at (1.04, -1.4) {$C_A$};
+    \dbn{Q1}{Q0}{CR}\dbn{Q5}{Q4}{CR}
+    \node at (1.04, -1.35) {$C_A$};
   \end{scope}
-  % Clar B : sextet dans l'hexagone droit
-  \begin{scope}[xshift=4.0cm]
+  % CB (bas droite)
+  \begin{scope}[shift={(9.5, 0)}]
     \drawNaph
     \draw[thick] (1.386,0) circle (0.45);
-    \dbll{P1}{P2}{CL}
-    \dbll{P3}{P4}{CL}
-    \node at (1.04, -1.4) {$C_B$};
+    \dbn{P1}{P2}{CL}\dbn{P3}{P4}{CL}
+    \node at (1.04, -1.35) {$C_B$};
   \end{scope}
+
+  % Fleches K1 vers CA et K2 vers CA
+  \draw[->, thick] (0.80, 2.5) -- (1.8, 1.3);
+  \draw[->, thick] (5.24, 2.5) -- (4, 1.3);
+  % Fleche K3 vers CB
+  \draw[->, thick] (10.20, 2.5) -- (10.20, 1.3);
 \end{tikzpicture}
-\caption{Les deux couvertures de Clar du naphtalène.}
+\caption{Les deux couvertures de Clar du naphtalène}
 \label{fig:clar-naphtalene}
 \end{figure}
 
@@ -893,6 +760,20 @@ site radicalaire est \emph{forcé} par la topologie.
 \label{fig:radical-5-6}
 \end{figure}
 
+\subsubsection{Aromaticité et délocalisation}
+\label{sec:aromaticite}
+
+L'\textbf{aromaticité} traduit la stabilité particulière de certains
+cycles conjugués. La \emph{règle de Hückel} (annexe~\ref{app:huckel})
+en donne le critère classique : un cycle est dit aromatique s'il est
+plan, conjugué, et contient $4n+2$ électrons $\pi$ pour un entier $n
+\ge 0$ --- le benzène ($n=1$, $6$ électrons) en est l'exemple
+fondamental. Dans un tel cycle, les électrons $\pi$ sont
+\emph{délocalisés} et circulent autour du cycle. Plus une molécule
+admet de représentations équivalentes de ses liaisons doubles (au sens
+des structures de Kekulé introduites plus haut), plus la délocalisation
+est étendue, et plus la molécule est stable.
+
 \subsubsection{Planéité et courbure}
 
 À toute molécule on associe une fonction \emph{énergie potentielle} qui dépend
@@ -921,6 +802,273 @@ l'énergie à un coût permettant de traiter de grandes séries de molécules et
 fournit une géométrie optimisée exploitable à grande échelle. C'est le sens de
 la « validation quantique semi-empirique » du titre.
 
+\subsection{Programmation par contraintes (PPC)}
+\label{sec:ppc}
+
+La \emph{programmation par contraintes} est un paradigme déclaratif de
+résolution de problèmes combinatoires. Plutôt que de décrire
+\emph{comment} résoudre un problème, on se contente d'en \emph{décrire
+les solutions}, puis on confie la recherche à un solveur générique.
+
+\subsubsection{Réseau de contraintes}
+
+Une instance d'un problème de satisfaction de contraintes (CSP) est
+définie par un ensemble de \emph{variables}, chacune dotée d'un
+\emph{domaine} de valeurs possibles, et d'un ensemble de
+\emph{contraintes} restreignant les combinaisons de valeurs autorisées.
+Formellement~\cite{varet2022} :
+
+\begin{definition}[Instance CSP]
+Une instance d'un problème de satisfaction de contraintes est un triplet
+$P = (X, D, C)$ où :
+\begin{itemize}
+  \item $X = \{x_1, x_2, \dots, x_n\}$ est un ensemble de $n$
+    \emph{variables} ;
+  \item $D = \{d_{x_1}, d_{x_2}, \dots, d_{x_n}\}$ est un ensemble de
+    \emph{domaines finis} ; la variable $x_i$ prend ses valeurs dans
+    le domaine $d_{x_i}$ ;
+  \item $C = \{c_1, c_2, \dots, c_m\}$ est un ensemble de $m$
+    \emph{contraintes}. Chaque contrainte $c$ est caractérisée par un
+    couple $(S(c), R(c))$ où
+    \begin{enumerate}
+      \item $S(c) = \{x_{i_1}, x_{i_2}, \dots, x_{i_q}\} \subseteq X$
+        est la \emph{portée} de $c$, c'est-à-dire l'ensemble des
+        variables sur lesquelles porte la contrainte ;
+      \item $R(c) \subseteq d_{x_{i_1}} \times d_{x_{i_2}} \times \dots
+        \times d_{x_{i_q}}$ est sa \emph{relation de compatibilité},
+        c'est-à-dire l'ensemble des combinaisons de valeurs autorisées
+        par la contrainte.
+    \end{enumerate}
+\end{itemize}
+\end{definition}
+
+Une contrainte portant sur une seule variable est dite \emph{unaire},
+sur deux variables \emph{binaire}, sur $q$ variables $q$-\emph{aire}.
+
+\subsubsection{Un exemple : le Sudoku}
+\label{sec:ppc-exemple}
+
+Pour illustrer le formalisme, considérons le \textbf{Sudoku} : sur une
+grille $9 \times 9$ partiellement remplie de chiffres de $1$ à $9$
+(figure~\ref{fig:sudoku}), on cherche à compléter les cases vides de
+telle sorte que chaque chiffre apparaisse exactement une fois sur
+chaque ligne, chaque colonne et chacun des neuf sous-blocs
+$3 \times 3$. Les chiffres initialement présents sont appelés
+\emph{indices}.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[scale=0.63, baseline=(current bounding box.center)]
+  \draw[thick] (0,0) rectangle (9,9);
+  \foreach \i in {1,...,8} {
+    \draw (\i,0)--(\i,9);
+    \draw (0,\i)--(9,\i);
+  }
+  \foreach \i in {3,6} {
+    \draw[thick] (\i,0)--(\i,9);
+    \draw[thick] (0,\i)--(9,\i);
+  }
+  \foreach \x/\y/\v in {
+    0/8/5, 1/8/3, 4/8/7,
+    0/7/6, 3/7/1, 4/7/9, 5/7/5,
+    1/6/9, 2/6/8, 7/6/6,
+    0/5/8, 4/5/6, 8/5/3,
+    0/4/4, 3/4/8, 5/4/3, 8/4/1,
+    0/3/7, 4/3/2, 8/3/6,
+    1/2/6, 6/2/2, 7/2/8,
+    3/1/4, 4/1/1, 5/1/9, 8/1/5,
+    4/0/8, 7/0/7, 8/0/9
+  } {
+    \node[font=\large] at (\x+0.5, \y+0.5) {\v};
+  }
+\end{tikzpicture}
+\hspace{0.6cm}
+\begin{tikzpicture}[scale=0.63, baseline=(current bounding box.center)]
+  \draw[thick] (0,0) rectangle (9,9);
+  \foreach \i in {1,...,8} {
+    \draw (\i,0)--(\i,9);
+    \draw (0,\i)--(9,\i);
+  }
+  \foreach \i in {3,6} {
+    \draw[thick] (\i,0)--(\i,9);
+    \draw[thick] (0,\i)--(9,\i);
+  }
+  \fill[gray!30] (3,4) rectangle (4,5);
+  \node[font=\Large] at (3.5,4.5) {$x_{ij}$};
+  \draw[red, thick] (0,4) rectangle (9,5);
+  \draw[red, thick] (3,0) rectangle (4,9);
+  \draw[green!60!black, thick] (3,3) rectangle (6,6);
+\end{tikzpicture}
+\caption{Un Sudoku partiellement rempli (à gauche). À droite, la valeur
+de la case $x_{ij}$ doit différer de toutes les autres cases de sa
+ligne, de sa colonne et de son bloc $3 \times 3$.}
+\label{fig:sudoku}
+\end{figure}
+
+Le problème se modélise comme un CSP $P = (X, D, C)$ :
+\begin{itemize}
+  \item $X = \{x_1, x_2, \dots, x_{81}\}$ : une variable par case de la
+    grille, numérotées de gauche à droite et de haut en bas. La valeur
+    de $x_i$ représente le chiffre inscrit dans la $i$-ème case.
+  \item $D = \{d_{x_1}, d_{x_2}, \dots, d_{x_{81}}\}$ : pour les cases
+    vides, $d_{x_i} = \{1, 2, \dots, 9\}$ ; pour les cases pré-remplies
+    de valeur $v$, $d_{x_i} = \{v\}$. Par exemple, sur la grille de la
+    figure~\ref{fig:sudoku}, on aurait
+    $d_{x_1} = \{2\}$, $d_{x_2} = \{4\}$, $d_{x_3} = \{1\}$,
+    $d_{x_4} = \{1, 2, \dots, 9\}$, $\ldots$
+  \item $C = \{c_{i,j}\}$ : pour chaque paire $(x_i, x_j)$ de variables
+    appartenant à une même ligne, une même colonne ou un même bloc
+    $3 \times 3$, on définit une contrainte binaire $c_{i,j}$
+    exprimant la différence des valeurs :
+    \[
+      S(c_{i,j}) = \{x_i, x_j\}, \qquad
+      R(c_{i,j}) = \{(v_i, v_j) \in d_{x_i} \times d_{x_j}
+        \mid v_i \neq v_j\}.
+    \]
+\end{itemize}
+
+\begin{remarque}
+Ces contraintes binaires seront avantageusement regroupées sous une
+contrainte globale plus compacte à la
+section~\ref{sec:ppc-globales}, une fois introduite la notion de
+contrainte globale.
+\end{remarque}
+
+\subsubsection{Résolution : propagation et recherche arborescente}
+
+Décider si une instance CSP admet une solution est un problème
+\textbf{NP-complet} dans le cas général : aucun algorithme polynomial
+n'est connu pour le résoudre. Les solveurs CSP combinent en pratique
+deux mécanismes complémentaires que nous décrivons ci-dessous.
+Précisons d'abord la notion de solution.
+
+\begin{definition}[Solution]
+Une \emph{solution} d'une instance CSP $P = (X, D, C)$ est une
+affectation à chaque variable $x_i$ d'une valeur de son domaine
+$d_{x_i}$ telle que toutes les contraintes de $C$ soient satisfaites.
+On parle d'\emph{affectation complète cohérente}. Un problème est dit
+\emph{cohérent} s'il possède au moins une solution, et
+\emph{incohérent} sinon.
+\end{definition}
+
+\textbf{Propagation de contraintes} (\textbf{filtrage})\textbf{.}
+À chaque étape de la résolution, on retire des domaines les valeurs
+qui ne peuvent appartenir à aucune
+solution. Le critère le plus courant est la \emph{cohérence d'arc} :
+pour toute contrainte $c$ et toute variable $x_i \in S(c)$, on retire
+de $d_{x_i}$ toute valeur $v$ qui n'a aucun \emph{support} dans les
+domaines des autres variables de $c$ (c'est-à-dire telle qu'aucune
+affectation des autres variables ne satisfasse $c$ avec $v$). Sur le
+Sudoku, si une case d'une ligne contient $7$, la propagation retire
+$7$ du domaine de toutes les autres cases de la même ligne, de la même
+colonne et du même bloc.
+
+\textbf{Recherche arborescente.} On affecte les variables une à une.
+À chaque nœud, le solveur choisit une variable et lui assigne une
+valeur de son domaine courant, puis propage. Si un domaine devient
+vide, le solveur \emph{revient en arrière} (\emph{backtrack}) sur le
+dernier choix et essaie une autre valeur. La recherche aboutit soit à
+une affectation complète cohérente (solution), soit à l'épuisement de
+toutes les branches (instance incohérente).
+
+L'intérêt majeur du paradigme est qu'il n'est pas nécessaire d'écrire
+un algorithme spécifique à chaque problème : il suffit de formuler le
+modèle, puis d'invoquer un solveur traité comme une \emph{boîte
+noire}. Dans ce travail, nous écrivons les modèles avec la
+bibliothèque Python \textsc{PyCSP3} et nous les résolvons avec le
+solveur \ace{} (\emph{Abscon Constraint Engine})~\cite{pycsp3ace}, qui
+sait énumérer l'ensemble des solutions d'une instance.
+
+\subsubsection{Contraintes en extension et contraintes globales}
+\label{sec:ppc-globales}
+
+La possibilité de spécifier des contraintes de façon modulaire fait la
+force de la PPC. On distingue deux grandes familles particulièrement
+utiles dans la suite.
+
+Une \textbf{contrainte en extension} (ou \emph{de table}) liste
+explicitement les combinaisons de valeurs autorisées (ou interdites)
+pour sa portée : c'est exactement la relation $R(c)$ donnée plus haut.
+C'est la forme naturelle pour encoder un catalogue de configurations
+admissibles, et c'est elle que nous utiliserons pour la \emph{table de
+voisinage} chimique (section~\ref{sec:modele}).
+
+Une \textbf{contrainte globale} capture un motif récurrent sur un
+nombre arbitraire de variables, avec un \emph{propagateur} spécialisé
+plus efficace que la décomposition en contraintes binaires. L'exemple
+typique est $\mathit{allDifferent}(x_{i_1}, \dots, x_{i_q})$,
+qui généralise les contraintes binaires de différence $c_{i,j}$
+de notre exemple du Sudoku (section~\ref{sec:ppc-exemple}) : sa
+portée est $S(c) = \{x_{i_1}, \dots, x_{i_q}\}$ et sa relation
+\[
+  R(c) = \bigl\{\, (v_{i_1}, \dots, v_{i_q}) \in d_{x_{i_1}} \times
+    \dots \times d_{x_{i_q}} \;\bigm|\; v_{i_j} \ne v_{i_k}
+    \text{ pour } j \ne k \,\bigr\}.
+\]
+Cette contrainte est équivalente à $\binom{q}{2}$ contraintes binaires
+de différence, mais son propagateur dédié élague l'espace de recherche
+de manière nettement plus efficace.
+
+\paragraph{Reformulation du Sudoku avec \texttt{allDifferent}.}
+Les contraintes binaires $c_{i,j}$ du modèle précédent peuvent être
+factorisées par lignes, colonnes et blocs. Pour chaque ligne $L_k$, on
+remplace les $\binom{9}{2} = 36$ contraintes binaires de différence par
+une seule contrainte globale $\mathit{allDifferent}(x_i : x_i \in L_k)$ ;
+de même pour les colonnes et les blocs $3 \times 3$. On obtient ainsi
+un modèle équivalent avec $27$ contraintes globales au lieu de plus de
+huit cents contraintes binaires, et la propagation est sensiblement
+plus efficace.
+
+\paragraph{Illustration de la résolution.}
+Reprenons la grille de Sudoku partiellement remplie de la
+figure~\ref{fig:sudoku}. Au départ, la
+case $x_1$ est connue : $d_{x_1} = \{2\}$. La propagation des
+contraintes $\mathit{allDifferent}$ de la ligne $L_1$, de la colonne
+$C_1$ et du bloc $R_1$ contenant $x_1$ retire alors $2$ de tous les
+domaines des autres cases concernées. Si après propagation un domaine
+se réduit à un singleton, l'affectation correspondante est forcée et
+déclenche à son tour de nouvelles propagations. Lorsque la propagation
+seule ne suffit plus à compléter la grille, le solveur entre en
+recherche : il choisit une variable au domaine non encore singleton
+(par exemple $x_4$ avec $d_{x_4} = \{1, 5, 7\}$), affecte la première
+valeur ($x_4 = 1$) et propage à nouveau. Si à un moment un domaine
+devient vide, la contradiction force un retour arrière et le solveur
+essaie la valeur suivante ($x_4 = 5$). La recherche aboutit soit à
+une affectation complète et cohérente — une solution — soit à
+l'épuisement de toutes les branches, ce qui signifie que l'instance
+est incohérente.
+
+La souplesse de la PPC, qui consiste à activer, désactiver ou ajouter
+une contrainte puis ré-énumérer rapidement les solutions, est un atout
+décisif pour un travail mené en dialogue continu avec les chimistes.
+
+\subsubsection{Isomorphisme de graphes}
+\label{sec:ppc-isomorphisme}
+
+Comme une partie centrale de notre modélisation repose sur les
+automorphismes d'un graphe (rupture de symétrie en
+section~\ref{sec:c4}), nous rappelons ici la notion
+d'\emph{isomorphisme}, qui apparaît dans tout le mémoire.
+
+\begin{definition}[Isomorphisme de graphes]
+Deux graphes non orientés $G = (V_G, E_G)$ et $H = (V_H, E_H)$ sont
+dits \textbf{isomorphes} s'il existe une bijection $f : V_G \to V_H$
+qui préserve les arêtes, c'est-à-dire telle que
+\[
+  \forall u, v \in V_G,\quad \{u, v\} \in E_G \iff \{f(u), f(v)\} \in E_H .
+\]
+La bijection $f$ est alors appelée un \textbf{isomorphisme} entre $G$
+et $H$. Si $G = H$, on parle d'\textbf{automorphisme} de $G$ : c'est
+une permutation des sommets qui préserve les arêtes.
+\end{definition}
+
+Intuitivement, deux graphes isomorphes sont « les mêmes » à un
+renommage des sommets près ; ils représentent la même structure
+abstraite. Pour notre problème, deux substitutions d'un benzénoïde qui
+diffèrent uniquement par un automorphisme du graphe dual correspondent
+à la même molécule, et seront comptées une seule fois. La rupture de
+symétrie (section~\ref{sec:c4}) traite explicitement ce point.
+
 % =====================================================================
 \section{Le problème}
 \label{sec:probleme}
@@ -929,28 +1077,37 @@ la « validation quantique semi-empirique » du titre.
 Maintenant que le vocabulaire est posé, nous pouvons énoncer précisément le
 problème et analyser ses deux sources de difficulté.
 
-On part d'un benzénoïde $B$ à $h$ hexagones, représenté par son graphe dual
-\GD{}. Une \textbf{substitution} affecte à chaque hexagone $v$ une taille de
-cycle $x_v \in \{5, 6, 7\}$ : conserver l'hexagone ($x_v = 6$), le
-contracter en pentagone ($x_v = 5$) ou le dilater en heptagone
-($x_v = 7$). La substitution doit respecter la \emph{topologie} de $B$ (les
-arêtes partagées entre cycles voisins sont préservées) et conserver le
-nombre total d'atomes de carbone. On cherche à \textbf{énumérer toutes les
-substitutions admissibles}, c'est-à-dire toutes celles qui correspondent à
-une molécule chimiquement et géométriquement réalisable, à
-\emph{isomorphisme} près : deux substitutions identiques à une symétrie du
-benzénoïde de départ décrivent la même molécule et ne sont comptées qu'une
-seule fois (la notion d'isomorphisme est définie en
+On part d'un benzénoïde $B$ à $n_H(B)$ hexagones, représenté par son
+graphe dual \GD{}. Une \textbf{substitution} affecte à chaque hexagone
+$v$ une taille de cycle $x_v \in \{5, 6, 7\}$ : conserver l'hexagone
+($x_v = 6$), le contracter en pentagone ($x_v = 5$) ou le dilater en
+heptagone ($x_v = 7$). La substitution doit satisfaire les deux
+contraintes suivantes : (i)~\textbf{conservation du graphe dual} : les
+arêtes partagées entre cycles voisins sont préservées, donc \GD{} reste
+identique avant et après transformation ; (ii)~\textbf{conservation du
+nombre total d'atomes de carbone}. La conservation du graphe dual est
+un point essentiel de la modélisation : elle garantit que chaque cycle
+de la solution correspond \emph{exactement} à un hexagone du
+benzénoïde de départ, ce qui sera exploité pour exprimer simplement la
+conservation des atomes en section~\ref{sec:c1}.
+
+On cherche à \textbf{énumérer toutes les substitutions admissibles},
+c'est-à-dire toutes celles qui correspondent à une molécule
+chimiquement et géométriquement réalisable, à \emph{isomorphisme}
+près : deux substitutions identiques à une symétrie du benzénoïde de
+départ décrivent la même molécule et ne sont comptées qu'une seule
+fois (la notion d'isomorphisme est définie en
 section~\ref{sec:ppc-isomorphisme}).
 
 \subsection{La difficulté combinatoire}
 
-Avec trois valeurs possibles par hexagone, un benzénoïde à $h$ hexagones admet a
-priori $3^h$ substitutions. Ce nombre croît exponentiellement, et la grande
-majorité de ces affectations ne correspondent à \emph{aucune} molécule valide :
-elles violent la conservation du carbone, ou décrivent des voisinages
-localement impossibles à reconstruire. Énumérer naïvement puis filtrer est donc
-hors de portée dès que $h$ dépasse quelques unités. C'est exactement le type de
+Avec trois valeurs possibles par hexagone, un benzénoïde à $n_H(B)$
+hexagones admet a priori $3^{n_H(B)}$ substitutions. Ce nombre croît
+exponentiellement, et la grande majorité de ces affectations ne
+correspondent à \emph{aucune} molécule valide : elles violent la
+conservation du carbone, ou décrivent des voisinages localement
+impossibles à reconstruire. Énumérer naïvement puis filtrer est donc
+hors de portée dès que $n_H(B)$ dépasse quelques unités. C'est exactement le type de
 problème fortement combinatoire pour lequel la PPC est conçue : on encode les
 conditions d'admissibilité comme des contraintes, et le solveur n'explore que
 les affectations cohérentes.
@@ -1019,52 +1176,62 @@ sont actives par défaut. C2.2 et C5 sont optionnelles : leur effet est
 étudié expérimentalement à la section~\ref{sec:xp}.
 
 \subsubsection{C1 --- Conservation du carbone}
+\label{sec:c1}
 
-Le nombre total d'atomes de carbone doit être préservé par la substitution.
-Notons $h$ le nombre d'hexagones du benzénoïde de départ, et $n_5$, $n_6$,
-$n_7$ les nombres respectifs de pentagones, hexagones et heptagones dans la
-solution. Tout cycle de la solution remplace exactement un hexagone du
-benzénoïde de départ, donc
+Le nombre total d'atomes de carbone doit être préservé par la
+substitution. Notons $n_H = n_H(B)$ le nombre d'hexagones du benzénoïde
+de départ, et $n_5$, $n_6$, $n_7$ les nombres respectifs de
+pentagones, hexagones et heptagones dans la solution. Tout cycle de la
+solution remplace exactement un hexagone du benzénoïde de départ, donc
 \[
-  n_5 + n_6 + n_7 \;=\; h .
+  n_5 + n_6 + n_7 \;=\; n_H .
 \]
 
-Pour exprimer la conservation des atomes, raisonnons \emph{relativement à un
-hexagone}. Substituer un hexagone par un pentagone retire un atome de carbone,
-le substituer par un heptagone en ajoute un, et le conserver ne change rien.
-Le bilan total des carbones, par rapport à la molécule de départ, est donc
-$n_7 - n_5$, et la conservation impose
+Pour exprimer la conservation du carbone, comptons explicitement les
+atomes de carbone de chaque côté. Soit $a = |E_D|$ le nombre d'arêtes
+du graphe dual $\GD$ du benzénoïde de départ (chaque arête correspond
+à deux hexagones partageant une arête carbone--carbone, et donc deux
+atomes communs). Le nombre total d'atomes de carbone du benzénoïde de
+départ vaut
 \[
-  \boxed{n_5 \;=\; n_7 .}
+  N(B) \;=\; 6 n_H - 2 a ,
+\]
+puisque chaque hexagone contient $6$ atomes et que chaque arête
+commune correspond à $2$ atomes comptés en double.
+
+Après substitution, la solution comporte $n_5$ pentagones, $n_6$
+hexagones et $n_7$ heptagones, soit $5 n_5 + 6 n_6 + 7 n_7$ atomes
+avant correction. La \textbf{conservation du graphe dual}
+(section~\ref{sec:probleme}) garantit que \textbf{le nombre d'arêtes
+communes reste} $a$, donc le nombre total d'atomes de la solution vaut
+\[
+  N(\text{solution}) \;=\; 5 n_5 + 6 n_6 + 7 n_7 - 2 a .
 \]
 
-\noindent
-\emph{Remarque sur le nombre absolu de carbones.} Un benzénoïde à $h$
-hexagones ne contient pas $6h$ atomes de carbone, car les hexagones adjacents
-partagent leurs sommets : le naphtalène ($h=2$) a $10$ carbones, l'anthracène
-($h=3$) en a $14$, etc. La formule $\sum_v x_v = 6h$ ci-dessous n'est donc pas
-un comptage d'atomes ; c'est une réécriture algébrique de la condition
-$n_5 = n_7$.
+Conserver le nombre d'atomes ($N(\text{solution}) = N(B)$) donne donc
+\[
+  5 n_5 + 6 n_6 + 7 n_7 - 2 a \;=\; 6 n_H - 2 a ,
+\]
+et le terme $-2a$ se simplifie de part et d'autre. On obtient ainsi
+directement
+\[
+  \boxed{\; \sum_{v \in V_D} x_v \;=\; 5 n_5 + 6 n_6 + 7 n_7 \;=\; 6 n_H \;,}
+\]
+qui est l'expression effectivement déclarée au solveur : une simple
+contrainte de somme sur les variables entières.
 
-Pour traduire $n_5 = n_7$ sur les variables $x_v$ du modèle, on observe que
-\[
-  \sum_{v \in V_D} x_v \;=\; 5 n_5 + 6 n_6 + 7 n_7
-  \;=\; 6(n_5 + n_6 + n_7) + (n_7 - n_5)
-  \;=\; 6h + (n_7 - n_5) .
-\]
-Imposer $n_5 = n_7$ équivaut donc à imposer
-\[
-  \sum_{v \in V_D} x_v \;=\; 6\,h,
-\]
-qui est l'expression effectivement déclarée au solveur (une simple contrainte
-de somme sur les variables entières).
+Combinée à $n_5 + n_6 + n_7 = n_H$, cette équation équivaut à
+$n_5 = n_7$, qui s'interprète chimiquement : chaque pentagone retire
+un atome de carbone et doit être compensé par un heptagone qui en
+ajoute un.
 
 \subsubsection{C2 --- Hexagones gelés (réduction de domaine)}
 \label{sec:c2}
 
-Avant même la résolution proprement dite, un \emph{prétraitement} réduit le
-domaine de certaines variables à $\{6\}$ en exploitant la structure locale
-du graphe dual. Pour chaque hexagone $v$, on définit son \textbf{motif
+Avant même la résolution proprement dite, un \emph{prétraitement} ---
+c'est-à-dire une première passe de \textbf{filtrage} au sens de la
+section~\ref{sec:ppc} --- réduit le domaine de certaines variables à
+$\{6\}$ en exploitant la structure locale du graphe dual. Pour chaque hexagone $v$, on définit son \textbf{motif
 d'occupation} $\sigma(v) = (\sigma_0, \dots, \sigma_5) \in \{0,1\}^6$, où
 $\sigma_i = 1$ si le $i$-ème côté de $v$ est partagé avec un voisin, et $0$
 s'il est libre. On note $b(v)$ le nombre de \emph{blocs} de côtés libres
@@ -1240,9 +1407,14 @@ en extension} : le tuple ordonné
 \[
   \tau_v = (x_v, x_{u_1}, x_{u_2}, \dots, x_{u_k}),
 \]
-où $u_1, \dots, u_k$ sont les voisins de $v$ dans \GD{} pris dans l'ordre
-cyclique, doit appartenir à une \textbf{table de voisinage} \Tn{}
-pré-calculée.
+où $u_1, \dots, u_k$ sont les voisins de $v$ dans \GD{} pris dans
+l'ordre cyclique, doit appartenir à une \textbf{table de voisinage}
+\Tn{} pré-calculée. Le degré $k$ de $v$ dans le graphe dual est
+compris entre $2$ et $6$ (un hexagone a au plus six côtés partagés),
+ce qui donne à $\tau_v$ une longueur $|\tau_v| = k + 1 \in
+\{3, 4, 5, 6, 7\}$. Le cas $k = 0$ (un hexagone isolé sans voisin)
+n'est pas considéré, et le cas $k = 1$ est traité séparément
+ci-dessous.
 
 Un point essentiel distingue notre table de celle des benzénoïdes purs :
 elle est \emph{sensible à la disposition} des voisins. Deux configurations
@@ -1259,11 +1431,19 @@ par \xtb{}, et on ne retient que celles qui sont planes (au sens du critère
 décrit en section~\ref{sec:realisation}). Ce catalogue est
 \emph{paramétrable} : il pourra être régénéré ou affiné lorsque de nouvelles
 études chimiques préciseront les critères d'admissibilité. La version
-utilisée dans ce travail comporte \textbf{721} entrées, réparties selon la
-taille du cycle central :
-\[
-  |\mathcal{T}(5)| = 63, \qquad |\mathcal{T}(6)| = 291, \qquad |\mathcal{T}(7)| = 367.
-\]
+utilisée dans ce travail comporte \textbf{721} entrées au total,
+réparties selon la taille du cycle central :
+
+\begin{center}
+\small
+\begin{tabular}{lccc}
+\toprule
+ & $\mathcal{T}(5)$ & $\mathcal{T}(6)$ & $\mathcal{T}(7)$ \\
+\midrule
+Nombre d'entrées & $63$ & $291$ & $367$ \\
+\bottomrule
+\end{tabular}
+\end{center}
 
 \begin{remarque}
 Un hexagone de degré $1$ (un seul voisin) n'a pas besoin de contrainte de
@@ -1339,7 +1519,12 @@ introduit une courbure.
 \label{fig:adj-5-7}
 \end{figure}
 
-La contrainte C5 traduit cette idée dans le modèle PPC sous la forme
+Pour chaque sommet $v$ du graphe dual, notons
+\[
+  \mathcal{N}(v) \;=\; \{\, u \in V_D \mid (u, v) \in E_D \,\}
+\]
+l'ensemble des voisins de $v$ dans \GD{}. La contrainte C5 traduit
+alors l'idée chimique dans le modèle PPC sous la forme
 \emph{tout pentagone a au moins un heptagone parmi ses voisins, et tout
 heptagone a au moins un pentagone parmi les siens} :
 \[
@@ -1402,11 +1587,10 @@ assemblage en molécule (liaisons doubles et hydrogènes).
 
 \paragraph{Modifications topologiques du graphe carbone.}
 
-Le graphe carbone initial est celui du benzénoïde de départ : chaque hexagone
-est un cycle à six sommets, et deux hexagones adjacents partagent une arête
-(donc deux sommets). Lorsque la solution affecte une taille $x_v \neq 6$ à un
-hexagone $v$, il faut transformer ce cycle en un pentagone ou un heptagone
-\emph{sans} perturber les arêtes partagées avec ses voisins.
+En partant du graphe carbone (défini en section~\ref{sec:dual}) du
+benzénoïde d'entrée, lorsque la solution affecte une taille $x_v \neq 6$
+à un hexagone $v$, il faut transformer ce cycle en un pentagone ou un
+heptagone \emph{sans} perturber les arêtes partagées avec ses voisins.
 
 \paragraph{Repérage des côtés libres.}
 Rappelons que le motif d'occupation $\sigma(v) \in \{0,1\}^6$ indique pour
@@ -1532,7 +1716,8 @@ appartient, à une distance de $1{,}088$~\AA{} (longueur typique de la liaison
 C--H).
 
 \textbf{Export.} La géométrie complète (carbones et hydrogènes, avec
-coordonnées) est exportée au format XYZ, lisible par \xtb{}.
+coordonnées) est exportée au format XYZ (un format parmi d'autres de
+représentation de molécule), lisible par \xtb{}.
 
 La géométrie ainsi produite est \emph{plane par construction} : tous les atomes
 sont dans le plan $z = 0$. C'est l'étape de validation \xtb{} (section
@@ -1542,140 +1727,47 @@ si l'optimisation la fait quitter le plan.
 \subsubsection{Validation par \xtb{} : protocole d'optimisation déterministe}
 \label{sec:md}
 
-L'optimisation \xtb{} procède par descente de gradient. Or si la géométrie
-initiale est \emph{parfaitement} plane, les forces perpendiculaires au plan
-sont nulles par symétrie : l'optimiseur reste alors piégé dans un
-\textbf{minimum plat parasite} et conclut à tort que la molécule est plane.
-Nous l'avons constaté en comparant deux géométries initiales planes du même
-benzénoïde, qui convergeaient l'une vers une forme plane, l'autre vers une
-forme courbée à $58{,}6^\circ$.
-
-Une première version du pipeline contournait ce piège par une
-\emph{dynamique moléculaire} courte (\texttt{xtb --md} à $298$~K pendant
-$1$~ps) qui « secoue » la molécule pour briser la symétrie planaire
-parasite, suivie d'une optimisation. Cette approche, recommandée
-initialement par les chimistes, s'est révélée \textbf{non reproductible} :
-\xtb{} initialise les vitesses MD à partir de l'horloge système et n'expose
-aucune graine accessible (confirmé par lecture du code source de \xtb{}
-et par l'issue GitHub \#$730$ du dépôt \texttt{grimme-lab/xtb} ouverte
-depuis $2022$ et restée sans réponse). Sur des structures tendues
-($h_8$--$h_9$ avec amas $5$/$7$ denses), deux exécutions identiques
-basculaient parfois entre les verdicts \textsc{plan} et \textsc{non-plan},
-ce qui rendait toute campagne expérimentale invalidable.
-
-Le protocole finalement retenu remplace la MD stochastique par une
-\textbf{perturbation analytique déterministe} appliquée à la composante~$z$
-des coordonnées avant l'optimisation. Soit $\mathbf{x}_1, \dots, \mathbf{x}_N$
-les positions des $N$ atomes, ordonnés canoniquement. On définit
+L'optimisation \xtb{} procède par descente de gradient. Si la géométrie
+initiale est parfaitement plane, les forces perpendiculaires au plan sont
+nulles par symétrie : l'optimiseur reste piégé dans un \textbf{minimum
+plat parasite} (phénomène constaté sur des benzénoïdes qui convergent
+indifféremment vers une forme plane ou courbée selon la machine). Pour
+briser cette symétrie de façon reproductible, nous appliquons une
+\textbf{perturbation analytique déterministe} à la composante $z$ des
+coordonnées avant toute optimisation :
 \[
-  z_i' \;=\; z_i \;+\; A \sin\!\Bigl(\frac{2\pi\,i}{N} + \varphi\Bigr),
-  \qquad A = 0{,}05\ \text{\AA},\quad \varphi = 0{,}5\ \text{rad},
+  z_i' \;=\; z_i + A\sin\!\Bigl(\tfrac{2\pi i}{N} + \varphi\Bigr),
+  \quad A = 0{,}05\ \text{\AA},\quad \varphi = 0{,}5\ \text{rad},
 \]
-les valeurs de $A$ et $\varphi$ étant fixées une fois pour toutes. Cette
-perturbation, totalement indépendante d'un tirage aléatoire, brise la
-symétrie $z = 0$ \emph{de manière reproductible bit-à-bit} et suffit à
-sortir l'optimiseur du minimum plat parasite. La géométrie perturbée est
-ensuite passée à \xtb{} en optimisation locale standard :
-
-\begin{quote}
-\ttfamily
-xtb perturbed.xyz \texttt{--}opt tight
-\end{quote}
-
-avec \xtb{} 6.7.1 en niveau de théorie \textbf{GFN2-\xtb{}}~\cite{xtb}.
-Les variables d'environnement \texttt{OMP\_NUM\_THREADS=1},
-\texttt{MKL\_NUM\_THREADS=1}, \texttt{OPENBLAS\_NUM\_THREADS=1} et
-\texttt{NUMEXPR\_NUM\_THREADS=1} sont imposées avant l'appel, ce qui force
-un seul fil d'exécution et élimine la dernière source de non-déterminisme
-(l'ordre d'agrégation des contributions en BLAS multi-thread). L'ensemble
-du pipeline (reconstruction $\to$ perturbation $\to$ optimisation) est
-ainsi \emph{byte-déterministe} : même fichier d'entrée et même
-configuration produisent la même géométrie finale, au bit près. Le
-résultat est conservé dans \texttt{md\_final\_opt.xyz} sous chaque
-solution. Cette approche, équivalent numérique de la procédure suggérée
-par le chimiste (\emph{déplacer un atome et vérifier s'il revient à sa
-place}), restitue la même information physique que la MD courte tout en
-restant reproductible.
-
-Un filtre anti-fragmentation rejette les optimisations où un atome
-s'éjecte de la molécule pendant la convergence (cas pathologique observé
-sur quelques structures très tendues, où l'optimisation brise une liaison
-et fait fuir un fragment au-delà de $30$~\AA{} du barycentre). Lorsque le
-filtre déclenche, la solution reçoit le verdict \textsc{échec \xtb{}}.
+puis la géométrie perturbée est passée à \texttt{xtb --opt tight}
+(GFN2-\xtb{} 6.7.1)~\cite{xtb}. La perturbation est une fonction pure
+des indices atomiques --- sans tirage aléatoire --- ce qui rend
+l'ensemble du pipeline \emph{byte-déterministe}. Les détails techniques
+(historique de l'approche MD abandonnée, variables d'environnement,
+filtre anti-fragmentation) sont donnés en annexe~\ref{app:detopt}.
 
 \subsubsection{Test de planéité par analyse en composantes principales}
 \label{sec:acp}
 
-Une fois la géométrie optimisée par \xtb{}, on doit décider si la molécule est
-plane. La géométrie est donnée par un nuage de $N$ points dans $\mathbb{R}^3$
-(les positions des $N$ carbones), et la question revient à mesurer dans
-quelle mesure ce nuage est contenu dans un même plan.
-
-\paragraph{Calcul du plan moyen par ACP.}
-On utilise une \textbf{analyse en composantes principales} (ACP). Soit
-$\mathbf{x}_1, \dots, \mathbf{x}_N \in \mathbb{R}^3$ les coordonnées des
-carbones. On centre le nuage en soustrayant le barycentre
-$\bar{\mathbf{x}} = \frac{1}{N}\sum_i \mathbf{x}_i$, puis on forme la matrice
-de covariance $3\times 3$
+Une fois la géométrie optimisée par \xtb{}, on applique une
+\textbf{analyse en composantes principales} (ACP) aux positions des $N$
+atomes de carbone pour identifier leur plan moyen et sa normale globale
+$\mathbf{v}_3$. Pour chaque cycle $C$ de la molécule (pentagone,
+hexagone ou heptagone), la même ACP appliquée à ses seuls sommets
+fournit une normale locale $\mathbf{n}_C$. La métrique décisive est la
+valeur maximale du gauchissement de chaque cycle :
 \[
-  \Sigma \;=\; \frac{1}{N}\sum_{i=1}^{N} (\mathbf{x}_i - \bar{\mathbf{x}})
-                                          (\mathbf{x}_i - \bar{\mathbf{x}})^\top .
+  \texttt{max\_angle\_deg} \;=\; \max_{C} \,
+  \arccos\bigl(|\mathbf{n}_C \cdot \mathbf{v}_3|\bigr).
 \]
-La diagonalisation de $\Sigma$ fournit trois vecteurs propres orthonormés
-$\mathbf{v}_1, \mathbf{v}_2, \mathbf{v}_3$ associés aux valeurs propres
-$\lambda_1 \ge \lambda_2 \ge \lambda_3 \ge 0$. Les deux premiers vecteurs
-engendrent le \emph{plan moyen} du nuage (celui qui minimise la somme des
-carrés des distances des atomes au plan) et $\mathbf{v}_3$ est sa
-\textbf{normale}. La plus petite valeur propre $\lambda_3$ mesure
-l'épaisseur quadratique moyenne du nuage par rapport à ce plan ; elle est
-nulle si et seulement si tous les atomes sont parfaitement coplanaires.
-
-\paragraph{Métriques globales.}
-À partir de cette décomposition, on calcule plusieurs grandeurs globales :
-\begin{itemize}[leftmargin=1.4em]
-  \item le \emph{rmsd plan} : la racine de la moyenne des carrés des
-    distances des atomes au plan moyen,
-    $\sqrt{\tfrac{1}{N}\sum_i (\mathbf{n}^\top (\mathbf{x}_i - \bar{\mathbf{x}}))^2}$,
-    qui mesure l'épaisseur typique du nuage ;
-  \item la \emph{hauteur} : l'amplitude (max $-$ min) des projections des
-    atomes sur la normale, qui mesure l'épaisseur \emph{extrême} du nuage ;
-  \item l'angle entre $\mathbf{v}_3$ et l'axe $Z$ global, qui n'a qu'une
-    valeur diagnostique (vérifier que la molécule ne s'est pas
-    \emph{simplement} inclinée sans se déformer).
-\end{itemize}
-
-\paragraph{La métrique décisive : \texttt{max\_angle\_deg}.}
-Aucune de ces métriques globales ne suffit. Une molécule peut être très peu
-épaisse globalement mais comporter un \emph{bombement local} significatif sur
-quelques cycles seulement ; à l'inverse, une légère inclinaison d'ensemble
-gonfle artificiellement le rmsd. La métrique réellement décisive, validée par
-le chimiste, mesure l'angle de chaque cycle par rapport au plan moyen.
-
-Pour chaque cycle $C$ de la molécule (pentagone, hexagone ou heptagone), on
-applique la même ACP à ses seuls sommets : on obtient une normale locale
-$\mathbf{n}_C$. L'angle entre cette normale locale et la normale globale
-$\mathbf{v}_3$ mesure le « gauchissement » du cycle. La métrique
-\texttt{max\_angle\_deg} est la valeur maximale de cet angle sur l'ensemble des
-cycles :
-\[
-  \texttt{max\_angle\_deg} \;=\; \max_{C \in \text{cycles}}
-    \, \arccos\bigl(|\mathbf{n}_C \cdot \mathbf{v}_3|\bigr) ,
-\]
-exprimée en degrés (la valeur absolue $|\cdot|$ règle l'ambiguïté de signe de
-la normale). Le maximum garantit qu'aucun cycle n'est trop incliné par rapport
-à l'ensemble.
-
-\paragraph{Critère de décision.}
-Le critère retenu, fixé par le chimiste après examen de cas-tests, est
+Le critère de décision, fixé par le chimiste après examen de cas-tests :
 \[
   \boxed{\text{molécule plane} \iff \texttt{max\_angle\_deg} \le 10^\circ .}
 \]
-Le seuil de $10^\circ$ tolère les déformations légères dues aux contraintes
-stériques inévitables (les hydrogènes peuvent dévier le plan localement)
-sans accepter de molécules visiblement courbées. En combinant le statut du
-protocole MD (terminé ou échoué, voir section précédente) et ce test, chaque
-solution reçoit un verdict final : \textsc{plan}, \textsc{non-plan}, ou
-\textsc{échec MD}.
+Chaque solution reçoit ainsi un verdict final : \textsc{plan},
+\textsc{non-plan}, ou \textsc{échec \xtb{}}. La description formelle
+(matrice de covariance $\Sigma$, métriques rmsd et hauteur) est en
+annexe~\ref{app:acp}.
 
 \subsection{Analyse électronique des structures}
 \label{sec:analyse-elec}
@@ -1859,85 +1951,8 @@ ressemble à ce que l'on attend).
 \label{fig:designer-list}
 \end{figure}
 
-\subsection{Reproductibilité}
-\label{sec:repro}
-
-La reproductibilité des expériences est une garantie centrale du
-pipeline : un même fichier d'entrée et une même configuration de
-contraintes doivent produire le \emph{même} résultat, jusqu'au bit
-près, indépendamment de la machine ou de la date d'exécution. Cette
-sous-section précise l'environnement et les mécanismes qui le
-garantissent.
-
-\paragraph{Stack logicielle.}
-Le pipeline est écrit en \textbf{Python 3.14.4}, aligné entre le poste
-de développement (Windows~11) et l'environnement \texttt{conda} du
-cluster. Les bibliothèques utilisées et leurs versions (extraits de
-\texttt{requirements.txt}) sont récapitulées dans le
-tableau~\ref{tab:stack}.
-
-\begin{table}[!htbp]
-\centering
-\small
-\begin{tabular}{lll}
-\toprule
-\textbf{Bibliothèque} & \textbf{Version} & \textbf{Rôle} \\
-\midrule
-Python      & 3.14.4 & langage hôte du pipeline \\
-PyCSP3      & 2.5.1  & modélisation des contraintes (génération XCSP3) \\
-ACE         & ---    & solveur CSP Java invoqué par PyCSP3 \\
-NetworkX    & 3.6.1  & graphes (dual, carbone, couplage de Blossom) \\
-NumPy       & 2.4.6  & algèbre linéaire (ACP, reconstruction 3D) \\
-Flask       & 3.1.3  & backend web du designer \\
-Werkzeug    & 3.1.8  & dépendance Flask (WSGI) \\
-Jinja2      & 3.1.6  & dépendance Flask (templates) \\
-3Dmol.js    & ---    & bibliothèque JS du visualiseur 3D (via CDN) \\
-\bottomrule
-\end{tabular}
-\caption{Stack logicielle du pipeline et du designer.}
-\label{tab:stack}
-\end{table}
-
-\paragraph{Validation quantique.}
-La validation utilise le binaire \textbf{\xtb{} 6.7.1} avec la méthode
-\textbf{GFN2-\xtb{}}, appelé en sous-processus depuis Python via le
-protocole \emph{det-opt} décrit section~\ref{sec:md}. Le déterminisme
-byte-pour-byte est garanti par
-(i)~la perturbation $z$ analytique
-$z_i' = z_i + A \sin(2\pi i / N + \varphi)$ (sans RNG),
-(ii)~le forçage de \texttt{OMP\_NUM\_THREADS=1},
-\texttt{MKL\_NUM\_THREADS=1}, \texttt{OPENBLAS\_NUM\_THREADS=1},
-\texttt{NUMEXPR\_NUM\_THREADS=1} avant chaque appel à \xtb{},
-(iii)~\texttt{PYTHONHASHSEED=0} dans tous les scripts du pipeline,
-et (iv)~l'ordre canonique \texttt{sorted(\dots)} appliqué partout où
-des collections non ordonnées (ensembles d'atomes, de liaisons)
-seraient itérées.
-
-\paragraph{Cluster de calcul.}
-Les campagnes de grande taille tournent sur le cluster \textbf{COALA}
-de l'équipe COALA du LIS (Aix-Marseille Université), composé de
-\textbf{16 nœuds} (lames \texttt{lis-cluster-coala-49} à \texttt{-64}),
-chacun équipé de \textbf{2 processeurs Intel Xeon Gold 5218R}
-($20$ cœurs physiques, $40$ threads SMT) et de \textbf{187 GiB de RAM}.
-L'accès au cluster se fait via le \emph{jump host} \texttt{saphir2}.
-Au total, jusqu'à \textbf{320 instances \xtb{} en parallèle} peuvent
-tourner simultanément. L'orchestration est interne au projet (pas de
-SLURM ni PBS) : un dispatcher central distribue les jobs à des workers
-via un \emph{manifest JSONL} partagé sur NFS et des verrous atomiques
-(\texttt{O\_CREAT|O\_EXCL}) qui garantissent qu'un job n'est pris que
-par un seul worker. Les fichiers temporaires (XYZ d'entrée, sorties
-\xtb{}) sont stockés en local sur le scratch NVMe de chaque nœud, puis
-les résultats finaux sont rapatriés vers la base SQLite centrale.
-
-\paragraph{Persistance et traçabilité.}
-Tous les artefacts (instance d'entrée, configuration des contraintes,
-solutions, géométries XYZ, verdicts \xtb{}, métriques électroniques)
-sont persistés dans une base \textbf{SQLite} (mode \texttt{WAL}) dont
-le schéma principal comporte quatre tables (\texttt{configs},
-\texttt{molecules}, \texttt{solutions}, \texttt{xyz\_files}). Chaque
-campagne enregistre, en plus des résultats, sa configuration complète
-et les versions logicielles utilisées, ce qui permet de retracer
-\emph{a posteriori} l'exécution exacte qui a produit un résultat donné.
+% (Reproductibilité et environnement déplacés dans la section expérimentale --
+%  section~\ref{sec:repro}.)
 
 
 % =====================================================================
@@ -1981,6 +1996,55 @@ issues de la base BenzDB.}
 \label{tab:corpus}
 \end{table}
 
+\subsection{Environnement logiciel et reproductibilité}
+\label{sec:repro}
+
+La reproductibilité des expériences est une garantie centrale du
+pipeline : un même fichier d'entrée et une même configuration de
+contraintes doivent produire le \emph{même} résultat, jusqu'au bit
+près, indépendamment de la machine ou de la date d'exécution.
+
+\paragraph{Stack logicielle.}
+Le pipeline est écrit en \textbf{Python 3.14.4}, aligné entre le poste
+de développement (Windows~11) et l'environnement \texttt{conda} du
+cluster. Les bibliothèques utilisées et leurs versions (extraits de
+\texttt{requirements.txt}) sont récapitulées dans le
+tableau~\ref{tab:stack}.
+
+\begin{table}[!htbp]
+\centering
+\small
+\begin{tabular}{lll}
+\toprule
+\textbf{Bibliothèque} & \textbf{Version} & \textbf{Rôle} \\
+\midrule
+Python      & 3.14.4 & langage hôte du pipeline \\
+PyCSP3      & 2.5.1  & modélisation des contraintes (génération XCSP3) \\
+ACE         & ---    & solveur CSP Java invoqué par PyCSP3 \\
+NetworkX    & 3.6.1  & graphes (dual, carbone, couplage de Blossom) \\
+NumPy       & 2.4.6  & algèbre linéaire (ACP, reconstruction 3D) \\
+Flask       & 3.1.3  & backend web du designer \\
+Werkzeug    & 3.1.8  & dépendance Flask (WSGI) \\
+Jinja2      & 3.1.6  & dépendance Flask (templates) \\
+3Dmol.js    & ---    & bibliothèque JS du visualiseur 3D (via CDN) \\
+\bottomrule
+\end{tabular}
+\caption{Stack logicielle du pipeline et du designer.}
+\label{tab:stack}
+\end{table}
+
+\paragraph{Cluster de calcul.}
+Les campagnes de grande taille tournent sur le cluster \textbf{COALA}
+du LIS (Aix-Marseille Université), composé de \textbf{16 nœuds}
+(lames \texttt{lis-cluster-coala-49} à \texttt{-64}), chacun équipé
+de \textbf{2 processeurs Intel Xeon Gold 5218R}
+($20$ cœurs physiques) et \textbf{187 GiB de RAM}.
+Au total, jusqu'à \textbf{320 instances \xtb{} en parallèle}. Les
+artefacts (solutions, géométries XYZ, verdicts) sont persistés dans
+une base \textbf{SQLite} (mode \texttt{WAL}). Les détails du protocole
+(variables d'environnement, \texttt{PYTHONHASHSEED}, orchestration
+cluster) sont en annexe~\ref{app:detopt}.
+
 \subsection{$\mathbf{C_1}$ --- Baseline (contraintes structurelles seules)}
 
 La première configuration mesure la référence : avec les seules contraintes
@@ -1989,14 +2053,28 @@ des hexagones de degré $6$ (C2.1), table de voisinage (C3) et rupture de
 symétrie (C4) ---, quelle proportion des solutions est réellement plane après
 validation \xtb{}~?
 
-Le constat est sans appel (tableau~\ref{tab:c1-c2-c3-ctopo}, colonnes C1) :
-le taux de planéité est correct sur les petits squelettes ($78{,}5\,\%$ sur
-$h_6$) mais s'\emph{effondre} avec la taille, jusqu'à
-$\mathbf{38{,}2\,\%}$ sur $h_9$. Le volume absolu de solutions, lui, explose :
-$646\,319$ solutions sur $h_9$, dont seulement $246\,855$ planes. C'est le
-point de départ qui justifie toute la suite : sur $h_9$, six solutions sur dix
-seront éliminées par la validation \xtb{} ; il faut donc des contraintes
-additionnelles pour mieux cibler.
+Le tableau~\ref{tab:res-c1} récapitule les résultats sur le corpus
+$h_3$--$h_9$.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+$h$ & $N$ & $N_{\text{plan}}$ & \%plan \\
+\midrule
+$h_3$ & \tbd & \tbd & \tbd \\
+$h_4$ & \tbd & \tbd & \tbd \\
+$h_5$ & \tbd & \tbd & \tbd \\
+$h_6$ & \tbd & \tbd & \tbd \\
+$h_7$ & \tbd & \tbd & \tbd \\
+$h_8$ & \tbd & \tbd & \tbd \\
+$h_9$ & \tbd & \tbd & \tbd \\
+\bottomrule
+\end{tabular}
+\caption{Résultats de la configuration $C_1$ (baseline).}
+\label{tab:res-c1}
+\end{table}
 
 \subsection{$\mathbf{C_2}$ --- Pb1 + adjacence $5$--$7$ (motif Stone--Wales)}
 
@@ -2019,11 +2097,27 @@ Une troisième contrainte testée parallèlement, $|n_5 - n_7| \le K_{\text{sym}
 $n_5 = n_7$ est déjà imposé par C1, et le filtrage par la table produit
 naturellement des compositions équilibrées.
 
-Le tableau~\ref{tab:c1-c2-c3-ctopo} (colonnes $C_2$) montre que $C_2$ améliore
-nettement $C_1$ : $+10$ à $+25$ points de planéité selon la taille. Le volume
-de solutions chute en revanche fortement ($21\,127$ solutions sur $h_9$
-contre $646\,319$ pour $C_1$), ce qui est un compromis attendu : on
-sélectionne plus durement, on filtre donc beaucoup en amont.
+Le tableau~\ref{tab:res-c2} récapitule les résultats sur le corpus.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+$h$ & $N$ & $N_{\text{plan}}$ & \%plan \\
+\midrule
+$h_3$ & \tbd & \tbd & \tbd \\
+$h_4$ & \tbd & \tbd & \tbd \\
+$h_5$ & \tbd & \tbd & \tbd \\
+$h_6$ & \tbd & \tbd & \tbd \\
+$h_7$ & \tbd & \tbd & \tbd \\
+$h_8$ & \tbd & \tbd & \tbd \\
+$h_9$ & \tbd & \tbd & \tbd \\
+\bottomrule
+\end{tabular}
+\caption{Résultats de la configuration $C_2$ (Pb1 + adj\_57).}
+\label{tab:res-c2}
+\end{table}
 
 \subsection{$\mathbf{C_3}$ --- Interdire les paires $7$--$7$ adjacentes}
 
@@ -2039,13 +2133,27 @@ En pratique, cela revient à interdire que deux heptagones soient à distance
 $\le 2$ dans le dual sans être compensés par autant de pentagones dans le
 même voisinage, ce qui exclut notamment les paires $7$--$7$ adjacentes.
 
-C'est la configuration \textbf{la plus pure} sur les tailles intermédiaires :
-$95{,}5\,\%$ de planéité sur $h_7$, $\mathbf{97{,}3\,\%}$ sur $h_8$. Mais elle
-s'effondre sur $h_9$ ($60{,}1\,\%$) et son volume devient marginal
-($2\,845$ solutions sur $h_9$, dont $1\,711$ planes). C'est le signal que
-les contraintes purement locales ne suffisent plus aux grands squelettes :
-les défauts de courbure s'accumulent au-delà de ce qu'un rayon de $2$
-peut contrôler.
+Le tableau~\ref{tab:res-c3} récapitule les résultats sur le corpus.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+$h$ & $N$ & $N_{\text{plan}}$ & \%plan \\
+\midrule
+$h_3$ & \tbd & \tbd & \tbd \\
+$h_4$ & \tbd & \tbd & \tbd \\
+$h_5$ & \tbd & \tbd & \tbd \\
+$h_6$ & \tbd & \tbd & \tbd \\
+$h_7$ & \tbd & \tbd & \tbd \\
+$h_8$ & \tbd & \tbd & \tbd \\
+$h_9$ & \tbd & \tbd & \tbd \\
+\bottomrule
+\end{tabular}
+\caption{Résultats de la configuration $C_3$ (Gauss--Bonnet local, rayon~2).}
+\label{tab:res-c3}
+\end{table}
 
 \subsection{$\mathbf{C_{\text{topo}}}$ --- Topologie complète}
 \label{sec:ctopo}
@@ -2082,37 +2190,24 @@ d'entrée} : si le benzénoïde fourni ne le satisfait pas, $C_{\text{topo}}$
 ne génère aucune solution.
 
 \paragraph{Résultats.}
-Le tableau~\ref{tab:c1-c2-c3-ctopo} (colonnes $C_{\text{topo}}$) montre que
-$C_{\text{topo}}$ \emph{bat} $C_3$ sur $h_9$ à la fois en pureté
-($\mathbf{71{,}4\,\%}$ contre $60{,}1\,\%$) et en volume ($43\,057$
-solutions contre $2\,845$, soit \emph{quinze fois plus} de candidats
-explorés, dont $30\,742$ planes contre $1\,711$, c'est-à-dire
-\emph{dix-huit fois plus} de plans). Sur les tailles $h_6$--$h_8$,
-$C_3$ reste plus pure (les chiffres sont plus serrés sur des petits
-volumes), mais $C_{\text{topo}}$ génère un volume bien plus utile pour
-l'aval.
+Le tableau~\ref{tab:res-ctopo} récapitule les résultats sur le corpus.
 
 \begin{table}[h]
 \centering
 \small
-\begin{tabular}{l*{8}{c}}
+\begin{tabular}{lccc}
 \toprule
-& \multicolumn{2}{c}{$C_1$} & \multicolumn{2}{c}{$C_2$} & \multicolumn{2}{c}{$C_3$} & \multicolumn{2}{c}{$C_{\text{topo}}$} \\
-\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-9}
-$h$ & N & \%plan & N & \%plan & N & \%plan & N & \%plan \\
+$h$ & $N$ & $N_{\text{plan}}$ & \%plan \\
 \midrule
-$h_3$ & $7$        & $\mathbf{100{,}0}$ & $5$      & $\mathbf{100{,}0}$ & $5$     & $\mathbf{100{,}0}$ & \multicolumn{2}{c}{n.a.} \\
-$h_4$ & $44$       & $95{,}5$           & $16$     & $\mathbf{100{,}0}$ & $12$    & $\mathbf{100{,}0}$ & \multicolumn{2}{c}{n.a.} \\
-$h_5$ & $278$      & $\mathbf{88{,}1}$  & $62$     & $88{,}7$           & $28$    & $85{,}7$           & \multicolumn{2}{c}{n.a.} \\
-$h_6$ & $2\,146$   & $78{,}5$           & $254$    & $88{,}2$           & $75$    & $93{,}3$           & $90$       & $\mathbf{100{,}0}$ \\
-$h_7$ & $15\,004$  & $65{,}9$           & $900$    & $83{,}3$           & $178$   & $95{,}5$           & $1\,035$   & $\mathbf{95{,}6}$ \\
-$h_8$ & $112\,800$ & $57{,}4$           & $3\,292$ & $82{,}0$           & $512$   & $\mathbf{97{,}3}$  & $9\,340$   & $86{,}6$ \\
-$h_9$ & $646\,319$ & $38{,}2$           & $21\,127$& $49{,}7$           & $2\,845$& $60{,}1$           & $43\,057$  & $\mathbf{71{,}4}$ \\
+$h_6$ & \tbd & \tbd & \tbd \\
+$h_7$ & \tbd & \tbd & \tbd \\
+$h_8$ & \tbd & \tbd & \tbd \\
+$h_9$ & \tbd & \tbd & \tbd \\
 \bottomrule
 \end{tabular}
-\caption{Comparaison des quatre configurations $C_1$, $C_2$, $C_3$ et
-$C_{\text{topo}}$ }
-\label{tab:c1-c2-c3-ctopo}
+\caption{Résultats de la configuration $C_{\text{topo}}$ (topologie complète,
+applicable à partir de $h_6$).}
+\label{tab:res-ctopo}
 \end{table}
 
 \subsection{Bilan expérimental}
@@ -2215,6 +2310,126 @@ informatifs. Cette direction, qui maintient le moteur symbolique au cœur
 mais l'enrichit d'heuristiques apprises, semble particulièrement adaptée à un
 problème comme le nôtre, où la connaissance chimique est encore en
 construction et progresse au rythme des expériences elles-mêmes.
+
+% =====================================================================
+%  ANNEXES  (hors limite des 30 pages)
+% =====================================================================
+\newpage
+\appendix
+
+\section{Annexe}
+
+\subsection{Définitions formelles de cohérence}
+\label{app:coherence}
+
+\todo{Définition officielle de la cohérence d'arc et de la propagation
+de contraintes --- à compléter (source : Varet~\cite{varet2022},
+Déf.\ 1.4.1).}
+
+% ---------------------------------------------------------------
+\subsection{Règle de Hückel}
+\label{app:huckel}
+% ---------------------------------------------------------------
+
+\todo{Définition formelle de la règle de Hückel --- à compléter
+(source : \cite{huckel1931}).}
+
+% ---------------------------------------------------------------
+\subsection{Protocole de validation \xtb{} (détails)}
+\label{app:detopt}
+% ---------------------------------------------------------------
+
+\paragraph{Historique : abandon de la dynamique moléculaire.}
+Une première version du pipeline utilisait une \emph{dynamique
+moléculaire} courte (\texttt{xtb --md} à $298$~K pendant $1$~ps) pour
+briser la symétrie planaire parasite avant l'optimisation. Cette
+approche s'est révélée \textbf{non reproductible} : \xtb{} initialise
+les vitesses MD à partir de l'horloge système et n'expose aucune graine
+accessible (confirmé par l'issue GitHub \#$730$ du dépôt
+\texttt{grimme-lab/xtb}, ouverte depuis $2022$ et sans réponse). Sur
+des structures tendues ($h_8$--$h_9$), deux exécutions identiques
+pouvaient basculer entre les verdicts \textsc{plan} et
+\textsc{non-plan}, ce qui invalidait toute campagne expérimentale.
+
+\paragraph{Protocole déterministe retenu.}
+La perturbation $z_i' = z_i + A\sin(2\pi i/N + \varphi)$ ($A=0{,}05$~\AA,
+$\varphi=0{,}5$~rad) est appliquée aux $N$ atomes ordonnés
+canoniquement avant l'appel à \texttt{xtb --opt tight}
+(GFN2-\xtb{} 6.7.1). Les variables d'environnement suivantes sont
+imposées avant chaque appel :
+\begin{quote}\small\ttfamily
+OMP\_NUM\_THREADS=1 \quad MKL\_NUM\_THREADS=1 \\
+OPENBLAS\_NUM\_THREADS=1 \quad NUMEXPR\_NUM\_THREADS=1 \\
+PYTHONHASHSEED=0
+\end{quote}
+De plus, l'ordre canonique \texttt{sorted(\dots)} est appliqué partout
+où des collections non ordonnées (ensembles d'atomes, de liaisons)
+seraient itérées. L'ensemble du pipeline est ainsi
+\emph{byte-déterministe}.
+
+\paragraph{Filtre anti-fragmentation.}
+Un filtre rejette les optimisations où un atome s'éjecte au-delà de
+$30$~\AA{} du barycentre (liaison rompue). La solution reçoit alors le
+verdict \textsc{échec \xtb{}}.
+
+\paragraph{Persistance.}
+La géométrie finale est conservée dans \texttt{md\_final\_opt.xyz} sous
+chaque solution. L'orchestration sur le cluster COALA utilise un
+dispatcher basé sur un \emph{manifest JSONL} partagé sur NFS et des
+verrous atomiques (\texttt{O\_CREAT|O\_EXCL}) garantissant qu'un job
+n'est pris que par un seul worker.
+
+% ---------------------------------------------------------------
+\subsection{Test de planéité par ACP (détails)}
+\label{app:acp}
+% ---------------------------------------------------------------
+
+\paragraph{Calcul du plan moyen.}
+Soit $\mathbf{x}_1, \dots, \mathbf{x}_N \in \mathbb{R}^3$ les
+coordonnées des carbones après optimisation \xtb{}. On centre le nuage
+($\bar{\mathbf{x}} = \frac{1}{N}\sum_i \mathbf{x}_i$) et on forme la
+matrice de covariance $3\times 3$
+
+
+\[
+  \Sigma = \frac{1}{N}\sum_{i=1}^{N}
+    (\mathbf{x}_i - \bar{\mathbf{x}})(\mathbf{x}_i - \bar{\mathbf{x}})^\top .
+\]
+
+
+La diagonalisation de $\Sigma$ fournit trois vecteurs propres
+orthonormés $\mathbf{v}_1, \mathbf{v}_2, \mathbf{v}_3$ avec valeurs
+propres $\lambda_1 \ge \lambda_2 \ge \lambda_3 \ge 0$. Le plan moyen
+est engendré par $\mathbf{v}_1, \mathbf{v}_2$ ; $\mathbf{v}_3$ est sa
+\textbf{normale globale}.
+
+\paragraph{Métriques globales.}
+\begin{itemize}[leftmargin=1.4em]
+  \item \emph{rmsd plan} :
+    $\sqrt{\tfrac{1}{N}\sum_i (\mathbf{v}_3^\top(\mathbf{x}_i -
+    \bar{\mathbf{x}}))^2}$ --- épaisseur quadratique moyenne ;
+  \item \emph{hauteur} : amplitude
+    $\max_i - \min_i$ des projections sur $\mathbf{v}_3$ --- épaisseur
+    extrême ;
+  \item angle entre $\mathbf{v}_3$ et l'axe $Z$ global --- valeur
+    diagnostique (inclinaison d'ensemble sans déformation).
+\end{itemize}
+
+\paragraph{Métrique \texttt{max\_angle\_deg}.}
+Pour chaque cycle $C$, la même ACP sur ses seuls sommets donne une
+normale locale $\mathbf{n}_C$. La valeur maximale de l'angle de
+gauchissement est
+
+
+\[
+  \texttt{max\_angle\_deg} = \max_{C} \arccos(|\mathbf{n}_C \cdot
+  \mathbf{v}_3|).
+\]
+
+
+Le critère retenu est $\texttt{max\_angle\_deg} \le 10^\circ$ (seuil
+fixé par le chimiste après examen de cas-tests ; il tolère les
+déformations stériques légères sans accepter de courbures visibles).
 
 % =====================================================================
 %  BIBLIOGRAPHIE
