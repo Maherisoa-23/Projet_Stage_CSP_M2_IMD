@@ -295,21 +295,7 @@ perpendiculaires au plan local et sont \emph{plus faiblement
 localisés}. Ce sont ces électrons $\pi$ qui portent les propriétés
 aromatiques et opto-électroniques des HAP.
 
-\underline{Hybridation $sp^2$ et $sp^3$} : l'\emph{hybridation} décrit la
-géométrie locale des liaisons d'un atome de carbone. En hybridation
-$sp^3$, le carbone forme quatre liaisons \emph{simples} dirigées vers les
-sommets d'un tétraèdre, avec des angles de $109{,}5^\circ$ : c'est le cas
-du méthane $\mathrm{CH_4}$ ou du diamant, deux structures
-\emph{tridimensionnelles}. En hybridation $sp^2$, le carbone forme trois
-liaisons dont l'une est double, toutes situées dans un même plan avec
-des angles de $120^\circ$ : c'est le cas de tous les carbones des HAP, ce
-qui rend ces molécules naturellement \emph{planes} (au moins localement).
-
-\underline{Conjugaison} : dans une molécule où chaque carbone est en
-hybridation $sp^2$, les orbitales $\pi$ de tous les carbones d'un cycle
-se recouvrent continûment et créent un système d'électrons $\pi$
-\emph{conjugué}. Cette conjugaison est la base de la délocalisation
-décrite à la section~\ref{sec:aromaticite} ci-après.
+\newpage
 
 \subsubsection{HAP, benzénoïdes et graphe dual}
 \label{sec:dual}
@@ -1179,7 +1165,7 @@ sont actives par défaut. C2.2 et C5 sont optionnelles : leur effet est
 \label{sec:c1}
 
 Le nombre total d'atomes de carbone doit être préservé par la
-substitution. Notons $n_H = n_H(B)$ le nombre d'hexagones du benzénoïde
+substitution. Notons $n_H = n_H(B)$ le nombre d'hexagones du benzénoïde $B$
 de départ, et $n_5$, $n_6$, $n_7$ les nombres respectifs de
 pentagones, hexagones et heptagones dans la solution. Tout cycle de la
 solution remplace exactement un hexagone du benzénoïde de départ, donc
@@ -1777,9 +1763,19 @@ Une fois les structures planes obtenues, nous avons développé un outil pour en
 opèrent directement sur le graphe carbone (sans nouveau calcul quantique) et
 sont donc quasi instantanées.
 
-\textbf{Kekulé et radicaux.} On calcule un couplage de cardinalité
-maximale (Blossom) ; les Kekulé sont énumérés par retour arrière (avec un
-plafond). Les carbones non couverts sont les sites radicalaires.
+\paragraph{Modèle CSP $\mathcal{M}_K$ pour les structures de Kekulé.}
+On associe une variable booléenne $x_e \in \{0,1\}$ à chaque liaison $e \in E$
+du graphe carbone ($x_e = 1$ signifie liaison double). La contrainte unique est~:
+\begin{equation}
+  \sum_{e \in \delta(v)} x_e = 1, \quad \forall v \in V.
+  \tag{C-Kek}
+\end{equation}
+L'énumération de toutes les solutions de $\mathcal{M}_K$ produit l'intégralité
+des structures de Kekulé. Pour les molécules sans couplage parfait (graphe
+carbone à nombre impair de sommets ou topologie radicalaire --- cas fréquent
+avec des cycles à $5$ ou $7$), on relaxe l'égalité en inégalité et l'on
+maximise $\sum x_e$ ; les atomes non couverts à l'optimum sont les
+\emph{sites radicalaires}.
 
 \begin{figure}[h]
 \centering
@@ -1790,10 +1786,23 @@ plafond). Les carbones non couverts sont les sites radicalaires.
 \label{fig:visu-kekule}
 \end{figure}
 
-\textbf{Couvertures de Clar.} On énumère les sous-ensembles d'hexagones
-deux à deux disjoints (au plus $2^{n_{\text{hex}}}$, trivial pour
-$n_{\text{hex}} \le 9$) et l'on couple le résidu ; seuls les hexagones
-portent un sextet (règle de Hückel).
+\paragraph{Modèle CSP $\mathcal{M}_C$ pour les couvertures de Clar.}
+On étend $\mathcal{M}_K$ avec une variable booléenne $y_h \in \{0,1\}$ par
+hexagone ($y_h = 1$ signifie que $h$ porte un sextet de Clar). La contrainte
+unifiée par atome est~:
+\begin{equation}
+  \sum_{e \in \delta(v)} x_e \;+\; \sum_{h \in \mathcal{H}\,:\, v \in V(h)} y_h \;=\; 1,
+  \quad \forall v \in V,
+  \tag{C-Clar}
+\end{equation}
+et l'on maximise $Z = \sum_{h \in \mathcal{H}} y_h$. Cette contrainte capture
+simultanément la vertex-disjonction des sextets (deux sextets partageant un
+atome vioteraient l'égalité à $1$) et le couplage parfait du résidu (tout atome
+hors sextet doit être couvert par exactement une double liaison). En posant
+$y_h = 0$ pour tout $h$, on retrouve $\mathcal{M}_K$ comme cas particulier.
+Pour les structures radicalaires, on relaxe (C-Clar) en inégalité et l'on
+utilise un objectif lexicographique : minimiser d'abord le nombre de radicaux,
+puis maximiser $Z$.
 
 \begin{figure}[h]
 \centering
@@ -1804,7 +1813,7 @@ portent un sextet (règle de Hückel).
 \label{fig:visu-clar}
 \end{figure}
 
-\textbf{Extension du RBO aux cycles $5$ et $7$.} La définition de
+\paragraph{Extension du RBO aux cycles $5$ et $7$.} La définition de
 Pauling--Randić~\cite{randic}, reprise par Varet, ne concerne que les
 hexagones. Notre contribution est de conserver la formule
 $\mathrm{CBO}(C) = \sum_{e \in C} \mathrm{bo}(e)$ \emph{sommée sur tout
@@ -1822,14 +1831,12 @@ Pauling--Randić.
 \label{fig:visu-rbo}
 \end{figure}
 
-\begin{remarque}[Pourquoi l'énumération directe plutôt qu'une méthode polynomiale]
-Le comptage rapide des Kekulé des benzénoïdes (méthode de
-Rispoli~\cite{rispoli2001}) repose sur le caractère \emph{biparti} du graphe
-carbone. Les cycles impairs ($5$ ou $7$) brisent cette bipartition ; la
-généralisation passe par le théorème de Kasteleyn~\cite{kasteleyn1967}
-(orientation et Pfaffien), d'un coût d'implémentation jugé hors du périmètre du
-stage. Nous nous en tenons à l'énumération directe, suffisante car les cycles
-$5/7$ contraignent fortement les couplages.
+\begin{remarque}[Alignement avec la littérature]
+Ce modèle coïncide avec celui de \texttt{pah-tools} et de BenzAI~\cite{varet2022}
+pour les benzénoïdes. Notre apport est l'extension aux cycles impairs ($5$ et $7$)
+via la relaxation radicalaire de (C-Clar) et le CBO normalisé~: les outils
+existants imposent $\mathcal{H}$ = hexagones uniquement et ne définissent pas
+le cas sans couplage parfait.
 \end{remarque}
 
 À ce stade, cet outillage est \emph{opérationnel} mais l'exploration reste
@@ -1989,10 +1996,7 @@ $h$ & $h_3$ & $h_4$ & $h_5$ & $h_6$ & $h_7$ & $h_8$ & $h_9$ \\
 nombre de squelettes & $3$ & $6$ & $16$ & $44$ & $126$ & $376$ & $2\,418$ \\
 \bottomrule
 \end{tabular}
-\caption{Nombre de squelettes benzénoïdes du corpus par taille $h$. Les
-tailles $h_3$--$h_5$ proviennent d'une énumération directe (peu de
-squelettes possibles à cette échelle) ; les tailles $h_6$--$h_9$ sont
-issues de la base BenzDB.}
+\caption{Nombre de squelettes benzénoïdes du corpus par taille $h$, issues de BenzDB.}
 \label{tab:corpus}
 \end{table}
 
@@ -2001,8 +2005,7 @@ issues de la base BenzDB.}
 
 La reproductibilité des expériences est une garantie centrale du
 pipeline : un même fichier d'entrée et une même configuration de
-contraintes doivent produire le \emph{même} résultat, jusqu'au bit
-près, indépendamment de la machine ou de la date d'exécution.
+contraintes doivent produire le \emph{même} résultat, indépendamment de la machine ou de la date d'exécution.
 
 \paragraph{Stack logicielle.}
 Le pipeline est écrit en \textbf{Python 3.14.4}, aligné entre le poste
@@ -2063,13 +2066,13 @@ $h_3$--$h_9$.
 \toprule
 $h$ & $N$ & $N_{\text{plan}}$ & \%plan \\
 \midrule
-$h_3$ & \tbd & \tbd & \tbd \\
-$h_4$ & \tbd & \tbd & \tbd \\
-$h_5$ & \tbd & \tbd & \tbd \\
-$h_6$ & \tbd & \tbd & \tbd \\
-$h_7$ & \tbd & \tbd & \tbd \\
-$h_8$ & \tbd & \tbd & \tbd \\
-$h_9$ & \tbd & \tbd & \tbd \\
+$h_3$ & $7$ & $7$ & $100{,}0\,\%$ \\
+$h_4$ & $44$ & $42$ & $95{,}5\,\%$ \\
+$h_5$ & $278$ & $245$ & $88{,}1\,\%$ \\
+$h_6$ & $2\,146$ & $1\,684$ & $78{,}5\,\%$ \\
+$h_7$ & $15\,004$ & $9\,886$ & $65{,}9\,\%$ \\
+$h_8$ & $112\,800$ & $64\,746$ & $57{,}4\,\%$ \\
+$h_9$ & $646\,319$ & $246\,855$ & $38{,}2\,\%$ \\
 \bottomrule
 \end{tabular}
 \caption{Résultats de la configuration $C_1$ (baseline).}
@@ -2106,13 +2109,13 @@ Le tableau~\ref{tab:res-c2} récapitule les résultats sur le corpus.
 \toprule
 $h$ & $N$ & $N_{\text{plan}}$ & \%plan \\
 \midrule
-$h_3$ & \tbd & \tbd & \tbd \\
-$h_4$ & \tbd & \tbd & \tbd \\
-$h_5$ & \tbd & \tbd & \tbd \\
-$h_6$ & \tbd & \tbd & \tbd \\
-$h_7$ & \tbd & \tbd & \tbd \\
-$h_8$ & \tbd & \tbd & \tbd \\
-$h_9$ & \tbd & \tbd & \tbd \\
+$h_3$ & $5$ & $5$ & $100{,}0\,\%$ \\
+$h_4$ & $16$ & $16$ & $100{,}0\,\%$ \\
+$h_5$ & $62$ & $55$ & $88{,}7\,\%$ \\
+$h_6$ & $254$ & $224$ & $88{,}2\,\%$ \\
+$h_7$ & $900$ & $750$ & $83{,}3\,\%$ \\
+$h_8$ & $3\,292$ & $2\,701$ & $82{,}0\,\%$ \\
+$h_9$ & $21\,127$ & $10\,506$ & $49{,}7\,\%$ \\
 \bottomrule
 \end{tabular}
 \caption{Résultats de la configuration $C_2$ (Pb1 + adj\_57).}
@@ -2142,13 +2145,13 @@ Le tableau~\ref{tab:res-c3} récapitule les résultats sur le corpus.
 \toprule
 $h$ & $N$ & $N_{\text{plan}}$ & \%plan \\
 \midrule
-$h_3$ & \tbd & \tbd & \tbd \\
-$h_4$ & \tbd & \tbd & \tbd \\
-$h_5$ & \tbd & \tbd & \tbd \\
-$h_6$ & \tbd & \tbd & \tbd \\
-$h_7$ & \tbd & \tbd & \tbd \\
-$h_8$ & \tbd & \tbd & \tbd \\
-$h_9$ & \tbd & \tbd & \tbd \\
+$h_3$ & $5$ & $5$ & $100{,}0\,\%$ \\
+$h_4$ & $12$ & $12$ & $100{,}0\,\%$ \\
+$h_5$ & $28$ & $24$ & $85{,}7\,\%$ \\
+$h_6$ & $75$ & $70$ & $93{,}3\,\%$ \\
+$h_7$ & $178$ & $170$ & $95{,}5\,\%$ \\
+$h_8$ & $512$ & $498$ & $97{,}3\,\%$ \\
+$h_9$ & $2\,845$ & $1\,711$ & $60{,}1\,\%$ \\
 \bottomrule
 \end{tabular}
 \caption{Résultats de la configuration $C_3$ (Gauss--Bonnet local, rayon~2).}
@@ -2199,10 +2202,10 @@ Le tableau~\ref{tab:res-ctopo} récapitule les résultats sur le corpus.
 \toprule
 $h$ & $N$ & $N_{\text{plan}}$ & \%plan \\
 \midrule
-$h_6$ & \tbd & \tbd & \tbd \\
-$h_7$ & \tbd & \tbd & \tbd \\
-$h_8$ & \tbd & \tbd & \tbd \\
-$h_9$ & \tbd & \tbd & \tbd \\
+$h_6$ & $90$ & $90$ & $100{,}0\,\%$ \\
+$h_7$ & $1\,035$ & $989$ & $95{,}6\,\%$ \\
+$h_8$ & $9\,340$ & $8\,092$ & $86{,}6\,\%$ \\
+$h_9$ & $43\,057$ & $30\,742$ & $71{,}4\,\%$ \\
 \bottomrule
 \end{tabular}
 \caption{Résultats de la configuration $C_{\text{topo}}$ (topologie complète,

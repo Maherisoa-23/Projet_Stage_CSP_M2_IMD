@@ -33,6 +33,8 @@ Thumbs.db
 # ===== Logs =====
 *.log
 
+*.aux
+
 # ===== Dossiers de travail jetables =====
 # Scripts temporaires et fichiers intermediaires (rebuild DB, count cluster,
 # sync checks, etc.). Tout ce qui est jetable apres run.
