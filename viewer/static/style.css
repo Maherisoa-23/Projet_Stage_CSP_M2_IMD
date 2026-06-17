@@ -264,6 +264,7 @@ tbody tr:last-child td { border-bottom: none; }
   font-weight: 600;
 }
 .badge.plan { background: var(--success-bg); color: var(--success); }
+.badge.acceptable { background: #fef3c7; color: #b45309; }   /* dièdre 10-25° */
 .badge.non-plan { background: var(--danger-bg); color: var(--danger); }
 .badge.partial { background: var(--warn-bg); color: var(--warn); }
 .badge.infeasible { background: var(--warn-bg); color: var(--warn); }

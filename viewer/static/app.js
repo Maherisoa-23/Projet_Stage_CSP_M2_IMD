@@ -161,10 +161,10 @@ async function loadDashboard() {
       ${subtitle}
       <div class="row"><span class="label">Molécules</span><span>${c.n_molecules}</span></div>
       <div class="row"><span class="label">Solutions validées</span><span>${c.n_solutions.toLocaleString()}</span></div>
-      <div class="row"><span class="label">Plans</span><span style="color:var(--success)">${c.n_plans.toLocaleString()} (${pct.toFixed(1)}%)</span></div>
-      <div class="row"><span class="label">Non plans</span><span style="color:var(--danger)">${c.n_non_plans.toLocaleString()}</span></div>
-      <div class="row" title="Angle hors-plan max observe sur toutes les solutions validees de la config"><span class="label">Angle max</span><span>${maxAngle}</span></div>
-      <div class="row" title="Mediane de l'angle hors-plan sur les solutions validees (50% des sols sont sous cette valeur)"><span class="label">Angle médian</span><span>${medAngle}</span></div>
+      <div class="row" title="Solutions planes (très plans + acceptables, dièdre < 25°)"><span class="label">Plans</span><span style="color:var(--success)">${c.n_plans.toLocaleString()} (${pct.toFixed(1)}%)</span></div>
+      <div class="row" title="Solutions non planes (dièdre ≥ 25°)"><span class="label">Non plans</span><span style="color:var(--danger)">${c.n_non_plans.toLocaleString()}</span></div>
+      <div class="row" title="Angle dièdre maximal le plus élevé observé sur toutes les solutions de la config"><span class="label">Angle max</span><span>${maxAngle}</span></div>
+      <div class="row" title="Médiane de l'angle dièdre maximal sur les solutions validées"><span class="label">Angle médian</span><span>${medAngle}</span></div>
       ${infeasible > 0 ? `<div class="row"><span class="label">Géom. infaisables</span><span style="color:var(--muted)">${infeasible.toLocaleString()}</span></div>` : ""}
       <div class="pct-bar"><div style="width:${pct}%"></div></div>
     `;
@@ -249,24 +249,18 @@ function renderMolTable(data) {
   let h = `<table><thead><tr>
     <th>Molécule</th>
     <th title="Solutions CSP combinatoires (avant validation 3D)">CSP</th>
-    <th title="Solutions reconstruites + validées par xTB">MD validées</th>
+    <th title="Solutions reconstruites + validées par xTB">xTB validées</th>
     <th title="Solutions CSP-valides mais reconstruction 3D impossible (pentagone/heptagone sur hexagone trop contraint)">Géom. ✗</th>
-    <th>Plans</th>
-    <th>Non plans</th>
-    <th>Angle min</th>
-    <th>Original</th>
+    <th title="Solutions planes (très plan + acceptable), dièdre &lt; 25°">Plans</th>
+    <th title="Solutions très planes, dièdre &lt; 10°">dont TP</th>
+    <th title="Solutions non planes, dièdre &ge; 25°">Non plans</th>
+    <th title="Plus petit angle dièdre maximal observé sur les sols validées">Angle min</th>
     <th>Job</th>
   </tr></thead><tbody>`;
   for (const m of data.molecules) {
     const pct = m.n_md_completed > 0 ? (100 * m.n_plans / m.n_md_completed).toFixed(0) : "—";
     const infeasible = m.n_geom_infeasible || 0;
     const xtbFailed = m.n_xtb_failed || 0;
-    // Cellule "MD validées" : juste le compte (sans badge orange).
-    // Cellule "Géom ✗" affiche les sols CSP-valides mais infaisables 3D.
-    const orig = m.original_planar === null ? "—"
-      : m.original_planar
-        ? `<span class="badge plan">PLAN ${(m.original_angle_deg ?? 0).toFixed(1)}°</span>`
-        : `<span class="badge non-plan">NON ${(m.original_angle_deg ?? 0).toFixed(1)}°</span>`;
     const geomCell = infeasible > 0
       ? `<span class="muted" title="Reconstruction 3D impossible : structure CSP-valide mais inaccessible géométriquement">${infeasible}</span>`
       : `<span class="muted">0</span>`;
@@ -276,9 +270,9 @@ function renderMolTable(data) {
       <td>${m.n_md_completed ?? "—"}</td>
       <td>${geomCell}${xtbFailed > 0 ? ` <span class="muted" title="Reconstruction OK mais xTB a échoué">+${xtbFailed} xTB✗</span>` : ""}</td>
       <td style="color:var(--success)"><strong>${m.n_plans}</strong> ${pct !== "—" ? `(${pct}%)` : ""}</td>
+      <td><span class="muted">${m.n_tres_plan ?? "—"}</span></td>
       <td style="color:var(--danger)">${m.n_non_plans}</td>
       <td>${m.min_angle === null ? "—" : m.min_angle.toFixed(2) + "°"}</td>
-      <td>${orig}</td>
       <td><span class="muted">${m.job_status ?? "—"}${m.job_duration_sec ? ` · ${(m.job_duration_sec/60).toFixed(0)} min` : ""}</span></td>
     </tr>`;
   }
@@ -328,40 +322,20 @@ async function fetchSolutions() {
 function renderMolMeta(meta) {
   const box = $("#mol-meta");
   if (!meta) { box.innerHTML = ""; return; }
-  const orig = meta.original_planar === null ? "—"
-    : (meta.original_planar ? "PLAN" : "NON PLAN") + ` (${(meta.original_angle_deg ?? 0).toFixed(2)}°)`;
   const infeasible = meta.n_geom_infeasible || 0;
   const xtbFailed = meta.n_xtb_failed || 0;
-  // Bouton 3D pour la molecule d'origine optimisee : visible uniquement si on
-  // a un chemin xyz cote serveur (sinon le pipeline n'a pas produit le fichier).
-  const origBtn3d = meta.original_xyz_path
-    ? `<button class="btn-3d btn-3d-orig" id="btn-3d-orig" title="Visualiser l'original optimisé en 3D">3D</button>`
-    : "";
   box.innerHTML = `
     <div class="item"><span class="label">CSP combinatoire</span><span class="value">${meta.n_solutions_csp ?? "—"}</span></div>
-    <div class="item"><span class="label">MD validées</span><span class="value">${meta.n_md_completed ?? "—"}</span></div>
+    <div class="item"><span class="label">xTB validées</span><span class="value">${meta.n_md_completed ?? "—"}</span></div>
     ${infeasible > 0 ? `<div class="item" title="Solutions CSP-valides mais reconstruction 3D impossible"><span class="label">Géom. infaisables</span><span class="value" style="color:var(--muted)">${infeasible}</span></div>` : ""}
     ${xtbFailed > 0 ? `<div class="item" title="Reconstruction OK mais xTB a échoué"><span class="label">xTB échec</span><span class="value" style="color:var(--muted)">${xtbFailed}</span></div>` : ""}
-    <div class="item"><span class="label">Plans</span><span class="value" style="color:var(--success)">${meta.n_plans}</span></div>
-    <div class="item"><span class="label">Non plans</span><span class="value" style="color:var(--danger)">${meta.n_non_plans}</span></div>
-    <div class="item"><span class="label">Angle min</span><span class="value">${meta.min_angle === null ? "—" : meta.min_angle.toFixed(2) + "°"}</span></div>
-    <div class="item"><span class="label">Angle max</span><span class="value">${meta.max_angle === null ? "—" : meta.max_angle.toFixed(2) + "°"}</span></div>
-    <div class="item"><span class="label">Original</span><span class="value">${orig} ${origBtn3d}</span></div>
+    <div class="item" title="Très plan + acceptable (dièdre < 25°)"><span class="label">Plans</span><span class="value" style="color:var(--success)"><strong>${meta.n_plans ?? 0}</strong></span></div>
+    <div class="item" title="Très plan (dièdre < 10°)"><span class="label">dont très plans</span><span class="value">${meta.n_tres_plan ?? 0}</span></div>
+    <div class="item" title="Non plans (dièdre ≥ 25°)"><span class="label">Non plans</span><span class="value" style="color:var(--danger)">${meta.n_non_plans ?? 0}</span></div>
+    <div class="item" title="Plus petit angle dièdre maximal observé"><span class="label">Angle min</span><span class="value">${meta.min_angle === null ? "—" : meta.min_angle.toFixed(2) + "°"}</span></div>
+    <div class="item" title="Plus grand angle dièdre maximal observé"><span class="label">Angle max</span><span class="value">${meta.max_angle === null ? "—" : meta.max_angle.toFixed(2) + "°"}</span></div>
     <div class="item"><span class="label">Job</span><span class="value">${meta.job_status ?? "—"}${meta.job_duration_sec ? ` · ${(meta.job_duration_sec/60).toFixed(0)} min` : ""}</span></div>
   `;
-
-  // Hook le bouton 3D Original (si present)
-  const btnOrig = $("#btn-3d-orig");
-  if (btnOrig && meta.original_xyz_path) {
-    btnOrig.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      openMolViz({
-        xyz_path: meta.original_xyz_path,
-        title:    "Original",
-        subtitle: state.mol,
-      });
-    });
-  }
 }
 
 function renderSolTable(data) {
@@ -374,29 +348,26 @@ function renderSolTable(data) {
     <th>Sol_idx</th>
     <th>Sizes</th>
     <th>Verdict</th>
-    <th title="Ancien critere : angle ACP normale cycle vs plan moyen">Angle ACP</th>
-    <th title="Nouveau critere (Denis) : ecart-au-plan max sur diedres connectes A-B-C-D">Dièdre max</th>
+    <th title="Écart-au-plan max sur dièdres connectés A-B-C-D (seuils : <10 très plan, 10-25 acceptable, ≥25 non plan)">Angle (°)</th>
     <th>RMSD</th>
     <th>Height</th>
     <th>Tentatives MD</th>
     <th>Vue 3D</th>
   </tr></thead><tbody>`;
   for (const s of data.solutions) {
-    let badge, rowClass = "", angleCell, dihedralCell, rmsdCell, heightCell, attemptsCell, filesCell;
+    let badge, rowClass = "", angleCell, rmsdCell, heightCell, attemptsCell, filesCell;
 
-    // Helper : cellule diedre avec couleur (vert/orange/rouge selon Denis)
-    const dihedralFmt = (v) => {
+    // Cellule angle coloriee selon les 3 seuils chimistes
+    const angleFmt = (v) => {
       if (v == null) return "—";
       const cls = v < 10 ? "dih-good" : (v < 25 ? "dih-mid" : "dih-bad");
-      const lbl = v < 10 ? "très plan" : (v < 25 ? "acceptable" : "non plan");
-      return `<span class="${cls}" title="${lbl} (seuils Denis : <10 / 10-25 / >25)">${v.toFixed(2)}°</span>`;
+      return `<span class="${cls}">${v.toFixed(2)}°</span>`;
     };
 
     if (s.verdict === "geom_infeasible") {
       badge = `<span class="badge infeasible" title="Reconstruction 3D impossible (CSP-valide mais pentagone/heptagone sur hexagone trop contraint)">GÉOM ✗</span>`;
       rowClass = "row-infeasible";
       angleCell = `—`;
-      dihedralCell = `—`;
       rmsdCell = `—`;
       heightCell = `—`;
       attemptsCell = `—`;
@@ -405,18 +376,21 @@ function renderSolTable(data) {
       badge = `<span class="badge xtb-failed" title="Reconstruction OK mais xTB n'a pas convergé">xTB ✗</span>`;
       rowClass = "row-xtb-failed";
       angleCell = `—`;
-      dihedralCell = `—`;
       rmsdCell = `—`;
       heightCell = `—`;
       attemptsCell = s.n_attempts ?? "—";
       filesCell = `<span class="muted">—</span>`;
     } else {
-      // plan / non_plan
-      badge = s.planar
-        ? `<span class="badge plan">PLAN</span>`
-        : `<span class="badge non-plan">NON</span>`;
-      angleCell = (s.angle_deg ?? 0).toFixed(3) + "°";
-      dihedralCell = dihedralFmt(s.max_dihedral_deg);
+      // tres_plan / acceptable / non_plan : 3 badges distincts
+      if (s.verdict === "tres_plan") {
+        badge = `<span class="badge plan" title="Très plan : dièdre maximal &lt; 10°">PLAN</span>`;
+      } else if (s.verdict === "acceptable") {
+        badge = `<span class="badge acceptable" title="Acceptable : dièdre maximal entre 10° et 25°">ACC</span>`;
+      } else {
+        // non_plan
+        badge = `<span class="badge non-plan" title="Non plan : dièdre maximal ≥ 25°">NON</span>`;
+      }
+      angleCell = angleFmt(s.angle_deg);
       rmsdCell = s.rmsd?.toFixed(4) ?? "—";
       heightCell = s.height?.toFixed(4) ?? "—";
       attemptsCell = s.n_attempts ?? "—";
@@ -428,7 +402,6 @@ function renderSolTable(data) {
       <td><code>${s.sizes}</code></td>
       <td>${badge}</td>
       <td>${angleCell}</td>
-      <td>${dihedralCell}</td>
       <td>${rmsdCell}</td>
       <td>${heightCell}</td>
       <td>${attemptsCell}</td>

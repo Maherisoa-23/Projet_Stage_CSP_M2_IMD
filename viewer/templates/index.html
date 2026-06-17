@@ -100,14 +100,11 @@
           Filtre :
           <select id="sol-filter">
             <option value="all">Toutes</option>
-            <option value="validated">Validées (plans + non plans)</option>
-            <option value="plans" selected>Plans uniquement (ACP)</option>
-            <option value="non_plans">Non plans (ACP)</option>
-            <optgroup label="Critère dièdre (Denis)">
-              <option value="tres_plan">Très plan (&lt; 10°)</option>
-              <option value="acceptable">Acceptable (10–25°)</option>
-              <option value="non_plan_dih">Non plan (&ge; 25°)</option>
-            </optgroup>
+            <option value="validated">Validées (TP + ACC + NON)</option>
+            <option value="plans" selected>Plans (TP + ACC, dièdre &lt; 25°)</option>
+            <option value="tres_plan">Très plans uniquement (&lt; 10°)</option>
+            <option value="acceptable">Acceptables uniquement (10–25°)</option>
+            <option value="non_plans">Non plans (&ge; 25°)</option>
             <option value="infeasible">Géom. infaisables</option>
             <option value="xtb_failed">xTB échec</option>
           </select>
@@ -115,10 +112,8 @@
         <label>
           Tri :
           <select id="sol-sort">
-            <option value="angle">Angle ACP croissant</option>
-            <option value="angle_desc">Angle ACP décroissant</option>
-            <option value="dihedral">Dièdre max croissant</option>
-            <option value="dihedral_desc">Dièdre max décroissant</option>
+            <option value="angle">Angle croissant</option>
+            <option value="angle_desc">Angle décroissant</option>
             <option value="idx">Sol_idx croissant</option>
             <option value="idx_desc">Sol_idx décroissant</option>
           </select>

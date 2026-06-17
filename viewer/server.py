@@ -159,8 +159,8 @@ def api_molecules():
         rows = conn.execute(
             f"SELECT mol, n_solutions_csp, n_md_completed, "
             f"       n_geom_infeasible, n_xtb_failed, "
-            f"       n_plans, n_non_plans, min_angle, max_angle, "
-            f"       original_planar, original_angle_deg, "
+            f"       n_plans, n_tres_plan, n_acceptable, n_non_plans, "
+            f"       min_angle, max_angle, "
             f"       job_status, job_duration_sec "
             f"FROM molecules{where_sql} "
             f"ORDER BY {sort_sql} "
@@ -188,23 +188,27 @@ def api_solutions():
     size = min(500, max(10, int(request.args.get("size", 50))))
     sort = request.args.get("sort", "angle")
     # Tri : NULL en queue.
-    # 'angle' = ancien angle_deg (ACP). 'dihedral' = nouvelle metrique
-    # (ecart-au-plan max sur diedres connectes A-B-C-D), preconisee par
-    # Denis. Seuils chimistes : <10 tres plan, 10-25 acceptable, >=25 non plan.
+    # 'angle' = max_dihedral_deg (= angle_deg apres migration vers verdict diedre).
+    # Seuils chimistes (Denis Hagebaum-Reignier) : <10 tres plan, 10-25
+    # acceptable, >=25 non plan.
     sort_map = {
-        "angle":         "(angle_deg IS NULL), angle_deg ASC",
-        "angle_desc":    "(angle_deg IS NULL), angle_deg DESC",
-        "dihedral":      "(max_dihedral_deg IS NULL), max_dihedral_deg ASC",
-        "dihedral_desc": "(max_dihedral_deg IS NULL), max_dihedral_deg DESC",
-        "idx":           "sol_idx ASC",
-        "idx_desc":      "sol_idx DESC",
+        "angle":      "(angle_deg IS NULL), angle_deg ASC",
+        "angle_desc": "(angle_deg IS NULL), angle_deg DESC",
+        "idx":        "sol_idx ASC",
+        "idx_desc":   "sol_idx DESC",
     }
     sort_sql = sort_map.get(sort, sort_map["angle"])
 
     where = ["h = ?", "config = ?", "mol = ?"]
     params = [h, config, mol]
+    # Filtres bases sur le verdict diedre.
+    # 'plans' = cumul tres_plan + acceptable (defaut, cf. dashboard).
     if flt == "plans":
-        where.append("verdict = 'plan'")
+        where.append("verdict IN ('tres_plan', 'acceptable')")
+    elif flt == "tres_plan":
+        where.append("verdict = 'tres_plan'")
+    elif flt == "acceptable":
+        where.append("verdict = 'acceptable'")
     elif flt == "non_plans":
         where.append("verdict = 'non_plan'")
     elif flt == "infeasible":
@@ -212,14 +216,7 @@ def api_solutions():
     elif flt == "xtb_failed":
         where.append("verdict = 'xtb_failed'")
     elif flt == "validated":
-        where.append("verdict IN ('plan', 'non_plan')")
-    # Filtres bases sur la nouvelle metrique diedre (seuils chimistes)
-    elif flt == "tres_plan":
-        where.append("max_dihedral_deg < 10")
-    elif flt == "acceptable":
-        where.append("max_dihedral_deg >= 10 AND max_dihedral_deg < 25")
-    elif flt == "non_plan_dih":
-        where.append("max_dihedral_deg >= 25")
+        where.append("verdict IN ('tres_plan', 'acceptable', 'non_plan')")
     # 'all' : pas de filtre supplementaire
 
     # Recherche libre : matche sol_idx (egalite numerique si entier) OU sizes
@@ -240,9 +237,12 @@ def api_solutions():
         total = conn.execute(
             f"SELECT COUNT(*) FROM solutions{where_sql}", params
         ).fetchone()[0]
+        # angle_deg = max_dihedral_deg (= valeur courante apres migration).
+        # On expose une seule colonne 'angle_deg' a l'UI ; l'ancien ACP
+        # est conserve en DB sous 'angle_deg_acp' pour comparaison.
         rows = conn.execute(
             f"SELECT id, sol_idx, sizes, verdict, planar, angle_deg, "
-            f"       max_dihedral_deg, rmsd, height, "
+            f"       rmsd, height, "
             f"       n_attempts, deterministic, sol_dir "
             f"FROM solutions{where_sql} "
             f"ORDER BY {sort_sql} "
@@ -252,33 +252,14 @@ def api_solutions():
         meta = conn.execute(
             "SELECT n_solutions_csp, n_md_completed, "
             "       n_geom_infeasible, n_xtb_failed, "
-            "       n_plans, n_non_plans, "
-            "       min_angle, max_angle, original_planar, original_angle_deg, "
+            "       n_plans, n_tres_plan, n_acceptable, n_non_plans, "
+            "       min_angle, max_angle, "
             "       job_status, job_duration_sec "
             "FROM molecules WHERE h = ? AND config = ? AND mol = ?",
             (h, config, mol)
         ).fetchone()
-        # Chemin relatif du fichier d'optim de la molecule d'origine.
-        # On le deduit d'un sol_dir quelconque de la mol (deux niveaux au-dessus),
-        # car la table molecules ne stocke pas le mol_dir explicitement.
-        original_xyz_path = None
-        any_sol_dir = conn.execute(
-            "SELECT sol_dir FROM solutions "
-            "WHERE h = ? AND config = ? AND mol = ? LIMIT 1",
-            (h, config, mol)
-        ).fetchone()
-        if any_sol_dir and any_sol_dir["sol_dir"]:
-            sd = any_sol_dir["sol_dir"].replace("\\", "/").rstrip("/")
-            # Format attendu : <prefix>/<mol>/solutions/sol_X_Y
-            # On remonte deux fois pour atteindre <prefix>/<mol>/
-            parts = sd.split("/")
-            if len(parts) >= 3 and parts[-2] == "solutions":
-                mol_dir_rel = "/".join(parts[:-2])
-                original_xyz_path = f"{mol_dir_rel}/{mol}_original_opt.xyz"
 
     meta_out = dict(meta) if meta else None
-    if meta_out is not None:
-        meta_out["original_xyz_path"] = original_xyz_path
     return jsonify({
         "total": total,
         "page": page,
