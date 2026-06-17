@@ -1741,20 +1741,65 @@ aléatoire, ce qui rend l'ensemble du pipeline \emph{byte-déterministe}.
 La formule, la commande \texttt{xtb --opt tight} et tous les détails
 techniques sont donnés en annexe~\ref{app:detopt}.
 
-\subsubsection{Test de planéité par analyse en composantes principales}
+\subsubsection{Test de planéité}
 \label{sec:acp}
 
-Une fois la géométrie optimisée par \xtb{}, on applique une
-\textbf{analyse en composantes principales} (ACP) aux positions des
-atomes de carbone pour mesurer l'écart à la planéité. Le critère de
-décision, fixé par les chimistes après examen de cas-tests :
+Une fois la géométrie optimisée par \xtb{}, il reste à décider si la
+molécule est plane. Nous utilisons deux métriques complémentaires, dont
+seule la seconde sert au verdict final.
+
+\paragraph{Métrique géométrique globale (ACP).} La première métrique,
+implémentée dès les premières versions du pipeline, applique une
+\textbf{analyse en composantes principales} aux positions des
+carbones, calcule la normale du plan moyen, et pour chaque cycle
+l'angle de gauchissement entre la normale locale du cycle et la
+normale globale. La quantité retenue, $\texttt{max\_angle\_deg}$, est
+le maximum de ces angles sur tous les cycles. Cette métrique donne une
+image globale de la courbure : une molécule en cuvette ou en selle
+produit un \texttt{max\_angle\_deg} élevé. Les détails techniques
+(diagonalisation de la covariance, formules) sont en
+annexe~\ref{app:acp}.
+
+\paragraph{Métrique chimique locale (angles dièdres).} En discussion
+avec les chimistes (Denis Hagebaum-Reignier, Yannick Carissan), nous
+avons constaté que la métrique précédente capturait bien la
+\emph{courbure d'ensemble} mais surestimait l'écart à la planéité du
+système $\pi$, qui n'est sensible qu'à des déformations
+\emph{localisées entre liaisons voisines}. Nous calculons donc, pour
+chaque suite de quatre atomes de carbone $A$--$B$--$C$--$D$ tous
+connectés par des liaisons covalentes consécutives (trois liaisons en
+chaîne), l'angle dièdre signé $\varphi(A,B,C,D) \in (-180^\circ,
+180^\circ]$. Pour une molécule strictement plane, chaque dièdre vaut
+$0^\circ$ ou $\pm 180^\circ$ : l'\emph{écart au plan} est donc
+$\delta(\varphi) = \min(|\varphi|, 180^\circ - |\varphi|) \in [0,
+90^\circ]$. La métrique retenue est le maximum~:
 \[
-  \boxed{\text{molécule plane} \iff \texttt{max\_angle\_deg} \le 10^\circ .}
+  \texttt{max\_dihedral\_deg}
+    \;=\; \max_{A\text{-}B\text{-}C\text{-}D} \delta\bigl(\varphi(A,B,C,D)\bigr).
 \]
-Chaque solution reçoit ainsi un verdict final : \textsc{plan},
-\textsc{non-plan}, ou \textsc{échec \xtb{}}. Les détails techniques
-(matrice de covariance, métriques rmsd et hauteur, formule de
-\texttt{max\_angle\_deg}) sont en annexe~\ref{app:acp}.
+
+\paragraph{Critère de décision (verdict final).} Sur recommandation
+des chimistes, la classification adopte \emph{trois niveaux} plutôt
+qu'un seuil binaire, le seuil exact étant difficile à fixer dans
+l'absolu et dépendant de chaque système~:
+\[
+  \boxed{
+    \begin{aligned}
+      \texttt{max\_dihedral\_deg} &< 10^\circ &&\Rightarrow \text{très plan,} \\
+      10^\circ \le \texttt{max\_dihedral\_deg} &< 25^\circ &&\Rightarrow \text{acceptable,} \\
+      \texttt{max\_dihedral\_deg} &\ge 25^\circ &&\Rightarrow \text{non plan.}
+    \end{aligned}
+  }
+\]
+Chaque solution reçoit ainsi un verdict parmi \textsc{très plan},
+\textsc{acceptable}, \textsc{non plan} ou \textsc{échec \xtb{}}. La
+plage intermédiaire « acceptable » reflète l'avis chimique~: même avec
+un dièdre maximal de $20^\circ$, le composé reste raisonnable
+chimiquement (encore conjugué, encore stable). Les statistiques aux
+deux seuils $10^\circ$ et $25^\circ$ sont reportées séparément à la
+section~\ref{sec:xp}, comme suggéré par les chimistes pour distinguer
+les molécules \emph{légèrement} déformées (entre $10^\circ$ et
+$25^\circ$) de celles \emph{fortement} déformées ($\ge 25^\circ$).
 
 \subsection{Analyse électronique des structures}
 \label{sec:analyse-elec}
@@ -1977,13 +2022,22 @@ aux plus contraintes, qui isolent successivement chaque levier identifié.
 
 Le banc d'essai utilise les squelettes benzénoïdes canoniques de la base
 \emph{BenzDB}, de $h_3$ à $h_9$ hexagones (tableau~\ref{tab:corpus}). La
-métrique principale est le \textbf{taux de planéité} : la proportion de
-solutions jugées planes par le pipeline \xtb{}+ACP, complétée par le
-\emph{nombre absolu} de molécules planes produites (souvent plus parlant pour
-l'aval, qui s'intéresse au nombre de candidats exploitables). Les campagnes
-sont reproductibles (validation \emph{det-opt}, section~\ref{sec:md}),
-agrégées en base SQLite, et chaque configuration de contraintes est comparée
-terme à terme aux autres sur le même corpus.
+métrique principale est la \textbf{distribution des verdicts dièdres}
+définis section~\ref{sec:acp} : pour chaque configuration, on reporte la
+proportion de solutions \textbf{très planes} (\textbf{TP}, dièdre maximal
+$< 10^\circ$) et \textbf{plan acceptable} (\textbf{A}, dièdre maximal $< 25^\circ$,
+\emph{cumulatif} : la colonne~A inclut toutes les solutions très planes),
+complétée par le \emph{nombre absolu} $N$ de solutions générées (souvent
+plus parlant pour l'aval, qui s'intéresse au nombre de candidats
+exploitables). Le complément à $100\,\%$ de la colonne A donne la
+proportion de solutions \textsc{non planes} (dièdre $\ge 25^\circ$). La
+distinction \textbf{TP} \emph{vs.}\ \textbf{A} suit la recommandation des
+chimistes (Denis Hagebaum-Reignier) : un dièdre maximal entre 10 et
+$25^\circ$ correspond à une molécule \emph{légèrement} déformée qui reste
+chimiquement raisonnable, à distinguer d'une planéité quasi parfaite. Les
+campagnes sont reproductibles (validation \emph{det-opt},
+section~\ref{sec:md}), agrégées en base SQLite, et chaque configuration
+de contraintes est comparée terme à terme aux autres sur le même corpus.
 
 \begin{table}[h]
 \centering
@@ -2060,20 +2114,23 @@ $h_3$--$h_9$.
 \begin{table}[h]
 \centering
 \small
-\begin{tabular}{lccc}
+\begin{tabular}{lrrrrr}
 \toprule
-$h$ & $N$ & $N_{\text{plan}}$ & \%plan \\
+$h$ & $N$ & $N_{\text{TP}}$ & \%TP & $N_{\text{A}}$ & \%A \\
 \midrule
-$h_3$ & $7$ & $7$ & $100{,}0\,\%$ \\
-$h_4$ & $44$ & $42$ & $95{,}5\,\%$ \\
-$h_5$ & $278$ & $245$ & $88{,}1\,\%$ \\
-$h_6$ & $2\,146$ & $1\,684$ & $78{,}5\,\%$ \\
-$h_7$ & $15\,004$ & $9\,886$ & $65{,}9\,\%$ \\
-$h_8$ & $112\,800$ & $64\,746$ & $57{,}4\,\%$ \\
-$h_9$ & $646\,319$ & $246\,855$ & $38{,}2\,\%$ \\
+$h_3$ & $7$        & $7$        & $100{,}0\,\%$ & $7$        & $100{,}0\,\%$ \\
+$h_4$ & $44$       & $42$       & $95{,}5\,\%$  & $42$       & $95{,}5\,\%$  \\
+$h_5$ & $278$      & $245$      & $88{,}1\,\%$  & $252$      & $90{,}6\,\%$  \\
+$h_6$ & $2\,146$   & $1\,691$   & $78{,}8\,\%$  & $1\,834$   & $85{,}5\,\%$  \\
+$h_7$ & $15\,004$  & $9\,909$   & $66{,}0\,\%$  & $11\,381$  & $75{,}8\,\%$  \\
+$h_8$ & $112\,800$ & $64\,677$  & $57{,}3\,\%$  & $78\,793$  & $69{,}9\,\%$  \\
+$h_9$ & $646\,319$ & $241\,577$ & $37{,}4\,\%$  & $351\,343$ & $54{,}4\,\%$  \\
 \bottomrule
 \end{tabular}
-\caption{Résultats de la configuration $C_1$ (baseline).}
+\caption{Résultats de la configuration $C_1$ (baseline). $N_{\text{TP}}$ :
+nombre de solutions très planes (dièdre $< 10^\circ$). $N_{\text{A}}$ :
+nombre cumulé de solutions planes ou acceptables (dièdre $< 25^\circ$),
+incluant $N_{\text{TP}}$.}
 \label{tab:res-c1}
 \end{table}
 
@@ -2103,20 +2160,21 @@ Le tableau~\ref{tab:res-c2} récapitule les résultats sur le corpus.
 \begin{table}[h]
 \centering
 \small
-\begin{tabular}{lccc}
+\begin{tabular}{lrrrrr}
 \toprule
-$h$ & $N$ & $N_{\text{plan}}$ & \%plan \\
+$h$ & $N$ & $N_{\text{TP}}$ & \%TP & $N_{\text{A}}$ & \%A \\
 \midrule
-$h_3$ & $5$ & $5$ & $100{,}0\,\%$ \\
-$h_4$ & $16$ & $16$ & $100{,}0\,\%$ \\
-$h_5$ & $62$ & $55$ & $88{,}7\,\%$ \\
-$h_6$ & $254$ & $224$ & $88{,}2\,\%$ \\
-$h_7$ & $900$ & $750$ & $83{,}3\,\%$ \\
-$h_8$ & $3\,292$ & $2\,701$ & $82{,}0\,\%$ \\
-$h_9$ & $21\,127$ & $10\,506$ & $49{,}7\,\%$ \\
+$h_3$ & $5$       & $5$       & $100{,}0\,\%$ & $5$       & $100{,}0\,\%$ \\
+$h_4$ & $16$      & $16$      & $100{,}0\,\%$ & $16$      & $100{,}0\,\%$ \\
+$h_5$ & $62$      & $55$      & $88{,}7\,\%$  & $55$      & $88{,}7\,\%$  \\
+$h_6$ & $254$     & $224$     & $88{,}2\,\%$  & $233$     & $91{,}7\,\%$  \\
+$h_7$ & $900$     & $749$     & $83{,}2\,\%$  & $802$     & $89{,}1\,\%$  \\
+$h_8$ & $3\,292$  & $2\,669$  & $81{,}1\,\%$  & $2\,925$  & $88{,}8\,\%$  \\
+$h_9$ & $21\,127$ & $10\,170$ & $48{,}1\,\%$  & $15\,623$ & $73{,}9\,\%$  \\
 \bottomrule
 \end{tabular}
-\caption{Résultats de la configuration $C_2$ (Pb1 + adj\_57).}
+\caption{Résultats de la configuration $C_2$ (Pb1 + adj\_57). Colonnes :
+voir tableau~\ref{tab:res-c1}.}
 \label{tab:res-c2}
 \end{table}
 
@@ -2139,20 +2197,21 @@ Le tableau~\ref{tab:res-c3} récapitule les résultats sur le corpus.
 \begin{table}[h]
 \centering
 \small
-\begin{tabular}{lccc}
+\begin{tabular}{lrrrrr}
 \toprule
-$h$ & $N$ & $N_{\text{plan}}$ & \%plan \\
+$h$ & $N$ & $N_{\text{TP}}$ & \%TP & $N_{\text{A}}$ & \%A \\
 \midrule
-$h_3$ & $5$ & $5$ & $100{,}0\,\%$ \\
-$h_4$ & $12$ & $12$ & $100{,}0\,\%$ \\
-$h_5$ & $28$ & $24$ & $85{,}7\,\%$ \\
-$h_6$ & $75$ & $70$ & $93{,}3\,\%$ \\
-$h_7$ & $178$ & $170$ & $95{,}5\,\%$ \\
-$h_8$ & $512$ & $498$ & $97{,}3\,\%$ \\
-$h_9$ & $2\,845$ & $1\,711$ & $60{,}1\,\%$ \\
+$h_3$ & $5$      & $5$      & $100{,}0\,\%$ & $5$      & $100{,}0\,\%$ \\
+$h_4$ & $12$     & $12$     & $100{,}0\,\%$ & $12$     & $100{,}0\,\%$ \\
+$h_5$ & $28$     & $24$     & $85{,}7\,\%$  & $24$     & $85{,}7\,\%$  \\
+$h_6$ & $75$     & $70$     & $93{,}3\,\%$  & $71$     & $94{,}7\,\%$  \\
+$h_7$ & $178$    & $170$    & $95{,}5\,\%$  & $171$    & $96{,}1\,\%$  \\
+$h_8$ & $512$    & $498$    & $97{,}3\,\%$  & $500$    & $97{,}7\,\%$  \\
+$h_9$ & $2\,845$ & $1\,696$ & $59{,}6\,\%$  & $2\,292$ & $80{,}5\,\%$  \\
 \bottomrule
 \end{tabular}
-\caption{Résultats de la configuration $C_3$ (Gauss--Bonnet local, rayon~2).}
+\caption{Résultats de la configuration $C_3$ (Gauss--Bonnet local, rayon~2).
+Colonnes : voir tableau~\ref{tab:res-c1}.}
 \label{tab:res-c3}
 \end{table}
 
@@ -2202,44 +2261,59 @@ Le tableau~\ref{tab:res-ctopo} récapitule les résultats sur le corpus.
 \begin{table}[h]
 \centering
 \small
-\begin{tabular}{lccc}
+\begin{tabular}{lrrrrr}
 \toprule
-$h$ & $N$ & $N_{\text{plan}}$ & \%plan \\
+$h$ & $N$ & $N_{\text{TP}}$ & \%TP & $N_{\text{A}}$ & \%A \\
 \midrule
-$h_6$ & $90$ & $90$ & $100{,}0\,\%$ \\
-$h_7$ & $1\,035$ & $989$ & $95{,}6\,\%$ \\
-$h_8$ & $9\,340$ & $8\,092$ & $86{,}6\,\%$ \\
-$h_9$ & $43\,057$ & $30\,742$ & $71{,}4\,\%$ \\
+$h_6$ & $90$      & $90$      & $100{,}0\,\%$ & $90$      & $100{,}0\,\%$ \\
+$h_7$ & $1\,035$  & $980$     & $94{,}7\,\%$  & $998$     & $96{,}4\,\%$  \\
+$h_8$ & $9\,340$  & $7\,989$  & $85{,}5\,\%$  & $8\,512$  & $91{,}1\,\%$  \\
+$h_9$ & $43\,057$ & $29\,954$ & $69{,}6\,\%$  & $35\,440$ & $82{,}3\,\%$  \\
 \bottomrule
 \end{tabular}
 \caption{Résultats de la configuration $C_{\text{topo}}$ (topologie complète,
-applicable à partir de $h_6$).}
+applicable à partir de $h_6$). Colonnes : voir tableau~\ref{tab:res-c1}.}
 \label{tab:res-ctopo}
 \end{table}
 
 \subsection{Bilan expérimental}
 
-L'étude désigne trois régimes selon la taille du squelette d'entrée :
+L'étude désigne trois régimes selon la taille du squelette d'entrée.
 
 \begin{itemize}[leftmargin=1.4em]
   \item \textbf{Pour $h_3$--$h_5$ :} les volumes restent faibles ($\le 280$
-    solutions par configuration sur tout le corpus), le taux de planéité de
-    $C_1$ seul est déjà élevé ($88$--$100\,\%$), et $C_2$ ou $C_3$ atteignent
-    typiquement $100\,\%$ de pureté. À cette échelle, le filtrage par
-    contraintes additionnelles est essentiellement superflu, et la
-    configuration $C_{\text{topo}}$ n'est pas applicable (le pré-filtre
-    $n_{\text{péri}} \ge 4$ exclut tous les squelettes, $n_{\text{péri}}$ ne
-    dépassant pas $3$ avant $h_6$) ;
+    solutions par configuration sur tout le corpus), le taux de très planes
+    de $C_1$ seul est déjà élevé ($88$--$100\,\%$), et $C_2$ ou $C_3$
+    atteignent typiquement $100\,\%$ très planes. À cette échelle, le
+    filtrage par contraintes additionnelles est essentiellement superflu,
+    et la configuration $C_{\text{topo}}$ n'est pas applicable (le
+    pré-filtre $n_{\text{péri}} \ge 4$ exclut tous les squelettes,
+    $n_{\text{péri}}$ ne dépassant pas $3$ avant $h_6$) ;
   \item \textbf{Pour $h_6$--$h_8$ :} $C_3$ reste la plus pure
-    ($93$--$97\,\%$ de planéité), au prix d'un volume réduit ; à
-    utiliser lorsqu'on cherche très peu de candidats mais très
-    fiables ;
-  \item \textbf{Pour $h_9$ et au-delà :} $C_{\text{topo}}$ est
-    nettement supérieure ($\mathbf{71{,}4\,\%}$ contre $60{,}1\,\%$
-    pour $C_3$), \emph{et} produit dix-huit fois plus de candidats
-    plans en absolu. C'est la configuration par défaut recommandée
-    pour les grandes tailles.
+    ($93$--$\mathbf{97{,}3}\,\%$ très planes), au prix d'un volume réduit ;
+    à utiliser lorsqu'on cherche très peu de candidats mais très fiables.
+    $C_{\text{topo}}$ atteint la même couverture cumulée \%A en élargissant
+    le volume d'un facteur $\sim 10$ ;
+  \item \textbf{Pour $h_9$ et au-delà :} $C_{\text{topo}}$ est nettement
+    supérieure (\textbf{$69{,}6\,\%$} de très planes contre $59{,}6\,\%$
+    pour $C_3$, $\mathbf{82{,}3\,\%}$ cumulé acceptable contre
+    $80{,}5\,\%$), \emph{et} produit dix-huit fois plus de très planes en
+    absolu ($29\,954$ contre $1\,696$). C'est la configuration par défaut
+    recommandée pour les grandes tailles.
 \end{itemize}
+
+\paragraph{Lecture chimique de la zone « acceptable ».} La métrique cumulée~A
+(dièdre $< 25^\circ$) montre que la grande majorité des solutions de $C_1$
+non strictement planes restent dans une plage modérément déformée, en
+particulier sur $h_9$ : $54{,}4\,\%$ contre $37{,}4\,\%$ pour le strict
+$< 10^\circ$, soit un écart de $+17$ points. Sur les configurations
+contraintes, l'écart est plus modeste ($+1$ à $+13$ points) car les
+solutions sont déjà majoritairement très planes. Cela suggère, comme
+Denis Hagebaum-Reignier l'indique, que les molécules issues du modèle
+qui « se déforment » le font \emph{modérément} (entre $10$ et $25^\circ$)
+plutôt que franchement. Une analyse statistique sur des
+non-benzénoïdes synthétisés permettrait de raffiner ce seuil ; ce travail
+dépasse le cadre du stage.
 
 L'effet $C_{\text{topo}}$ illustre une difficulté méthodologique
 identifiée à la section~\ref{sec:probleme} : la planéité est une
@@ -2279,19 +2353,25 @@ de Clar, ring bond order), restreinte jusqu'ici aux hexagones.
 L'étude expérimentale sur les squelettes $h_3$--$h_9$ de BenzDB a comparé
 quatre configurations, du modèle de base $C_1$ à la configuration
 $C_{\text{topo}}$ combinant une blacklist de motifs de rayon~$2$ et un
-pré-filtre sur le squelette ($n_{\text{péri}} \ge 4$). Les configurations
-purement locales $C_2$ et $C_3$ atteignent une pureté élevée sur les tailles
-intermédiaires (jusqu'à $97\,\%$ sur $h_8$) mais s'effondrent sur $h_9$, où
-$C_{\text{topo}}$ s'impose nettement ($71{,}4\,\%$ de planéité, et
-\emph{dix-huit fois plus} de candidats plans absolus que $C_3$). Ce résultat
-confirme expérimentalement ce que nous avions identifié théoriquement~: la
-planéité est une propriété globale qui ne se capture pas, sur les grands
-squelettes, par des contraintes purement locales sur les tailles $5/6/7$. Les
-leviers les plus efficaces nécessitent soit une analyse statistique
-\emph{a posteriori} du corpus généré (descripteurs de rayon~$2$), soit un
-pré-filtre sur le squelette d'entrée indépendant de l'assignment
-($n_{\text{péri}}$) --- difficulté qui motive directement les perspectives
-ci-après.
+pré-filtre sur le squelette ($n_{\text{péri}} \ge 4$). Suivant la
+recommandation des chimistes, l'évaluation utilise la métrique \emph{angle
+dièdre maximal entre liaisons connectées}, plus fidèle à la planéité du
+système conjugué que la métrique ACP globale, avec deux seuils : très plan
+($< 10^\circ$) et acceptable ($< 25^\circ$). Les configurations purement
+locales $C_2$ et $C_3$ atteignent une pureté élevée sur les tailles
+intermédiaires (jusqu'à $\mathbf{97{,}3\,\%}$ de très planes sur $h_8$)
+mais s'effondrent sur $h_9$ ($59{,}6\,\%$ très planes pour $C_3$). Sur
+cette grande taille, $C_{\text{topo}}$ s'impose nettement : $69{,}6\,\%$ de
+très planes et $\mathbf{82{,}3\,\%}$ une fois la zone acceptable
+incluse, soit \emph{dix-huit fois plus} de très planes en absolu que
+$C_3$ ($29\,954$ contre $1\,696$). Ce résultat confirme expérimentalement
+ce que nous avions identifié théoriquement~: la planéité est une propriété
+globale qui ne se capture pas, sur les grands squelettes, par des
+contraintes purement locales sur les tailles $5/6/7$. Les leviers les
+plus efficaces nécessitent soit une analyse statistique \emph{a posteriori}
+du corpus généré (descripteurs de rayon~$2$), soit un pré-filtre sur le
+squelette d'entrée indépendant de l'assignment ($n_{\text{péri}}$) ---
+difficulté qui motive directement les perspectives ci-après.
 
 \subsection{Perspectives}
 
@@ -2480,9 +2560,57 @@ gauchissement est
 \]
 
 
-Le critère retenu est $\texttt{max\_angle\_deg} \le 10^\circ$ (seuil
-fixé par le chimiste après examen de cas-tests ; il tolère les
-déformations stériques légères sans accepter de courbures visibles).
+Cette quantité, utilisée historiquement comme critère de planéité
+($\texttt{max\_angle\_deg} \le 10^\circ$), est conservée dans la base
+de résultats pour comparaison. Pour le verdict final, elle est
+remplacée par \texttt{max\_dihedral\_deg} (voir ci-dessous), plus
+fidèle à l'évaluation chimique de la planéité.
+
+% ---------------------------------------------------------------
+\subsection{Calcul de la métrique dièdre \texttt{max\_dihedral\_deg}}
+\label{app:dihedral}
+% ---------------------------------------------------------------
+
+\paragraph{Énumération des chemins.}
+Soit $G_C = (V_C, E_C)$ le graphe carbone après optimisation \xtb{}
+(les hydrogènes sont écartés). Pour chaque arête $\{B,C\} \in E_C$
+prise dans l'ordre $B < C$, et pour chaque paire de voisins
+$A \in \mathcal{N}_{G_C}(B)$, $D \in \mathcal{N}_{G_C}(C)$ vérifiant
+$A \ne C$, $D \ne B$ et $A \ne D$, le quadruplet $(A,B,C,D)$ forme
+une chaîne de trois liaisons consécutives.
+
+\paragraph{Angle dièdre.}
+Pour chaque quadruplet, posons
+$\mathbf{b}_1 = \mathbf{x}_B - \mathbf{x}_A$,
+$\mathbf{b}_2 = \mathbf{x}_C - \mathbf{x}_B$,
+$\mathbf{b}_3 = \mathbf{x}_D - \mathbf{x}_C$.
+L'angle dièdre signé entre les plans $(A,B,C)$ et $(B,C,D)$ est
+\[
+  \varphi(A,B,C,D) \;=\; \operatorname{atan2}\bigl(
+    \|\mathbf{b}_2\| \cdot (\mathbf{b}_1 \cdot (\mathbf{b}_2 \times \mathbf{b}_3)),
+    \;
+    (\mathbf{b}_1 \times \mathbf{b}_2) \cdot (\mathbf{b}_2 \times \mathbf{b}_3)
+  \bigr) \in (-180^\circ, 180^\circ].
+\]
+
+\paragraph{Écart au plan.}
+Pour une molécule plane, chaque $\varphi$ vaut exactement
+$0^\circ$ (configuration \emph{cis}) ou $\pm 180^\circ$
+(configuration \emph{trans}). L'écart au plan est donc
+\[
+  \delta(\varphi) \;=\; \min\bigl(|\varphi|,\; 180^\circ - |\varphi|\bigr)
+  \;\in\; [0, 90^\circ],
+\]
+et la métrique retenue est le maximum sur tous les quadruplets
+connectés. Une molécule parfaitement plane vérifie
+$\texttt{max\_dihedral\_deg} = 0^\circ$ ; une molécule fortement
+courbée s'approche de $90^\circ$.
+
+\paragraph{Coût.}
+Implémentation vectorielle en NumPy : $\sim 0{,}4$~ms par molécule.
+Le calcul sur l'intégralité de la base finale ($\sim 805\,000$
+géométries optimisées) prend environ $5$ minutes en mono-thread, sans
+nouvelle invocation de \xtb{}.
 
 % =====================================================================
 %  BIBLIOGRAPHIE
