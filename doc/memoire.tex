@@ -130,7 +130,10 @@ systématique reste largement inexplorée.
 
 \begin{figure}[h]
 \centering
-\begin{tikzpicture}[scale=1.3]
+% Style global pour les atomes C (utilisé dans les deux schémas)
+\tikzset{Catom/.style={inner sep=1pt, fill=white, font=\scriptsize}}
+
+\begin{tikzpicture}[scale=1.105, baseline=(current bounding box.center)]
   % --- Pentagone regulier a gauche ---
   \pgfmathsetmacro{\rP}{1.4/(2*sin(36))}
   \pgfmathsetmacro{\hP}{\rP*cos(36)}
@@ -180,7 +183,6 @@ systématique reste largement inexplorée.
   }
 
   % --- Annotations C sur les carbones (par-dessus, fond blanc pour masquer le trait) ---
-  \tikzset{Catom/.style={inner sep=1pt, fill=white, font=\scriptsize}}
   \node[Catom] at (P0) {C};
   \node[Catom] at (P1) {C};
   \node[Catom] at (P2) {C};
@@ -192,7 +194,88 @@ systématique reste largement inexplorée.
   \node[Catom] at (H4) {C};
   \node[Catom] at (H5) {C};
 \end{tikzpicture}
-\caption{Azulène ($\mathrm{C_{10}H_8}$).}
+\hspace{1.2cm}
+\begin{tikzpicture}[scale=0.55, baseline=(current bounding box.center)]
+  \def\rhex{1.2}
+  \pgfmathsetmacro{\apo}{\rhex*cos(30)}
+  \pgfmathsetmacro{\dyhex}{1.5*\rhex}
+  \pgfmathsetmacro{\rOut}{\rhex+0.45}
+  \pgfmathsetmacro{\rIn}{\rhex+0.20}
+  \tikzset{Hatomb/.style={font=\scriptsize, inner sep=1pt, fill=white}}
+  \tikzset{bondCHb/.style={line width=0.4pt}}
+  % v0 -- carbones libres (sans voisin) : k=2,3,4
+  \begin{scope}[shift={(0,0)}]
+    \foreach \i in {0,...,5} { \coordinate (P\i) at ({cos(60*\i+30)*\rhex}, {sin(60*\i+30)*\rhex}); }
+    \draw[thick] (P0)--(P1)--(P2)--(P3)--(P4)--(P5)--cycle;
+    \foreach \k in {2,3,4} {
+      \pgfmathsetmacro{\ang}{60*\k+30}
+      \draw[bondCHb] ({cos(\ang)*\rIn},{sin(\ang)*\rIn}) -- ({cos(\ang)*\rOut},{sin(\ang)*\rOut});
+      \node[Hatomb] at ({cos(\ang)*(\rOut+0.15)},{sin(\ang)*(\rOut+0.15)}) {H};
+    }
+    \node[Catom] at (P0) {C}; \node[Catom] at (P1) {C}; \node[Catom] at (P2) {C};
+    \node[Catom] at (P3) {C}; \node[Catom] at (P4) {C}; \node[Catom] at (P5) {C};
+  \end{scope}
+  % v1 -- hexagone entierement interne, aucun hydrogene
+  \begin{scope}[shift={(2*\apo,0)}]
+    \foreach \i in {0,...,5} { \coordinate (P\i) at ({cos(60*\i+30)*\rhex}, {sin(60*\i+30)*\rhex}); }
+    \draw[thick] (P0)--(P1)--(P2)--(P3)--(P4)--(P5)--cycle;
+    \node[Catom] at (P0) {C}; \node[Catom] at (P1) {C}; \node[Catom] at (P2) {C};
+    \node[Catom] at (P3) {C}; \node[Catom] at (P4) {C}; \node[Catom] at (P5) {C};
+  \end{scope}
+  % v2 -- libres : k=0,1
+  \begin{scope}[shift={(4*\apo,0)}]
+    \foreach \i in {0,...,5} { \coordinate (P\i) at ({cos(60*\i+30)*\rhex}, {sin(60*\i+30)*\rhex}); }
+    \draw[thick] (P0)--(P1)--(P2)--(P3)--(P4)--(P5)--cycle;
+    \foreach \k in {0,1} {
+      \pgfmathsetmacro{\ang}{60*\k+30}
+      \draw[bondCHb] ({cos(\ang)*\rIn},{sin(\ang)*\rIn}) -- ({cos(\ang)*\rOut},{sin(\ang)*\rOut});
+      \node[Hatomb] at ({cos(\ang)*(\rOut+0.15)},{sin(\ang)*(\rOut+0.15)}) {H};
+    }
+    \node[Catom] at (P0) {C}; \node[Catom] at (P1) {C}; \node[Catom] at (P2) {C};
+    \node[Catom] at (P3) {C}; \node[Catom] at (P4) {C}; \node[Catom] at (P5) {C};
+  \end{scope}
+  % v3 -- libres : k=0,1,2
+  \begin{scope}[shift={(\apo, \dyhex)}]
+    \foreach \i in {0,...,5} { \coordinate (P\i) at ({cos(60*\i+30)*\rhex}, {sin(60*\i+30)*\rhex}); }
+    \draw[thick] (P0)--(P1)--(P2)--(P3)--(P4)--(P5)--cycle;
+    \foreach \k in {0,1,2} {
+      \pgfmathsetmacro{\ang}{60*\k+30}
+      \draw[bondCHb] ({cos(\ang)*\rIn},{sin(\ang)*\rIn}) -- ({cos(\ang)*\rOut},{sin(\ang)*\rOut});
+      \node[Hatomb] at ({cos(\ang)*(\rOut+0.15)},{sin(\ang)*(\rOut+0.15)}) {H};
+    }
+    \node[Catom] at (P0) {C}; \node[Catom] at (P1) {C}; \node[Catom] at (P2) {C};
+    \node[Catom] at (P3) {C}; \node[Catom] at (P4) {C}; \node[Catom] at (P5) {C};
+  \end{scope}
+  % v4 -- libres : k=3,4
+  \begin{scope}[shift={(3*\apo,-\dyhex)}]
+    \foreach \i in {0,...,5} { \coordinate (P\i) at ({cos(60*\i+30)*\rhex}, {sin(60*\i+30)*\rhex}); }
+    \draw[thick] (P0)--(P1)--(P2)--(P3)--(P4)--(P5)--cycle;
+    \foreach \k in {3,4} {
+      \pgfmathsetmacro{\ang}{60*\k+30}
+      \draw[bondCHb] ({cos(\ang)*\rIn},{sin(\ang)*\rIn}) -- ({cos(\ang)*\rOut},{sin(\ang)*\rOut});
+      \node[Hatomb] at ({cos(\ang)*(\rOut+0.15)},{sin(\ang)*(\rOut+0.15)}) {H};
+    }
+    \node[Catom] at (P0) {C}; \node[Catom] at (P1) {C}; \node[Catom] at (P2) {C};
+    \node[Catom] at (P3) {C}; \node[Catom] at (P4) {C}; \node[Catom] at (P5) {C};
+  \end{scope}
+  % v5 -- libres : k=0,4,5
+  \begin{scope}[shift={(5*\apo,-\dyhex)}]
+    \foreach \i in {0,...,5} { \coordinate (P\i) at ({cos(60*\i+30)*\rhex}, {sin(60*\i+30)*\rhex}); }
+    \draw[thick] (P0)--(P1)--(P2)--(P3)--(P4)--(P5)--cycle;
+    \foreach \k in {0,4,5} {
+      \pgfmathsetmacro{\ang}{60*\k+30}
+      \draw[bondCHb] ({cos(\ang)*\rIn},{sin(\ang)*\rIn}) -- ({cos(\ang)*\rOut},{sin(\ang)*\rOut});
+      \node[Hatomb] at ({cos(\ang)*(\rOut+0.15)},{sin(\ang)*(\rOut+0.15)}) {H};
+    }
+    \node[Catom] at (P0) {C}; \node[Catom] at (P1) {C}; \node[Catom] at (P2) {C};
+    \node[Catom] at (P3) {C}; \node[Catom] at (P4) {C}; \node[Catom] at (P5) {C};
+  \end{scope}
+\end{tikzpicture}
+\caption{Deux exemples de HAP avec leurs hydrogènes explicites : l'azulène
+($\mathrm{C_{10}H_8}$), non-benzénoïde formé d'un pentagone et d'un
+heptagone accolés (à gauche), et un benzénoïde non linéaire à six
+hexagones (à droite), repris en figures~\ref{fig:graphe-carbone}
+et~\ref{fig:dual} sous forme de graphe carbone puis de graphe dual.}
 \label{fig:azulene}
 \end{figure}
 
@@ -302,7 +385,17 @@ aromatiques et opto-électroniques des HAP.
 
 Les \textbf{hydrocarbures aromatiques polycycliques} (HAP) sont des
 molécules formées exclusivement d'atomes de carbone et d'hydrogène, dont
-les carbones constituent un assemblage de cycles fusionnés.
+les carbones constituent un assemblage de cycles fusionnés. Lorsque ces
+cycles sont exclusivement des hexagones, on parle de \textbf{benzénoïde}
+--- le naphtalène ou le pyrène en sont des exemples typiques. Mais
+certains HAP comportent aussi des cycles à cinq ou sept atomes : on les
+appelle \textbf{non-benzénoïdes}, comme l'azulène
+(figure~\ref{fig:azulene}). Ce sont précisément ces structures qui nous
+intéressent dans ce travail, en raison de leurs propriétés électroniques
+particulières : les électrons $\pi$ introduits à la
+section~\ref{sec:chimie-prelim} s'y répartissent et se délocalisent
+différemment que dans un pavage hexagonal régulier, ce qui modifie
+l'aromaticité et la stabilité de la molécule.
 
 \begin{definition}[Graphe carbone]
 À toute molécule HAP $M$ on associe son \textbf{graphe carbone}
@@ -310,10 +403,34 @@ $G_C(M) = (V_C, E_C)$ : les sommets $V_C$ sont les atomes de carbone,
 et les arêtes $E_C$ représentent les liaisons covalentes
 carbone--carbone. Les hydrogènes périphériques, déduits des valences
 libres des carbones de bord, n'apparaissent pas dans ce graphe.
+L'intérêt de cette représentation est de pouvoir raisonner directement
+sur les \textbf{interactions entre atomes de carbone}, indépendamment
+des hydrogènes périphériques qui n'apportent pas d'information
+structurelle.
 \end{definition}
 
 \begin{figure}[h]
 \centering
+\begin{tikzpicture}[scale=0.55, baseline=(current bounding box.center)]
+  \pgfmathsetmacro{\rP}{1.4/(2*sin(36))}
+  \pgfmathsetmacro{\hP}{\rP*cos(36)}
+  \coordinate (CP) at (-\hP, 0);
+  \foreach \i in {0,...,4} {
+    \coordinate (P\i) at ($(CP)+({\rP*cos(72*\i+36)},{\rP*sin(72*\i+36)})$);
+  }
+  \draw[thick] (P0)--(P1)--(P2)--(P3)--(P4)--cycle;
+  \node at (CP) {$0$};
+  \pgfmathsetmacro{\rH}{1.4/(2*sin(180/7))}
+  \pgfmathsetmacro{\hH}{\rH*cos(180/7)}
+  \pgfmathsetmacro{\angA}{180-(180/7)}
+  \coordinate (CH) at (\hH, 0);
+  \foreach \i in {0,...,6} {
+    \coordinate (H\i) at ($(CH)+({\rH*cos(\angA-\i*360/7)},{\rH*sin(\angA-\i*360/7)})$);
+  }
+  \draw[thick] (H0)--(H1)--(H2)--(H3)--(H4)--(H5)--(H6)--cycle;
+  \node at (CH) {$1$};
+\end{tikzpicture}
+\hspace{1.2cm}
 \begin{tikzpicture}[scale=0.55, baseline=(current bounding box.center)]
   \def\rhex{1.2}
   \pgfmathsetmacro{\apo}{\rhex*cos(30)}
@@ -353,7 +470,10 @@ libres des carbones de bord, n'apparaissent pas dans ce graphe.
     \node at (0,0) {$v_5$};
   \end{scope}
 \end{tikzpicture}
-\caption{Un benzénoïde non linéaire à six hexagones ($v_0, \dots, v_5$).}
+\caption{Graphe carbone de l'azulène (à gauche, cycles indexés $0$ et $1$)
+et d'un benzénoïde non linéaire à six hexagones (à droite,
+$v_0, \dots, v_5$) -- même molécules qu'en figure~\ref{fig:azulene},
+débarrassées de leurs hydrogènes.}
 \label{fig:graphe-carbone}
 \end{figure}
 
@@ -370,7 +490,10 @@ a pour sommets $V_D = \{0, \dots, n-1\}$ (un sommet par cycle), et
 $(u, v) \in E_D$ si et seulement si les cycles $u$ et $v$ partagent une
 arête carbone--carbone. Cette construction correspond au \emph{graphe
 dual intérieur} de la littérature, c'est-à-dire le graphe dual classique
-privé de la face externe.
+privé de la face externe. L'intérêt de cette représentation est de
+pouvoir raisonner directement sur les \textbf{interactions entre
+cycles} (partage d'arêtes), sans se soucier du détail atomique interne
+à chaque cycle.
 \end{definition}
 
 Pour un benzénoïde $B$, on note $n_H(B)$ son nombre d'hexagones ; ainsi
@@ -382,6 +505,12 @@ figure~\ref{fig:graphe-carbone}.
 
 \begin{figure}[h]
 \centering
+\begin{tikzpicture}[scale=0.9, baseline=(current bounding box.center)]
+  \node[circle,draw,inner sep=2pt] (m0) at (0, 0) {$0$};
+  \node[circle,draw,inner sep=2pt] (m1) at (1.4, 0) {$1$};
+  \draw (m0)--(m1);
+\end{tikzpicture}
+\hspace{1.2cm}
 \begin{tikzpicture}[scale=0.9, baseline=(current bounding box.center)]
   \node[circle,draw,inner sep=2pt] (n0) at (0, 0) {$0$};
   \node[circle,draw,inner sep=2pt] (n1) at (1.4, 0) {$1$};
@@ -398,7 +527,10 @@ figure~\ref{fig:graphe-carbone}.
   \draw (n2)--(n5);
   \draw (n4)--(n5);
 \end{tikzpicture}
-\caption{Graphe dual $\GD$ du benzénoïde de la figure~\ref{fig:graphe-carbone}.}
+\caption{Graphe dual de l'azulène (à gauche, $1$ arête entre les cycles
+$0$ et $1$) et du benzénoïde de la figure~\ref{fig:graphe-carbone}
+(à droite) -- continuité directe avec les graphes carbone de la
+figure~\ref{fig:graphe-carbone}.}
 \label{fig:dual}
 \end{figure}
 
@@ -410,6 +542,19 @@ liaison. En termes de graphes, c'est un \emph{couplage parfait} du graphe
 carbone. Une molécule HAP possède en général plusieurs structures de Kekulé,
 mais il est aussi possible qu'elle n'en possède aucune lorsque son graphe
 carbone n'admet pas de couplage parfait.
+
+L'intérêt de connaître l'ensemble $\mathcal{K}(B)$ des structures de
+Kekulé d'une molécule est de pouvoir, par la suite, estimer sa stabilité
+et son aromaticité par des moyens purement combinatoires
+(section~\ref{sec:rbo}), et de détecter ses sites radicalaires lorsque
+$\mathcal{K}(B) = \emptyset$. Mais surtout, une molécule réelle n'adopte
+pas une structure de Kekulé unique et figée : à un instant donné, on ne
+peut pas prédire laquelle de ses structures décrit effectivement la
+molécule, les liaisons doubles se redistribuant en permanence entre les
+configurations équivalentes (délocalisation, détaillée en
+section~\ref{sec:aromaticite}). C'est précisément pour cette raison
+qu'il est nécessaire d'énumérer \emph{toutes} les structures de Kekulé
+d'une molécule, plutôt que de n'en retenir qu'une seule.
 
 \begin{figure}[h]
 \centering
@@ -495,6 +640,14 @@ mobilité qui explique qu'une même couverture de Clar puisse correspondre
 Une \textbf{couverture de Clar} place des sextets
 sur un ensemble d'hexagones deux à deux disjoints, et le \textbf{nombre de
 Clar} est le nombre maximal de sextets que l'on peut placer.
+
+L'intérêt du nombre de Clar est qu'il fournit une \textbf{estimation
+combinatoire de l'aromaticité} : la couverture qui maximise le nombre de
+sextets correspond empiriquement à la structure de résonance la plus
+stable, sans qu'il soit nécessaire de résoudre un calcul quantique
+\emph{ab initio} coûteux. C'est cet avantage --- remplacer un calcul
+quantique par un dénombrement sur le graphe --- que nous exploitons
+systématiquement dans ce travail, à l'instar de Varet~\cite{varet2022}.
 
 \begin{figure}[h]
 \centering
@@ -613,6 +766,13 @@ Pauling~\cite{pauling} à partir de la théorie de la résonance, formalisé
 ensuite comme indicateur cyclique notamment par
 Randić~\cite{randic}. Nous reprenons ici les notations de
 Varet~\cite{varet2022}.
+
+Comme le nombre de Clar, le RBO permet d'estimer la délocalisation
+aromatique sans calcul quantique coûteux, mais à une granularité plus
+fine : il quantifie la délocalisation \emph{par cycle}, et non plus de
+façon binaire (sextet ou non) à l'échelle de la molécule entière. C'est
+cette finesse qui nous permettra de comparer des cycles de tailles
+différentes (pentagones, hexagones, heptagones).
 
 Soit $B = (V, E)$ le graphe carbone d'un benzénoïde : $V$ désigne
 l'ensemble des atomes de carbone et $E$ celui des liaisons covalentes
@@ -776,6 +936,15 @@ admet de représentations équivalentes de ses liaisons doubles (au sens
 des structures de Kekulé introduites plus haut), plus la délocalisation
 est étendue, et plus la molécule est stable.
 
+L'aromaticité « réelle » d'une molécule se calcule en toute rigueur par
+un calcul quantique \emph{ab initio}, prohibitif sur de grandes séries
+de molécules. Les structures de Kekulé, le nombre de Clar et le RBO
+introduits dans cette section en sont autant d'\textbf{estimations
+combinatoires}, calculables instantanément sur le graphe carbone seul :
+c'est cette approche, déjà adoptée par Varet~\cite{varet2022} pour les
+benzénoïdes, que nous étendons dans ce travail aux cycles à $5$ et $7$
+atomes.
+
 \subsubsection{Planéité et courbure}
 
 À toute molécule on associe une fonction \emph{énergie potentielle} qui dépend
@@ -836,10 +1005,9 @@ $P = (X, D, C)$ où :
       \item $S(c) = \{x_{i_1}, x_{i_2}, \dots, x_{i_q}\} \subseteq X$
         est la \emph{portée} de $c$, c'est-à-dire l'ensemble des
         variables sur lesquelles porte la contrainte ;
-      \item $R(c) \subseteq d_{x_{i_1}} \times d_{x_{i_2}} \times \dots
-        \times d_{x_{i_q}}$ est sa \emph{relation de compatibilité},
-        c'est-à-dire l'ensemble des combinaisons de valeurs autorisées
-        par la contrainte.
+      \item $R(c) \subseteq \displaystyle\prod_{k=1}^{q} d_{x_{i_k}}$
+        est sa \emph{relation de compatibilité}, c'est-à-dire l'ensemble
+        des combinaisons de valeurs autorisées par la contrainte.
     \end{enumerate}
 \end{itemize}
 \end{definition}
@@ -918,10 +1086,10 @@ Le problème se modélise comme un CSP $P = (X, D, C)$ :
     figure~\ref{fig:sudoku}, on aurait
     $d_{x_1} = \{2\}$, $d_{x_2} = \{4\}$, $d_{x_3} = \{1\}$,
     $d_{x_4} = \{1, 2, \dots, 9\}$, $\ldots$
-  \item $C = \{c_{i,j}\}$ : pour chaque paire $(x_i, x_j)$ de variables
-    appartenant à une même ligne, une même colonne ou un même bloc
-    $3 \times 3$, on définit une contrainte binaire $c_{i,j}$
-    exprimant la différence des valeurs :
+  \item $C = \{c_{i,j} \;:\; x_i, x_j \text{ partagent une ligne, une
+    colonne ou un bloc } 3 \times 3\}$, où, $\forall (x_i, x_j)$ dans
+    cet ensemble, la contrainte binaire $c_{i,j}$ exprime la différence
+    des valeurs :
     \[
       S(c_{i,j}) = \{x_i, x_j\}, \qquad
       R(c_{i,j}) = \{(v_i, v_j) \in d_{x_i} \times d_{x_j}
@@ -938,12 +1106,6 @@ contrainte globale.
 
 \subsubsection{Résolution : propagation et recherche arborescente}
 
-Décider si une instance CSP admet une solution est un problème
-\textbf{NP-complet} dans le cas général : aucun algorithme polynomial
-n'est connu pour le résoudre. Les solveurs CSP combinent en pratique
-deux mécanismes complémentaires que nous décrivons ci-dessous.
-Précisons d'abord la notion de solution.
-
 \begin{definition}[Solution]
 Une \emph{solution} d'une instance CSP $P = (X, D, C)$ est une
 affectation à chaque variable $x_i$ d'une valeur de son domaine
@@ -952,6 +1114,11 @@ On parle d'\emph{affectation complète cohérente}. Un problème est dit
 \emph{cohérent} s'il possède au moins une solution, et
 \emph{incohérent} sinon.
 \end{definition}
+
+Décider si une instance CSP admet une solution est un problème
+\textbf{NP-complet} dans le cas général : aucun algorithme polynomial
+n'est connu pour le résoudre. Les solveurs CSP combinent en pratique
+deux mécanismes complémentaires que nous décrivons ci-dessous.
 
 \textbf{Propagation de contraintes} (\textbf{filtrage})\textbf{.}
 À chaque étape de la résolution, on retire des domaines les valeurs
@@ -1216,8 +1383,18 @@ Conserver le nombre d'atomes ($N(\text{solution}) = N(B)$) donne donc
 \[
   5 n_5 + 6 n_6 + 7 n_7 - 2 a \;=\; 6 n_H - 2 a ,
 \]
-et le terme $-2a$ se simplifie de part et d'autre. On obtient ainsi
-directement
+et le terme $-2a$ se simplifie de part et d'autre. On obtient
+\[
+  5 n_5 + 6 n_6 + 7 n_7 \;=\; 6 n_H .
+\]
+Cette égalité porte sur les comptes $n_5, n_6, n_7$, qui ne sont pas
+des variables du modèle. Pour l'exprimer comme une contrainte sur les
+variables $x_v$, on remarque que la somme $\sum_{v \in V_D} x_v$ vaut
+exactement $5 n_5 + 6 n_6 + 7 n_7$, puisque chaque hexagone $v$
+contribue sa taille $x_v$ à la somme selon le nombre de fois qu'elle
+apparaît. C'est précisément à cette étape que l'on passe d'une
+identité mathématique sur des comptages à une contrainte exploitable
+par le solveur :
 \[
   \boxed{\; \sum_{v \in V_D} x_v \;=\; 5 n_5 + 6 n_6 + 7 n_7 \;=\; 6 n_H \;,}
 \]
