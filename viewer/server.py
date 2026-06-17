@@ -187,12 +187,17 @@ def api_solutions():
     page = max(1, int(request.args.get("page", 1)))
     size = min(500, max(10, int(request.args.get("size", 50))))
     sort = request.args.get("sort", "angle")
-    # Tri : pour 'angle', on met les NULL (infeasible/xtb_failed) en queue.
+    # Tri : NULL en queue.
+    # 'angle' = ancien angle_deg (ACP). 'dihedral' = nouvelle metrique
+    # (ecart-au-plan max sur diedres connectes A-B-C-D), preconisee par
+    # Denis. Seuils chimistes : <10 tres plan, 10-25 acceptable, >=25 non plan.
     sort_map = {
-        "angle":     "(angle_deg IS NULL), angle_deg ASC",
-        "angle_desc":"(angle_deg IS NULL), angle_deg DESC",
-        "idx":       "sol_idx ASC",
-        "idx_desc":  "sol_idx DESC",
+        "angle":         "(angle_deg IS NULL), angle_deg ASC",
+        "angle_desc":    "(angle_deg IS NULL), angle_deg DESC",
+        "dihedral":      "(max_dihedral_deg IS NULL), max_dihedral_deg ASC",
+        "dihedral_desc": "(max_dihedral_deg IS NULL), max_dihedral_deg DESC",
+        "idx":           "sol_idx ASC",
+        "idx_desc":      "sol_idx DESC",
     }
     sort_sql = sort_map.get(sort, sort_map["angle"])
 
@@ -208,6 +213,13 @@ def api_solutions():
         where.append("verdict = 'xtb_failed'")
     elif flt == "validated":
         where.append("verdict IN ('plan', 'non_plan')")
+    # Filtres bases sur la nouvelle metrique diedre (seuils chimistes)
+    elif flt == "tres_plan":
+        where.append("max_dihedral_deg < 10")
+    elif flt == "acceptable":
+        where.append("max_dihedral_deg >= 10 AND max_dihedral_deg < 25")
+    elif flt == "non_plan_dih":
+        where.append("max_dihedral_deg >= 25")
     # 'all' : pas de filtre supplementaire
 
     # Recherche libre : matche sol_idx (egalite numerique si entier) OU sizes
@@ -229,7 +241,8 @@ def api_solutions():
             f"SELECT COUNT(*) FROM solutions{where_sql}", params
         ).fetchone()[0]
         rows = conn.execute(
-            f"SELECT id, sol_idx, sizes, verdict, planar, angle_deg, rmsd, height, "
+            f"SELECT id, sol_idx, sizes, verdict, planar, angle_deg, "
+            f"       max_dihedral_deg, rmsd, height, "
             f"       n_attempts, deterministic, sol_dir "
             f"FROM solutions{where_sql} "
             f"ORDER BY {sort_sql} "

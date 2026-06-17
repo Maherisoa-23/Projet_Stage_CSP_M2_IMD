@@ -442,3 +442,8 @@ tr.row-xtb-failed td:nth-child(3) {
 @media (max-width: 720px) {
   .config-desc-grid { grid-template-columns: 1fr; }
 }
+
+/* Code couleurs pour la nouvelle metrique diedre (seuils Denis) */
+.dih-good { color: #0a7f3f; font-weight: 600; }      /* < 10 deg */
+.dih-mid  { color: #b06b00; font-weight: 600; }      /* 10-25 deg */
+.dih-bad  { color: #c0392b; font-weight: 600; }      /* >= 25 deg */

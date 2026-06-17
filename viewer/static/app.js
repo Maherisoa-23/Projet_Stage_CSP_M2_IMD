@@ -374,19 +374,29 @@ function renderSolTable(data) {
     <th>Sol_idx</th>
     <th>Sizes</th>
     <th>Verdict</th>
-    <th>Angle</th>
+    <th title="Ancien critere : angle ACP normale cycle vs plan moyen">Angle ACP</th>
+    <th title="Nouveau critere (Denis) : ecart-au-plan max sur diedres connectes A-B-C-D">Dièdre max</th>
     <th>RMSD</th>
     <th>Height</th>
     <th>Tentatives MD</th>
     <th>Vue 3D</th>
   </tr></thead><tbody>`;
   for (const s of data.solutions) {
-    let badge, rowClass = "", angleCell, rmsdCell, heightCell, attemptsCell, filesCell;
+    let badge, rowClass = "", angleCell, dihedralCell, rmsdCell, heightCell, attemptsCell, filesCell;
+
+    // Helper : cellule diedre avec couleur (vert/orange/rouge selon Denis)
+    const dihedralFmt = (v) => {
+      if (v == null) return "—";
+      const cls = v < 10 ? "dih-good" : (v < 25 ? "dih-mid" : "dih-bad");
+      const lbl = v < 10 ? "très plan" : (v < 25 ? "acceptable" : "non plan");
+      return `<span class="${cls}" title="${lbl} (seuils Denis : <10 / 10-25 / >25)">${v.toFixed(2)}°</span>`;
+    };
 
     if (s.verdict === "geom_infeasible") {
       badge = `<span class="badge infeasible" title="Reconstruction 3D impossible (CSP-valide mais pentagone/heptagone sur hexagone trop contraint)">GÉOM ✗</span>`;
       rowClass = "row-infeasible";
       angleCell = `—`;
+      dihedralCell = `—`;
       rmsdCell = `—`;
       heightCell = `—`;
       attemptsCell = `—`;
@@ -395,6 +405,7 @@ function renderSolTable(data) {
       badge = `<span class="badge xtb-failed" title="Reconstruction OK mais xTB n'a pas convergé">xTB ✗</span>`;
       rowClass = "row-xtb-failed";
       angleCell = `—`;
+      dihedralCell = `—`;
       rmsdCell = `—`;
       heightCell = `—`;
       attemptsCell = s.n_attempts ?? "—";
@@ -405,6 +416,7 @@ function renderSolTable(data) {
         ? `<span class="badge plan">PLAN</span>`
         : `<span class="badge non-plan">NON</span>`;
       angleCell = (s.angle_deg ?? 0).toFixed(3) + "°";
+      dihedralCell = dihedralFmt(s.max_dihedral_deg);
       rmsdCell = s.rmsd?.toFixed(4) ?? "—";
       heightCell = s.height?.toFixed(4) ?? "—";
       attemptsCell = s.n_attempts ?? "—";
@@ -416,6 +428,7 @@ function renderSolTable(data) {
       <td><code>${s.sizes}</code></td>
       <td>${badge}</td>
       <td>${angleCell}</td>
+      <td>${dihedralCell}</td>
       <td>${rmsdCell}</td>
       <td>${heightCell}</td>
       <td>${attemptsCell}</td>
