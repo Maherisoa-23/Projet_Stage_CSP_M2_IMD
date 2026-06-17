@@ -477,12 +477,24 @@ Un \textbf{sextet de Clar} (ou rond de Clar) est un hexagone dont les six
 électrons $\pi$ forment un cycle aromatique autonome. Concrètement, on peut
 le visualiser comme trois liaisons doubles alternées sur le cycle, et on le
 représente conventionnellement par un cercle inscrit dans l'hexagone (voir
-figure~\ref{fig:sextet}). Une \textbf{couverture de Clar} place des sextets
-sur un ensemble d'hexagones deux à deux disjoints, et le \textbf{nombre de
-Clar} est le nombre maximal de sextets que l'on peut placer. La règle de Hückel
+figure~\ref{fig:sextet}). La règle de Hückel
 (voir annexe~\ref{app:huckel}) impose qu'un sextet occupe exactement six
 atomes ($4n+2$ électrons $\pi$, $n=1$) : seuls les \emph{hexagones}
 peuvent porter un sextet, jamais un pentagone ni un heptagone.
+
+La clé de la notion de sextet est la \textbf{délocalisation} : les six
+électrons $\pi$ d'un sextet ne sont pas figés dans une configuration de
+liaisons doubles particulière, ils \emph{circulent librement} autour du
+cycle. Autrement dit, la molécule ne possède pas une unique structure de
+Kekulé fixe : on ne peut pas prédire à l'avance dans quelle configuration
+elle se trouvera à un instant donné --- elle oscille en permanence entre
+toutes ses structures de Kekulé équivalentes. C'est précisément cette
+mobilité qui explique qu'une même couverture de Clar puisse correspondre
+à plusieurs structures de Kekulé.
+
+Une \textbf{couverture de Clar} place des sextets
+sur un ensemble d'hexagones deux à deux disjoints, et le \textbf{nombre de
+Clar} est le nombre maximal de sextets que l'on peut placer.
 
 \begin{figure}[h]
 \centering
@@ -607,7 +619,10 @@ l'ensemble des atomes de carbone et $E$ celui des liaisons covalentes
 entre atomes voisins. On note $\mathcal{K}(B)$ l'ensemble de ses
 structures de Kekulé, c'est-à-dire des couplages parfaits du graphe.
 Lorsque $\mathcal{K}(B) \neq \emptyset$, on dit que $B$ est
-\emph{Kekuléen}.
+\emph{Kekuléen} ; dans le cas contraire ($\mathcal{K}(B) = \emptyset$),
+la molécule est dite \emph{non-Kekuléenne} et admet au moins un
+\emph{site radicalaire} (voir figure~\ref{fig:radical-5-6} et
+section~\ref{sec:radicals}).
 
 \begin{definition}[Bond order, \cite{varet2022}]
 Soient $B = (V, E)$ un benzénoïde Kekuléen et $e \in E$ une de ses
@@ -681,6 +696,7 @@ $\mathrm{bo}(e)$, $\mathrm{RBO}(h)$ et $\mathrm{CBO}(C)$ ne sont pas
 définies au sens classique.
 
 \subsubsection{Sites radicalaires}
+\label{sec:radicals}
 
 Lorsqu'une molécule n'admet aucun couplage parfait (par exemple à cause d'un
 nombre impair d'atomes ou d'une topologie particulière), certains carbones
@@ -1067,15 +1083,17 @@ On part d'un benzénoïde $B$ à $n_H(B)$ hexagones, représenté par son
 graphe dual \GD{}. Une \textbf{substitution} affecte à chaque hexagone
 $v$ une taille de cycle $x_v \in \{5, 6, 7\}$ : conserver l'hexagone
 ($x_v = 6$), le contracter en pentagone ($x_v = 5$) ou le dilater en
-heptagone ($x_v = 7$). La substitution doit satisfaire les deux
-contraintes suivantes : (i)~\textbf{conservation du graphe dual} : les
-arêtes partagées entre cycles voisins sont préservées, donc \GD{} reste
-identique avant et après transformation ; (ii)~\textbf{conservation du
-nombre total d'atomes de carbone}. La conservation du graphe dual est
-un point essentiel de la modélisation : elle garantit que chaque cycle
-de la solution correspond \emph{exactement} à un hexagone du
-benzénoïde de départ, ce qui sera exploité pour exprimer simplement la
-conservation des atomes en section~\ref{sec:c1}.
+heptagone ($x_v = 7$). La substitution doit satisfaire les deux contraintes suivantes :
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{conservation du graphe dual} : les arêtes partagées entre
+    cycles voisins sont préservées, donc \GD{} reste identique avant et
+    après transformation. C'est un point essentiel de la modélisation :
+    elle garantit que chaque cycle de la solution correspond
+    \emph{exactement} à un hexagone du benzénoïde de départ, ce qui sera
+    exploité pour exprimer simplement la conservation des atomes en
+    section~\ref{sec:c1} ;
+  \item \textbf{conservation du nombre total d'atomes de carbone}.
+\end{itemize}
 
 On cherche à \textbf{énumérer toutes les substitutions admissibles},
 c'est-à-dire toutes celles qui correspondent à une molécule
@@ -1714,46 +1732,29 @@ si l'optimisation la fait quitter le plan.
 \label{sec:md}
 
 L'optimisation \xtb{} procède par descente de gradient. Si la géométrie
-initiale est parfaitement plane, les forces perpendiculaires au plan sont
-nulles par symétrie : l'optimiseur reste piégé dans un \textbf{minimum
-plat parasite} (phénomène constaté sur des benzénoïdes qui convergent
-indifféremment vers une forme plane ou courbée selon la machine). Pour
-briser cette symétrie de façon reproductible, nous appliquons une
-\textbf{perturbation analytique déterministe} à la composante $z$ des
-coordonnées avant toute optimisation :
-\[
-  z_i' \;=\; z_i + A\sin\!\Bigl(\tfrac{2\pi i}{N} + \varphi\Bigr),
-  \quad A = 0{,}05\ \text{\AA},\quad \varphi = 0{,}5\ \text{rad},
-\]
-puis la géométrie perturbée est passée à \texttt{xtb --opt tight}
-(GFN2-\xtb{} 6.7.1)~\cite{xtb}. La perturbation est une fonction pure
-des indices atomiques --- sans tirage aléatoire --- ce qui rend
-l'ensemble du pipeline \emph{byte-déterministe}. Les détails techniques
-(historique de l'approche MD abandonnée, variables d'environnement,
-filtre anti-fragmentation) sont donnés en annexe~\ref{app:detopt}.
+initiale est parfaitement plane, l'optimiseur reste piégé dans un
+\textbf{minimum plat parasite}. Pour briser cette symétrie de façon
+reproductible, nous appliquons une \textbf{perturbation analytique
+déterministe} aux coordonnées $z$ avant toute optimisation : la
+perturbation est une fonction pure des indices atomiques, sans tirage
+aléatoire, ce qui rend l'ensemble du pipeline \emph{byte-déterministe}.
+La formule, la commande \texttt{xtb --opt tight} et tous les détails
+techniques sont donnés en annexe~\ref{app:detopt}.
 
 \subsubsection{Test de planéité par analyse en composantes principales}
 \label{sec:acp}
 
 Une fois la géométrie optimisée par \xtb{}, on applique une
-\textbf{analyse en composantes principales} (ACP) aux positions des $N$
-atomes de carbone pour identifier leur plan moyen et sa normale globale
-$\mathbf{v}_3$. Pour chaque cycle $C$ de la molécule (pentagone,
-hexagone ou heptagone), la même ACP appliquée à ses seuls sommets
-fournit une normale locale $\mathbf{n}_C$. La métrique décisive est la
-valeur maximale du gauchissement de chaque cycle :
-\[
-  \texttt{max\_angle\_deg} \;=\; \max_{C} \,
-  \arccos\bigl(|\mathbf{n}_C \cdot \mathbf{v}_3|\bigr).
-\]
-Le critère de décision, fixé par le chimiste après examen de cas-tests :
+\textbf{analyse en composantes principales} (ACP) aux positions des
+atomes de carbone pour mesurer l'écart à la planéité. Le critère de
+décision, fixé par les chimistes après examen de cas-tests :
 \[
   \boxed{\text{molécule plane} \iff \texttt{max\_angle\_deg} \le 10^\circ .}
 \]
 Chaque solution reçoit ainsi un verdict final : \textsc{plan},
-\textsc{non-plan}, ou \textsc{échec \xtb{}}. La description formelle
-(matrice de covariance $\Sigma$, métriques rmsd et hauteur) est en
-annexe~\ref{app:acp}.
+\textsc{non-plan}, ou \textsc{échec \xtb{}}. Les détails techniques
+(matrice de covariance, métriques rmsd et hauteur, formule de
+\texttt{max\_angle\_deg}) sont en annexe~\ref{app:acp}.
 
 \subsection{Analyse électronique des structures}
 \label{sec:analyse-elec}
@@ -1839,10 +1840,7 @@ existants imposent $\mathcal{H}$ = hexagones uniquement et ne définissent pas
 le cas sans couplage parfait.
 \end{remarque}
 
-À ce stade, cet outillage est \emph{opérationnel} mais l'exploration reste
-préliminaire : nous avons par exemple cherché un lien entre planéité et nombre
-de radicaux sans dégager de corrélation exploitable. Nous le présentons comme un
-moyen d'analyse des structures produites et une piste à approfondir.
+
 
 \subsection{Le designer : interface et pipeline intégré}
 \label{sec:logiciel}
@@ -1871,7 +1869,7 @@ rejouer une campagne sur un corpus déjà fixé.
   \emph{[Capture du designer en mode saisie d'instance --- à insérer]}
 \end{minipage}}
 \caption{Designer en mode saisie : canevas hexagonal pour dessiner un
-benzénoïde ou choisir un squelette importé depuis BenzDB.}
+benzénoïde ou choisir un benzenoide importé depuis BenzDB.}
 \label{fig:designer-saisie}
 \end{figure}
 
@@ -1996,7 +1994,7 @@ $h$ & $h_3$ & $h_4$ & $h_5$ & $h_6$ & $h_7$ & $h_8$ & $h_9$ \\
 nombre de squelettes & $3$ & $6$ & $16$ & $44$ & $126$ & $376$ & $2\,418$ \\
 \bottomrule
 \end{tabular}
-\caption{Nombre de squelettes benzénoïdes du corpus par taille $h$, issues de BenzDB.}
+\caption{Nombre de squelettes benzénoïdes du corpus par taille $h$, issue de BenzDB.}
 \label{tab:corpus}
 \end{table}
 
@@ -2164,13 +2162,19 @@ $h_9$ & $2\,845$ & $1\,711$ & $60{,}1\,\%$ \\
 Pour traiter $h_9$, nous avons cherché des contraintes \emph{non
 redondantes} avec Pb1 et qui capturent un mécanisme d'échec différent. Une
 analyse \emph{a posteriori} des solutions $C_1$ non planes a fait émerger
-deux descripteurs topologiques complémentaires, qui forment ensemble la
-configuration $C_{\text{topo}}$.
+deux \textbf{descripteurs topologiques} complémentaires, qui forment ensemble la
+configuration $C_{\text{topo}}$. On appelle ici \emph{descripteur topologique}
+toute quantité calculée sur le graphe dual d'une solution qui résume une
+propriété structurelle et dont on observe la corrélation avec la planéité.
 
 \paragraph{Descripteur 1 --- motifs de rayon~$2$ dans le graphe dual.}
 Pour chaque cycle $v$ d'une solution, on définit son \emph{motif de
 rayon~$2$} comme le couple
-$(x_v, \text{multiset}(\,x_u : u \in \mathcal{N}_{\GD}(v)\,))$.
+$(x_v,\ \mathcal{M}(\,x_u : u \in \mathcal{N}_{\GD}(v)\,))$,
+où $\mathcal{M}(\cdot)$ désigne un \textbf{multiset} (ou \emph{multi-ensemble}),
+c'est-à-dire un ensemble autorisant les répétitions : $\mathcal{M}(6,7,7)
+\neq \mathcal{M}(6,7)$, les deux voisins de taille~$7$ étant comptés
+séparément.
 Par exemple, le motif $7\,|\,[6,7,7]$ désigne un heptagone entouré d'un
 hexagone et de deux heptagones. L'analyse statistique sur le corpus $h_7$,
 $h_8$, $h_9$ a identifié une \emph{blacklist} d'une dizaine de motifs
@@ -2325,17 +2329,63 @@ construction et progresse au rythme des expériences elles-mêmes.
 \subsection{Définitions formelles de cohérence}
 \label{app:coherence}
 
-\todo{Définition officielle de la cohérence d'arc et de la propagation
-de contraintes --- à compléter (source : Varet~\cite{varet2022},
-Déf.\ 1.4.1).}
+Les définitions suivantes sont adaptées de Mackworth~\cite{mackworth1977}
+et reprises dans la thèse de Varet~\cite{varet2022} (Déf.\ 1.4.1).
+
+\begin{definition}[Arc-cohérence]
+Soit $P = (X, D, C)$ un CSP. Une valeur $v \in D_x$ est
+\emph{arc-cohérente} par rapport à une contrainte $c \in C$ de portée
+$S(c) \ni x$ si, pour chaque autre variable $y \in S(c)$, il existe une
+valeur $w \in D_y$ telle que le tuple partiellement défini par
+$t[\{x\}] = v$, $t[\{y\}] = w$ est compatible avec $R(c)$.
+
+Un CSP est dit \emph{arc-cohérent} si chaque valeur de chaque domaine
+est arc-cohérente par rapport à toutes les contraintes qui la concernent.
+\end{definition}
+
+\begin{definition}[Propagation de contraintes]
+La \emph{propagation de contraintes} (ou \emph{filtrage}) est le
+processus itératif consistant à supprimer des domaines toute valeur non
+arc-cohérente. Le processus se répète jusqu'à l'obtention d'un
+\emph{point fixe} : un état où aucune suppression supplémentaire n'est
+possible. Chaque suppression peut déclencher de nouvelles suppressions
+en cascade (effet ``boule de neige'').
+\end{definition}
+
+\begin{remarque}
+L'arc-cohérence ne garantit pas à elle seule la satisfiabilité du CSP :
+un problème peut être arc-cohérent et ne posséder aucune solution (les
+domaines restent non vides, mais aucune combinaison complète n'est
+consistante). Elle réduit cependant l'espace de recherche et est
+systématiquement appliquée avant et pendant le backtracking.
+\end{remarque}
 
 % ---------------------------------------------------------------
 \subsection{Règle de Hückel}
 \label{app:huckel}
 % ---------------------------------------------------------------
 
-\todo{Définition formelle de la règle de Hückel --- à compléter
-(source : \cite{huckel1931}).}
+La règle suivante est établie par Hückel en 1931~\cite{huckel1931} dans le
+cadre de la théorie des orbitales moléculaires au niveau \emph{tight-binding}.
+
+\begin{definition}[Règle de Hückel, \cite{huckel1931}]
+Un cycle conjugué plan est \emph{aromatique} si et seulement s'il
+possède $4n + 2$ électrons $\pi$ pour un entier $n \ge 0$.
+\end{definition}
+
+Les premiers cas sont : $n = 0$ ($2$ électrons, cyclopropényle cation),
+$n = 1$ ($6$ électrons, benzène), $n = 2$ ($10$ électrons, azulène et
+naphtalène). Les cycles à $4n$ électrons (cyclobutadiène~: $4$, cyclo-octatetraène~:
+$8$) sont dits \emph{antiaromatiques} et sont déstabilisés.
+
+\begin{remarque}
+Dans notre contexte, seuls les hexagones satisfont la règle avec $n = 1$
+(6 atomes de carbone $\Rightarrow$ 6 électrons $\pi$ délocalisés). Les
+pentagones et heptagones n'ont pas le bon décompte et ne peuvent donc
+pas porter de sextet de Clar. C'est pourquoi la variable $y_h$ du
+modèle $\mathcal{M}_C$ (section~\ref{sec:analyse-elec}) n'est définie
+que sur les hexagones $h \in \mathcal{H}$.
+\end{remarque}
 
 % ---------------------------------------------------------------
 \subsection{Protocole de validation \xtb{} (détails)}
@@ -2476,6 +2526,10 @@ Mathematics, 54(1):150--168, 1932.
 \bibitem{huckel1931} E.~Hückel,
 \emph{Quantentheoretische Beiträge zum Benzolproblem}, Zeitschrift für Physik,
 70:204--286, 1931 (règle des $4n+2$ électrons $\pi$).
+
+\bibitem{mackworth1977} A.~K.~Mackworth,
+\emph{Consistency in Networks of Relations},
+Artificial Intelligence, 8(1):99--118, 1977.
 
 \bibitem{pauling} L.~Pauling,
 \emph{The Nature of the Chemical Bond}, Cornell University Press, 3\textsuperscript{e}
