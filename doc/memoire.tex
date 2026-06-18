@@ -1215,7 +1215,7 @@ décisif pour un travail mené en dialogue continu avec les chimistes.
 
 Comme une partie centrale de notre modélisation repose sur les
 automorphismes d'un graphe (rupture de symétrie en
-section~\ref{sec:c4}), nous rappelons ici la notion
+section~\ref{sec:c6}), nous rappelons ici la notion
 d'\emph{isomorphisme}, qui apparaît dans tout le mémoire.
 
 \begin{definition}[Isomorphisme de graphes]
@@ -1235,7 +1235,7 @@ renommage des sommets près ; ils représentent la même structure
 abstraite. Pour notre problème, deux substitutions d'un benzénoïde qui
 diffèrent uniquement par un automorphisme du graphe dual correspondent
 à la même molécule, et seront comptées une seule fois. La rupture de
-symétrie (section~\ref{sec:c4}) traite explicitement ce point.
+symétrie (section~\ref{sec:c6}) traite explicitement ce point.
 
 % =====================================================================
 \section{Le problème}
@@ -1333,17 +1333,152 @@ la taille du cycle substitué :
 \[
   x_v \in \{5, 6, 7\}, \qquad v \in V_D.
 \]
-Toutes les variables ont initialement le même domaine $\{5, 6, 7\}$. Le
-prétraitement décrit en section~\ref{sec:c2} (contrainte C2) réduira ce
-domaine à $\{6\}$ pour certains hexagones, dits \emph{gelés}, en fonction de
-leur position dans le graphe dual.
+Toutes les variables ont initialement le même domaine $\{5, 6, 7\}$.
+Les contraintes C2, C3 et C4 décrites ci-dessous réduiront ce domaine
+en fonction de la position de $v$ dans le graphe dual, allant jusqu'à
+le restreindre à $\{6\}$ pour certains hexagones, dits \emph{gelés}.
+
+\subsection{Préalable : motif d'occupation $\sigma(v)$ et blocs libres}
+\label{sec:sigma}
+
+Plusieurs des contraintes du modèle reposent sur la même donnée locale :
+\emph{où sont placés les voisins de $v$ dans son hexagone}, et
+\emph{où sont laissés les côtés libres}. Nous introduisons donc d'abord
+le vocabulaire et la notation correspondants, que nous réutiliserons
+sans les redéfinir dans la suite.
+
+Soit $v \in V_D$ un hexagone du benzénoïde de départ. Ses six côtés sont
+numérotés cycliquement de $0$ à $5$. Chaque côté est, ou bien
+\textbf{partagé} avec un voisin (le côté coïncide avec une arête commune
+entre $v$ et un autre cycle du benzénoïde, c'est-à-dire une arête de
+$\GD$ incidente à $v$), ou bien \textbf{libre} (aucun voisin de ce côté).
+
+\begin{definition}[Motif d'occupation $\sigma(v)$]
+Le \emph{motif d'occupation} de $v$ est le vecteur
+\[
+  \sigma(v) \;=\; (\sigma_0, \sigma_1, \dots, \sigma_5) \;\in\; \{0, 1\}^6 ,
+\]
+où $\sigma_i = 1$ si le $i$-ème côté de $v$ est partagé avec un voisin,
+et $\sigma_i = 0$ s'il est libre. Le nombre de côtés partagés vaut
+$\sum_i \sigma_i = \deg_{\GD}(v)$.
+\end{definition}
+
+Le motif $\sigma(v)$ est défini à rotation cyclique près : changer
+le point de départ de la numérotation produit une rotation de
+$\sigma(v)$, mais ne modifie pas l'information géométrique sous-jacente.
+
+\paragraph{Exemple.} Reprenons le benzénoïde $B$ de la
+figure~\ref{fig:graphe-carbone}, et concentrons-nous sur le sommet
+$v_1$. Dans $\GD(B)$ (figure~\ref{fig:dual}, à droite), $v_1$ a quatre
+voisins : $v_0$ à gauche, $v_2$ à droite, $v_3$ en haut-gauche et
+$v_4$ en bas-droite. Les quatre côtés de $v_1$ correspondant sont donc
+partagés ($\sigma_i = 1$), et les deux côtés restants
+(haut-droite et bas-gauche) sont libres ($\sigma_i = 0$). En
+choisissant comme point de départ le côté haut-droite, on obtient
+\[
+  \boxed{\;\sigma(v_1) \;=\; (0, 1, 1, 0, 1, 1) \;,\;}
+\]
+ce qui est équivalent, à une rotation près, à $(1, 1, 0, 1, 1, 0)$.
+La figure~\ref{fig:sigma-v1} matérialise visuellement cette
+décomposition.
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[scale=1.3, baseline=(current bounding box.center)]
+  \def\rhex{1.4}
+  % Sommets de l'hexagone (pointy-top, sommets aux angles 30 + 60k)
+  \foreach \i in {0,...,5} {
+    \coordinate (S\i) at ({30 + 60*\i}:\rhex);
+  }
+  % Numerotation des cotes :
+  %   cote i = entre sommet i et sommet i+1 (mod 6)
+  %   - cote 0 : entre S0 (30°) et S1 (90°), milieu a 60° (haut-droite)
+  %   - cote 1 : entre S1 (90°) et S2 (150°), milieu a 120° (haut-gauche)
+  %   - cote 2 : entre S2 (150°) et S3 (210°), milieu a 180° (gauche)
+  %   - cote 3 : entre S3 (210°) et S4 (270°), milieu a 240° (bas-gauche)
+  %   - cote 4 : entre S4 (270°) et S5 (330°), milieu a 300° (bas-droite)
+  %   - cote 5 : entre S5 (330°) et S0 (30°), milieu a 0° (droite)
+  % sigma(v1) = (0, 1, 1, 0, 1, 1) en partant du cote haut-droite (60°)
+  % Cotes partages (sigma_i = 1) en bleu epais, cotes libres (sigma_i = 0)
+  % en rouge pointille epais.
+  \tikzset{shared/.style={ultra thick, blue!70!black},
+           free/.style={ultra thick, red!70!black, densely dashed}}
+  \draw[free]    (S0)--(S1);  % cote 0 : libre (haut-droite)
+  \draw[shared]  (S1)--(S2);  % cote 1 : partage avec v3 (haut-gauche)
+  \draw[shared]  (S2)--(S3);  % cote 2 : partage avec v0 (gauche)
+  \draw[free]    (S3)--(S4);  % cote 3 : libre (bas-gauche)
+  \draw[shared]  (S4)--(S5);  % cote 4 : partage avec v4 (bas-droite)
+  \draw[shared]  (S5)--(S0);  % cote 5 : partage avec v2 (droite)
+  % Etiquette centrale
+  \node at (0,0) {\large $v_1$};
+  % Annotations des cotes (sigma_i)
+  \foreach \i/\ang in {0/60, 1/120, 2/180, 3/240, 4/300, 5/0} {
+    \pgfmathsetmacro{\rext}{1.30}
+    \node[font=\small] at ({\ang}:{\rhex*\rext}) {$\sigma_\i$};
+  }
+  % Etiquettes voisins, places a l'exterieur des cotes partages
+  \pgfmathsetmacro{\rvois}{2.05}
+  \node[font=\small, gray] at ({120}:\rvois) {$v_3$};
+  \node[font=\small, gray] at ({180}:\rvois) {$v_0$};
+  \node[font=\small, gray] at ({300}:\rvois) {$v_4$};
+  \node[font=\small, gray] at ({0}:\rvois)   {$v_2$};
+\end{tikzpicture}
+\hspace{0.8cm}
+\begin{minipage}[c]{0.32\linewidth}
+\centering
+\small
+\textbf{Motif d'occupation}\\[0.3em]
+$\sigma(v_1) = (0, 1, 1, 0, 1, 1)$\\[0.6em]
+\begin{tabular}{cl}
+\textcolor{blue!70!black}{\rule{1em}{1pt}} & côté \emph{partagé} ($\sigma_i = 1$) \\[0.2em]
+\textcolor{red!70!black}{\rule{1em}{1pt}\hspace{-1em}\rule{1em}{1pt}} & côté \emph{libre} ($\sigma_i = 0$) \\
+\end{tabular}\\[0.5em]
+$b(v_1) = 2$ blocs libres\\[0.2em]
+(deux zéros isolés)
+\end{minipage}
+\caption{Motif d'occupation $\sigma(v_1)$ pour le sommet central du
+benzénoïde de la figure~\ref{fig:graphe-carbone}. Les côtés partagés
+avec un voisin (en bleu plein) alternent avec les côtés libres (en
+rouge pointillé). Comme les deux côtés libres sont \emph{isolés}
+(non consécutifs cycliquement), $v_1$ ne possède pas de paire de côtés
+libres adjacents : c'est exactement la condition qui empêchera $v_1$
+de se contracter en pentagone (contrainte C2 ci-dessous).}
+\label{fig:sigma-v1}
+\end{figure}
+
+\begin{definition}[Blocs libres, $b(v)$]
+On appelle \emph{bloc libre} de $v$ une suite maximale d'indices
+$i, i+1, \dots, j-1$ (modulo $6$) telle que
+$\sigma_i = \sigma_{i+1} = \dots = \sigma_{j-1} = 0$, encadrée par
+des côtés partagés. On note $b(v)$ le nombre de blocs libres
+distincts de $v$.
+\end{definition}
+
+Pour l'exemple de la figure~\ref{fig:sigma-v1}, les côtés libres sont
+en positions $0$ et $3$, séparés par des côtés partagés. Chacun
+constitue son propre bloc, et $b(v_1) = 2$.
+
+\begin{definition}[Sommet intérieur libre]
+Un \emph{sommet intérieur libre} de $v$ est un sommet du cycle dont les
+\emph{deux} côtés adjacents sont libres. De manière équivalente, $v$
+possède un sommet intérieur libre si et seulement si $\sigma(v)$
+contient au moins deux zéros consécutifs cycliquement.
+\end{definition}
+
+Cette notion va jouer un rôle clef dans la contrainte C2 :
+contracter un hexagone en pentagone consiste précisément à
+\emph{supprimer un sommet intérieur libre}. Pour
+$v_1$ de la figure~\ref{fig:sigma-v1}, chaque côté libre est isolé
+entre deux côtés partagés, donc aucun sommet du cycle n'a ses deux
+côtés adjacents libres simultanément : $v_1$ \emph{n'a pas} de sommet
+intérieur libre.
 
 \subsection{Contraintes}
 \label{sec:contraintes}
 
-Cette sous-section regroupe les contraintes du modèle. C1, C2.1, C3 et C4
-sont actives par défaut. C2.2 et C5 sont optionnelles : leur effet est
-étudié expérimentalement à la section~\ref{sec:xp}.
+Cette sous-section regroupe les contraintes du modèle. C1, C2, C3, C5
+et C6 sont actives par défaut. C4 et C7 sont optionnelles : leur effet
+est étudié expérimentalement à la section~\ref{sec:xp}.
 
 \subsubsection{C1 --- Conservation du carbone}
 \label{sec:c1}
@@ -1405,29 +1540,86 @@ $n_5 = n_7$, qui s'interprète chimiquement : chaque pentagone retire
 un atome de carbone et doit être compensé par un heptagone qui en
 ajoute un.
 
-\subsubsection{C2 --- Hexagones gelés (réduction de domaine)}
+\subsubsection{C2 --- Restriction géométrique du domaine}
 \label{sec:c2}
 
-Avant même la résolution proprement dite, un \emph{prétraitement} ---
-c'est-à-dire une première passe de \textbf{filtrage} au sens de la
-section~\ref{sec:ppc} --- réduit le domaine de certaines variables à
-$\{6\}$ en exploitant la structure locale du graphe dual. Pour chaque hexagone $v$, on définit son \textbf{motif
-d'occupation} $\sigma(v) = (\sigma_0, \dots, \sigma_5) \in \{0,1\}^6$, où
-$\sigma_i = 1$ si le $i$-ème côté de $v$ est partagé avec un voisin, et $0$
-s'il est libre. On note $b(v)$ le nombre de \emph{blocs} de côtés libres
-consécutifs (sur le cycle des six côtés). La contrainte C2 se décompose en
-deux conditions de gel, l'une stricte et toujours active, l'autre
-optionnelle.
+L'attribution $x_v \in \{5, 6, 7\}$ doit être compatible avec une
+\emph{reconstruction géométrique} de $v$ qui ne brise pas la fusion
+avec ses voisins (les côtés partagés doivent rester partagés, à la même
+position). Cette compatibilité dépend uniquement du motif d'occupation
+$\sigma(v)$ et peut donc être vérifiée \emph{en amont} de la résolution,
+sous forme d'une restriction du domaine de $x_v$.
 
-\textbf{C2.1 --- hexagones de degré $6$.} Si $\deg_{\GD}(v) = 6$,
-l'hexagone $v$ est entouré de six voisins et n'a aucun côté libre. Il ne
-peut donc ni se contracter (aucun sommet à supprimer sans casser un côté
-partagé), ni se dilater (aucun bloc libre où insérer un sommet). On
-impose $x_v = 6$. Ce gel est une conséquence topologique stricte, sans
-alternative.
+\paragraph{Contraction en pentagone ($x_v = 5$).}
+Transformer un hexagone en pentagone revient à supprimer l'un de ses
+sommets. Pour ne pas casser un côté partagé, ce sommet doit avoir ses
+deux côtés adjacents libres : c'est précisément un \emph{sommet
+intérieur libre}, au sens de la définition donnée
+section~\ref{sec:sigma}. La valeur $x_v = 5$ est donc \textbf{admissible}
+si et seulement si $\sigma(v)$ contient au moins deux zéros consécutifs
+cycliquement.
 
-\textbf{C2.2 --- blocs libres fragmentés.} Si $b(v) \ge 2$, les côtés
-libres de $v$ sont répartis en plusieurs blocs disjoints sur le cycle.
+\paragraph{Dilatation en heptagone ($x_v = 7$).}
+Transformer un hexagone en heptagone revient à ajouter un sommet entre
+deux sommets existants, c'est-à-dire à dédoubler un côté libre. La
+valeur $x_v = 7$ est donc admissible si et seulement si $\sigma(v)$
+contient au moins un côté libre, soit $\sigma_i = 0$ pour au moins
+un $i$.
+
+\paragraph{Énoncé formel.}
+Pour chaque sommet $v \in V_D$, la contrainte C2 réduit le domaine
+$D(x_v)$ à
+\[
+  D(x_v) \;=\; \{6\}
+              \;\cup\; \bigl\{5 \,:\, \sigma(v) \text{ a } \ge 2 \text{ zéros consécutifs}\bigr\}
+              \;\cup\; \bigl\{7 \,:\, \sigma(v) \text{ a } \ge 1 \text{ zéro}\bigr\} ,
+\]
+où la valeur $6$ reste toujours admissible (l'hexagone d'origine est, par
+construction, géométriquement compatible avec lui-même).
+
+C2 s'implémente comme un prétraitement~: pour chaque $v$, on calcule
+$\sigma(v)$ depuis $\GD$ et on initialise $D(x_v)$ en conséquence avant
+de passer le modèle au solveur. La présence ou l'absence d'une valeur
+dans $D(x_v)$ joue alors exactement le rôle d'une contrainte unaire
+sur $x_v$.
+
+\paragraph{Exemple.} Reprenons le sommet $v_1$ de la
+figure~\ref{fig:sigma-v1}, dont le motif est
+$\sigma(v_1) = (0, 1, 1, 0, 1, 1)$. Les zéros sont en positions $0$
+et $3$, séparés par des côtés partagés : il n'y a aucune paire de zéros
+consécutifs cycliquement. La contrainte C2 retire donc $5$ du domaine
+de $x_{v_1}$, mais conserve $7$ (le motif contient bien un zéro). On
+obtient
+\[
+  D(x_{v_1}) \;=\; \{6, 7\} .
+\]
+Sur cet exemple, $v_1$ ne pourra pas être contracté en pentagone, mais
+pourra encore être dilaté en heptagone (en insérant un sommet sur le
+côté libre $\sigma_0$ ou $\sigma_3$).
+
+\subsubsection{C3 --- Gel topologique des hexagones de degré $6$}
+\label{sec:c3-gel-deg6}
+
+C3 est en fait un cas particulier de C2, mais suffisamment important
+pour mériter d'être isolé : il correspond à la situation où la
+restriction de domaine se réduit à $\{6\}$ pour des raisons purement
+topologiques.
+
+Si $\deg_{\GD}(v) = 6$, l'hexagone $v$ est entouré de six voisins et
+n'a aucun côté libre. Son motif vaut $\sigma(v) = (1, 1, 1, 1, 1, 1)$ :
+il ne contient aucun zéro, donc ni 5 ni 7 ne sont admissibles par C2.
+On a alors directement
+\[
+  D(x_v) \;=\; \{6\} \quad\Longleftrightarrow\quad x_v \;=\; 6 .
+\]
+Le sommet $v$ est dit \emph{gelé}, et il n'apparaît plus que comme
+constante dans le modèle. Ce gel est une conséquence topologique
+stricte, sans alternative possible.
+
+\subsubsection{C4 --- Gel des hexagones à blocs libres fragmentés (optionnel)}
+\label{sec:c4-fragmentes}
+
+Si $b(v) \ge 2$, les côtés libres de $v$ sont répartis en plusieurs blocs disjoints sur le cycle.
 Notons que la simple connaissance du \emph{nombre} d'arêtes périphériques
 d'un hexagone --- au sens de l'étiquetage de Brinkmann repris par
 Varet~\cite{varet2022} pour distinguer les benzénoïdes partageant le
@@ -1578,7 +1770,8 @@ cette contrainte dans les expériences de la section~\ref{sec:xp}.
 Les hexagones qui ne sont gelés par aucune des deux règles sont dits
 \emph{libres} et conservent le domaine $\{5, 6, 7\}$.
 
-\subsubsection{C3 --- Voisinage admissible et table de voisinage}
+\subsubsection{C5 --- Voisinage admissible et table de voisinage}
+\label{sec:c5-table}
 
 C'est le cœur du filtrage chimique. Pour chaque hexagone libre $v$, on impose
 que la configuration locale formée par $v$ et ses voisins soit
@@ -1631,8 +1824,8 @@ table : un cycle accolé à un unique voisin par une arête est toujours
 réalisable, quelle que soit sa taille.
 \end{remarque}
 
-\subsubsection{C4 --- Rupture de symétrie}
-\label{sec:c4}
+\subsubsection{C6 --- Rupture de symétrie}
+\label{sec:c6}
 
 Deux substitutions qui ne diffèrent que par une symétrie du benzénoïde
 décrivent la \emph{même} molécule. Pour ne les compter qu'une fois, on
@@ -1649,8 +1842,8 @@ les doublons et réduit fortement l'espace de recherche. Sa validité repose
 sur l'unicité du plongement planaire des graphes considérés (théorème de
 Whitney~\cite{whitney} et 2-connexité des benzénoïdes).
 
-\subsubsection{C5 --- Adjacence $5$--$7$ (motif azulène)}
-\label{sec:c5}
+\subsubsection{C7 --- Adjacence $5$--$7$ (motif azulène)}
+\label{sec:c7}
 
 Cette contrainte est une piste d'amélioration explorée à la
 section~\ref{sec:xp} ; elle n'est pas active par défaut. L'idée chimique
@@ -1703,7 +1896,7 @@ Pour chaque sommet $v$ du graphe dual, notons
 \[
   \mathcal{N}(v) \;=\; \{\, u \in V_D \mid (u, v) \in E_D \,\}
 \]
-l'ensemble des voisins de $v$ dans \GD{}. La contrainte C5 traduit
+l'ensemble des voisins de $v$ dans \GD{}. La contrainte C7 traduit
 alors l'idée chimique dans le modèle PPC sous la forme
 \emph{tout pentagone a au moins un heptagone parmi ses voisins, et tout
 heptagone a au moins un pentagone parmi les siens} :
@@ -1724,11 +1917,11 @@ Le modèle est écrit en \textsc{PyCSP3}, puis compilé au format standard
 XCSP3. Selon les options choisies par l'utilisateur, il inclut les
 contraintes suivantes :
 \begin{itemize}
-  \item \textbf{actives par défaut :} C1 (conservation du carbone), C2.1
-    (gel des hexagones de degré $6$), C3 (voisinage admissible) et C4
-    (rupture de symétrie) ;
-  \item \textbf{optionnelles :} C2.2 (gel des hexagones à blocs libres
-    fragmentés, activée par défaut mais désactivable) et C5 (adjacence
+  \item \textbf{actives par défaut :} C1 (conservation du carbone), C2
+    (restriction géométrique du domaine), C3 (gel des hexagones de
+    degré $6$), C5 (voisinage admissible) et C6 (rupture de symétrie) ;
+  \item \textbf{optionnelles :} C4 (gel des hexagones à blocs libres
+    fragmentés, activée par défaut mais désactivable) et C7 (adjacence
     $5$--$7$, désactivée par défaut, étudiée à la section~\ref{sec:xp}).
 \end{itemize}
 
@@ -2103,7 +2296,7 @@ correspondent exactement aux configurations étudiées
 expérimentalement (section~\ref{sec:xp}) :
 \begin{itemize}[leftmargin=1.4em]
   \item \textbf{C1 --- Baseline} : contraintes structurelles
-    uniquement (C1+C2.1+C3+C4).
+    uniquement (C1+C2+C3+C5+C6).
   \item \textbf{C2 --- Pb1 + adj\_57} : C1 plus pentagones plafonnés au
     bord et appariement Stone--Wales obligatoire.
   \item \textbf{C3 --- Pb1 + adj\_57 + pas de $7$--$7$ adjacents} :
@@ -2280,7 +2473,7 @@ cluster) sont en annexe~\ref{app:detopt}.
 
 La première configuration mesure la référence : avec les seules contraintes
 structurelles (section~\ref{sec:modele}) --- conservation du carbone C1, gel
-des hexagones de degré $6$ (C2.1), table de voisinage (C3) et rupture de
+des hexagones de degré $6$ (C3), table de voisinage (C5) et rupture de
 symétrie (C4) ---, quelle proportion des solutions est réellement plane après
 validation \xtb{}~?
 
@@ -2321,7 +2514,7 @@ plus efficaces parmi les variantes locales explorées :
     l'observation empirique que les pentagones de bord, qui introduisent une
     courbure locale non compensée par un voisin opposé, sont particulièrement
     déstabilisants ; la limiter améliore fortement le taux de planéité.
-  \item \textbf{adj\_57} (contrainte C5, section~\ref{sec:c5}) :
+  \item \textbf{adj\_57} (contrainte C7, section~\ref{sec:c7}) :
     appariement Stone--Wales obligatoire (tout pentagone a un heptagone
     voisin, et réciproquement). Localement, la paire $5$--$7$ compense
     exactement la courbure de Gauss--Bonnet ($+\pi/3 - \pi/3 = 0$).
