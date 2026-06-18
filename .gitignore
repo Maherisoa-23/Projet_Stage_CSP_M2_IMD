@@ -7,6 +7,7 @@
 .ruff_cache/
 
 final_h3_h9.db.backup-before-dihedral
+rapport_benchmark_csp.md
 
 # Donnees brutes a la racine (les .graph des h6-h9 sont dans
 # experiments/v1/plane/benzdb/, gitignored separement)

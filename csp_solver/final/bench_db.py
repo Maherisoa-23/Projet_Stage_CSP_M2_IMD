@@ -6,6 +6,7 @@ Workflow : init -> populate (insert pending) -> dispatcher run -> stats.
 
 import sqlite3
 import time
+from contextlib import closing
 from pathlib import Path
 
 
@@ -88,7 +89,7 @@ def claim_batch(db_path: str, batch_size: int, hostname: str) -> list:
     """
     rows = []
     now = time.strftime("%Y-%m-%dT%H:%M:%S")
-    with sqlite3.connect(db_path, timeout=30.0) as c:
+    with closing(sqlite3.connect(db_path, timeout=30.0)) as c:
         c.execute("BEGIN IMMEDIATE")
         try:
             picked = c.execute(
@@ -120,7 +121,7 @@ def commit_result(db_path: str, h: int, cfg: str, graph_name: str,
     now = time.strftime("%Y-%m-%dT%H:%M:%S")
     err = result.get("error")
     final_status = "failed" if err else "done"
-    with sqlite3.connect(db_path, timeout=30.0) as c:
+    with closing(sqlite3.connect(db_path, timeout=30.0)) as c:
         c.execute(
             "UPDATE solver_bench SET "
             "  status=?, finished_at=?, hostname=?, "
@@ -144,7 +145,7 @@ def commit_result(db_path: str, h: int, cfg: str, graph_name: str,
 def mark_failed_or_retry(db_path: str, h: int, cfg: str, graph_name: str,
                           error: str, max_retries: int = 2) -> None:
     """Si retry < max : remet pending, sinon failed."""
-    with sqlite3.connect(db_path, timeout=30.0) as c:
+    with closing(sqlite3.connect(db_path, timeout=30.0)) as c:
         row = c.execute(
             "SELECT retry_count FROM solver_bench WHERE h=? AND config=? AND graph_name=?",
             (h, cfg, graph_name),
@@ -167,7 +168,7 @@ def mark_failed_or_retry(db_path: str, h: int, cfg: str, graph_name: str,
 
 def reset_stale_running(db_path: str) -> int:
     """Reprise sur crash : remet 'running' a 'pending'."""
-    with sqlite3.connect(db_path, timeout=30.0) as c:
+    with closing(sqlite3.connect(db_path, timeout=30.0)) as c:
         r = c.execute("UPDATE solver_bench SET status='pending' WHERE status='running'")
         c.commit()
         return r.rowcount
@@ -175,7 +176,7 @@ def reset_stale_running(db_path: str) -> int:
 
 def get_stats(db_path: str) -> dict:
     """Stats globales du bench."""
-    with sqlite3.connect(db_path) as c:
+    with closing(sqlite3.connect(db_path)) as c:
         by_status = dict(c.execute(
             "SELECT status, COUNT(*) FROM solver_bench GROUP BY status"
         ).fetchall())
