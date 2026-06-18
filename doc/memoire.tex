@@ -27,7 +27,7 @@
 \setlist[itemize,2]{label=$\circ$}
 \usepackage{xcolor}
 \usepackage{tikz}
-\usetikzlibrary{calc,arrows.meta}
+\usetikzlibrary{calc,arrows.meta,positioning}
 % Environnement algorithm (float dedie + liste des algorithmes)
 \usepackage{algorithm}
 \floatname{algorithm}{Algorithme}
@@ -1147,6 +1147,17 @@ bibliothèque Python \textsc{PyCSP3} et nous les résolvons avec le
 solveur \ace{} (\emph{Abscon Constraint Engine})~\cite{pycsp3ace}, qui
 sait énumérer l'ensemble des solutions d'une instance.
 
+Cette modularité confère aussi une grande \textbf{flexibilité} au
+modèle : ajouter, modifier ou retirer une variable ou une contrainte
+revient à ajouter, modifier ou retirer une déclaration dans le modèle,
+sans toucher au mécanisme de résolution. Une approche algorithmique
+\emph{ad hoc}, construite pour un problème précis, n'offre pas cette
+souplesse : changer une règle métier oblige généralement à revoir une
+partie substantielle du code de résolution lui-même. C'est cette
+propriété que nous exploitons systématiquement dans ce travail, en
+particulier à la section~\ref{sec:xp}, où de nombreuses variantes de
+contraintes sont testées sans jamais modifier le solveur.
+
 \subsubsection{Contraintes en extension et contraintes globales}
 \label{sec:ppc-globales}
 
@@ -1175,7 +1186,12 @@ portée est $S(c) = \{x_{i_1}, \dots, x_{i_q}\}$ et sa relation
 \]
 Cette contrainte est équivalente à $\binom{q}{2}$ contraintes binaires
 de différence, mais son propagateur dédié élague l'espace de recherche
-de manière nettement plus efficace.
+de manière nettement plus efficace. Ce gain n'est pas qu'une question
+de compacité d'écriture : l'algorithme de filtrage dédié à
+$\mathit{allDifferent}$ (fondé sur un calcul de couplage dans un graphe
+biparti) atteint la cohérence d'arc complète en une seule passe, ce
+qu'aucune décomposition en contraintes binaires ne peut garantir,
+celles-ci ne détectant que des incohérences locales par paires.
 
 \paragraph{Reformulation du Sudoku avec \texttt{allDifferent}.}
 Les contraintes binaires $c_{i,j}$ du modèle précédent peuvent être
@@ -1215,7 +1231,7 @@ décisif pour un travail mené en dialogue continu avec les chimistes.
 
 Comme une partie centrale de notre modélisation repose sur les
 automorphismes d'un graphe (rupture de symétrie en
-section~\ref{sec:c6}), nous rappelons ici la notion
+section~\ref{sec:c3}), nous rappelons ici la notion
 d'\emph{isomorphisme}, qui apparaît dans tout le mémoire.
 
 \begin{definition}[Isomorphisme de graphes]
@@ -1235,7 +1251,7 @@ renommage des sommets près ; ils représentent la même structure
 abstraite. Pour notre problème, deux substitutions d'un benzénoïde qui
 diffèrent uniquement par un automorphisme du graphe dual correspondent
 à la même molécule, et seront comptées une seule fois. La rupture de
-symétrie (section~\ref{sec:c6}) traite explicitement ce point.
+symétrie (section~\ref{sec:c3}) traite explicitement ce point.
 
 % =====================================================================
 \section{Le problème}
@@ -1334,7 +1350,7 @@ la taille du cycle substitué :
   x_v \in \{5, 6, 7\}, \qquad v \in V_D.
 \]
 Toutes les variables ont initialement le même domaine $\{5, 6, 7\}$.
-Les contraintes C2, C3 et C4 décrites ci-dessous réduiront ce domaine
+Les contraintes C2 et C4 décrites ci-dessous réduiront ce domaine
 en fonction de la position de $v$ dans le graphe dual, allant jusqu'à
 le restreindre à $\{6\}$ pour certains hexagones, dits \emph{gelés}.
 
@@ -1385,43 +1401,61 @@ décomposition.
 \begin{figure}[h]
 \centering
 \begin{tikzpicture}[scale=1.3, baseline=(current bounding box.center)]
-  \def\rhex{1.4}
-  % Sommets de l'hexagone (pointy-top, sommets aux angles 30 + 60k)
+  \def\rhex{0.9}
+  \pgfmathsetmacro{\d}{\rhex*sqrt(3)}  % distance centre--centre entre hexagones adjacents
+
+  % Sommets de l'hexagone central v1 (pointy-top, sommets aux angles 30 + 60k)
   \foreach \i in {0,...,5} {
     \coordinate (S\i) at ({30 + 60*\i}:\rhex);
   }
-  % Numerotation des cotes :
+
+  % --- Hexagones voisins (arrière-plan) ---
+  \tikzset{neighbor/.style={thin, gray!50}}
+
+  % v0 à gauche (partage le côté 2 : S2--S3)
+  \coordinate (C0) at (180:\d);
+  \foreach \i in {0,...,5} { \coordinate (V0\i) at ($(C0)+({30+60*\i}:\rhex)$); }
+  \draw[neighbor] (V00)--(V01)--(V02)--(V03)--(V04)--(V05)--cycle;
+  \node[font=\small] at (C0) {$v_0$};
+
+  % v3 en haut-gauche (partage le côté 1 : S1--S2)
+  \coordinate (C3) at (120:\d);
+  \foreach \i in {0,...,5} { \coordinate (V3\i) at ($(C3)+({30+60*\i}:\rhex)$); }
+  \draw[neighbor] (V30)--(V31)--(V32)--(V33)--(V34)--(V35)--cycle;
+  \node[font=\small] at (C3) {$v_3$};
+
+  % v4 en bas-droite (partage le côté 4 : S4--S5)
+  \coordinate (C4) at (300:\d);
+  \foreach \i in {0,...,5} { \coordinate (V4\i) at ($(C4)+({30+60*\i}:\rhex)$); }
+  \draw[neighbor] (V40)--(V41)--(V42)--(V43)--(V44)--(V45)--cycle;
+  \node[font=\small] at (C4) {$v_4$};
+
+  % v2 à droite (partage le côté 5 : S5--S0)
+  \coordinate (C2) at (0:\d);
+  \foreach \i in {0,...,5} { \coordinate (V2\i) at ($(C2)+({30+60*\i}:\rhex)$); }
+  \draw[neighbor] (V20)--(V21)--(V22)--(V23)--(V24)--(V25)--cycle;
+  \node[font=\small] at (C2) {$v_2$};
+
+  % --- Côtés de v1 ---
   %   cote i = entre sommet i et sommet i+1 (mod 6)
-  %   - cote 0 : entre S0 (30°) et S1 (90°), milieu a 60° (haut-droite)
-  %   - cote 1 : entre S1 (90°) et S2 (150°), milieu a 120° (haut-gauche)
-  %   - cote 2 : entre S2 (150°) et S3 (210°), milieu a 180° (gauche)
-  %   - cote 3 : entre S3 (210°) et S4 (270°), milieu a 240° (bas-gauche)
-  %   - cote 4 : entre S4 (270°) et S5 (330°), milieu a 300° (bas-droite)
-  %   - cote 5 : entre S5 (330°) et S0 (30°), milieu a 0° (droite)
-  % sigma(v1) = (0, 1, 1, 0, 1, 1) en partant du cote haut-droite (60°)
-  % Cotes partages (sigma_i = 1) en bleu epais, cotes libres (sigma_i = 0)
-  % en rouge pointille epais.
+  %   sigma(v1) = (0, 1, 1, 0, 1, 1) en partant du cote haut-droite (60°)
   \tikzset{shared/.style={ultra thick, blue!70!black},
            free/.style={ultra thick, red!70!black, densely dashed}}
   \draw[free]    (S0)--(S1);  % cote 0 : libre (haut-droite)
-  \draw[shared]  (S1)--(S2);  % cote 1 : partage avec v3 (haut-gauche)
-  \draw[shared]  (S2)--(S3);  % cote 2 : partage avec v0 (gauche)
+  \draw[shared]  (S1)--(S2);  % cote 1 : partagé avec v3 (haut-gauche)
+  \draw[shared]  (S2)--(S3);  % cote 2 : partagé avec v0 (gauche)
   \draw[free]    (S3)--(S4);  % cote 3 : libre (bas-gauche)
-  \draw[shared]  (S4)--(S5);  % cote 4 : partage avec v4 (bas-droite)
-  \draw[shared]  (S5)--(S0);  % cote 5 : partage avec v2 (droite)
+  \draw[shared]  (S4)--(S5);  % cote 4 : partagé avec v4 (bas-droite)
+  \draw[shared]  (S5)--(S0);  % cote 5 : partagé avec v2 (droite)
+
   % Etiquette centrale
   \node at (0,0) {\large $v_1$};
-  % Annotations des cotes (sigma_i)
+
+  % Annotations des cotes (sigma_i) -- rapprochées
   \foreach \i/\ang in {0/60, 1/120, 2/180, 3/240, 4/300, 5/0} {
-    \pgfmathsetmacro{\rext}{1.30}
+    \pgfmathsetmacro{\rext}{1.12}
     \node[font=\small] at ({\ang}:{\rhex*\rext}) {$\sigma_\i$};
   }
-  % Etiquettes voisins, places a l'exterieur des cotes partages
-  \pgfmathsetmacro{\rvois}{2.05}
-  \node[font=\small, gray] at ({120}:\rvois) {$v_3$};
-  \node[font=\small, gray] at ({180}:\rvois) {$v_0$};
-  \node[font=\small, gray] at ({300}:\rvois) {$v_4$};
-  \node[font=\small, gray] at ({0}:\rvois)   {$v_2$};
 \end{tikzpicture}
 \hspace{0.8cm}
 \begin{minipage}[c]{0.32\linewidth}
@@ -1437,15 +1471,9 @@ $b(v_1) = 2$ blocs libres\\[0.2em]
 (deux zéros isolés)
 \end{minipage}
 \caption{Motif d'occupation $\sigma(v_1)$ pour le sommet central du
-benzénoïde de la figure~\ref{fig:graphe-carbone}. Les côtés partagés
-avec un voisin (en bleu plein) alternent avec les côtés libres (en
-rouge pointillé). Comme les deux côtés libres sont \emph{isolés}
-(non consécutifs cycliquement), $v_1$ ne possède pas de paire de côtés
-libres adjacents : c'est exactement la condition qui empêchera $v_1$
-de se contracter en pentagone (contrainte C2 ci-dessous).}
+benzénoïde de la figure~\ref{fig:graphe-carbone}.}
 \label{fig:sigma-v1}
 \end{figure}
-
 \begin{definition}[Blocs libres, $b(v)$]
 On appelle \emph{bloc libre} de $v$ une suite maximale d'indices
 $i, i+1, \dots, j-1$ (modulo $6$) telle que
@@ -1476,20 +1504,31 @@ intérieur libre.
 \subsection{Contraintes}
 \label{sec:contraintes}
 
-Cette sous-section regroupe les contraintes du modèle. C1, C2, C3, C5
-et C6 sont actives par défaut. C4 et C7 sont optionnelles : leur effet
-est étudié expérimentalement à la section~\ref{sec:xp}.
+Cette sous-section regroupe les contraintes du modèle, organisées en
+deux groupes. Le premier (C1--C3) rassemble les contraintes
+\textbf{structurelles}, indispensables à la constructibilité
+géométrique d'une molécule : sans elles, une solution n'a simplement
+pas de sens physique. Le second (C4--C6) rassemble des contraintes
+\textbf{chimiques additionnelles}, qui encodent des choix motivés par
+la chimie plutôt que des nécessités géométriques ; certaines sont
+optionnelles, et leur effet est étudié expérimentalement à la
+section~\ref{sec:xp}. C1, C2, C3 et C5 sont actives par défaut ; C4 et
+C6 sont optionnelles.
+
+\medskip
+\noindent\textbf{Contraintes structurelles (C1--C3).}
+\medskip
 
 \subsubsection{C1 --- Conservation du carbone}
 \label{sec:c1}
 
 Le nombre total d'atomes de carbone doit être préservé par la
-substitution. Notons $n_H = n_H(B)$ le nombre d'hexagones du benzénoïde $B$
+substitution. Notons $n_H(B)$ le nombre d'hexagones du benzénoïde $B$
 de départ, et $n_5$, $n_6$, $n_7$ les nombres respectifs de
 pentagones, hexagones et heptagones dans la solution. Tout cycle de la
 solution remplace exactement un hexagone du benzénoïde de départ, donc
 \[
-  n_5 + n_6 + n_7 \;=\; n_H .
+  n_5 + n_6 + n_7 \;=\; n_H(B) .
 \]
 
 Pour exprimer la conservation du carbone, comptons explicitement les
@@ -1499,7 +1538,7 @@ du graphe dual $\GD$ du benzénoïde de départ (chaque arête correspond
 atomes communs). Le nombre total d'atomes de carbone du benzénoïde de
 départ vaut
 \[
-  N(B) \;=\; 6 n_H - 2 a ,
+  N(B) \;=\; 6 n_H(B) - 2 a ,
 \]
 puisque chaque hexagone contient $6$ atomes et que chaque arête
 commune correspond à $2$ atomes comptés en double.
@@ -1515,11 +1554,11 @@ communes reste} $a$, donc le nombre total d'atomes de la solution vaut
 
 Conserver le nombre d'atomes ($N(\text{solution}) = N(B)$) donne donc
 \[
-  5 n_5 + 6 n_6 + 7 n_7 - 2 a \;=\; 6 n_H - 2 a ,
+  5 n_5 + 6 n_6 + 7 n_7 - 2 a \;=\; 6 n_H(B) - 2 a ,
 \]
 et le terme $-2a$ se simplifie de part et d'autre. On obtient
 \[
-  5 n_5 + 6 n_6 + 7 n_7 \;=\; 6 n_H .
+  5 n_5 + 6 n_6 + 7 n_7 \;=\; 6 n_H(B) .
 \]
 Cette égalité porte sur les comptes $n_5, n_6, n_7$, qui ne sont pas
 des variables du modèle. Pour l'exprimer comme une contrainte sur les
@@ -1530,12 +1569,12 @@ apparaît. C'est précisément à cette étape que l'on passe d'une
 identité mathématique sur des comptages à une contrainte exploitable
 par le solveur :
 \[
-  \boxed{\; \sum_{v \in V_D} x_v \;=\; 5 n_5 + 6 n_6 + 7 n_7 \;=\; 6 n_H \;,}
+  \boxed{\; \sum_{v \in V_D} x_v \;=\; 5 n_5 + 6 n_6 + 7 n_7 \;=\; 6 n_H(B) \;,}
 \]
 qui est l'expression effectivement déclarée au solveur : une simple
 contrainte de somme sur les variables entières.
 
-Combinée à $n_5 + n_6 + n_7 = n_H$, cette équation équivaut à
+Combinée à $n_5 + n_6 + n_7 = n_H(B)$, cette équation équivaut à
 $n_5 = n_7$, qui s'interprète chimiquement : chaque pentagone retire
 un atome de carbone et doit être compensé par un heptagone qui en
 ajoute un.
@@ -1577,6 +1616,18 @@ $D(x_v)$ à
 où la valeur $6$ reste toujours admissible (l'hexagone d'origine est, par
 construction, géométriquement compatible avec lui-même).
 
+\paragraph{Cas particulier : hexagones de degré $6$ gelés.}
+Un cas se distingue par son importance pratique. Si $\deg_{\GD}(v) = 6$,
+l'hexagone $v$ est entouré de six voisins et n'a aucun côté libre. Son
+motif vaut $\sigma(v) = (1,1,1,1,1,1)$, qui ne contient aucun zéro : ni
+$5$ ni $7$ ne sont admissibles, donc directement
+\[
+  D(x_v) \;=\; \{6\} \quad\Longleftrightarrow\quad x_v \;=\; 6 .
+\]
+Le sommet $v$ est dit \emph{gelé} : il n'apparaît plus que comme
+constante dans le modèle. Ce gel est une conséquence topologique
+stricte de C2, sans alternative possible.
+
 C2 s'implémente comme un prétraitement~: pour chaque $v$, on calcule
 $\sigma(v)$ depuis $\GD$ et on initialise $D(x_v)$ en conséquence avant
 de passer le modèle au solveur. La présence ou l'absence d'une valeur
@@ -1597,24 +1648,27 @@ Sur cet exemple, $v_1$ ne pourra pas être contracté en pentagone, mais
 pourra encore être dilaté en heptagone (en insérant un sommet sur le
 côté libre $\sigma_0$ ou $\sigma_3$).
 
-\subsubsection{C3 --- Gel topologique des hexagones de degré $6$}
-\label{sec:c3-gel-deg6}
+\subsubsection{C3 --- Rupture de symétrie}
+\label{sec:c3}
 
-C3 est en fait un cas particulier de C2, mais suffisamment important
-pour mériter d'être isolé : il correspond à la situation où la
-restriction de domaine se réduit à $\{6\}$ pour des raisons purement
-topologiques.
-
-Si $\deg_{\GD}(v) = 6$, l'hexagone $v$ est entouré de six voisins et
-n'a aucun côté libre. Son motif vaut $\sigma(v) = (1, 1, 1, 1, 1, 1)$ :
-il ne contient aucun zéro, donc ni 5 ni 7 ne sont admissibles par C2.
-On a alors directement
+Deux substitutions qui ne diffèrent que par une symétrie du benzénoïde
+décrivent la \emph{même} molécule. Pour ne les compter qu'une fois, on
+exploite le groupe des automorphismes du graphe dual, $\Aut(\GD)$ (les
+permutations des sommets qui préservent les arêtes), dont on calcule un
+ensemble générateur $\{\pi_1, \dots, \pi_m\}$. Pour chaque générateur $\pi$,
+on impose une contrainte \emph{lex-leader}
 \[
-  D(x_v) \;=\; \{6\} \quad\Longleftrightarrow\quad x_v \;=\; 6 .
+  (x_0, x_1, \dots, x_{h-1}) \;\le_{\text{lex}}\; (x_{\pi(0)}, x_{\pi(1)}, \dots, x_{\pi(h-1)}),
 \]
-Le sommet $v$ est dit \emph{gelé}, et il n'apparaît plus que comme
-constante dans le modèle. Ce gel est une conséquence topologique
-stricte, sans alternative possible.
+qui ne retient, dans chaque orbite de solutions équivalentes, que le
+représentant minimal pour l'ordre lexicographique. Cette technique élimine
+les doublons et réduit fortement l'espace de recherche. Sa validité repose
+sur l'unicité du plongement planaire des graphes considérés (théorème de
+Whitney~\cite{whitney} et 2-connexité des benzénoïdes).
+
+\medskip
+\noindent\textbf{Contraintes chimiques additionnelles (C4--C6).}
+\medskip
 
 \subsubsection{C4 --- Gel des hexagones à blocs libres fragmentés (optionnel)}
 \label{sec:c4-fragmentes}
@@ -1824,25 +1878,7 @@ table : un cycle accolé à un unique voisin par une arête est toujours
 réalisable, quelle que soit sa taille.
 \end{remarque}
 
-\subsubsection{C6 --- Rupture de symétrie}
-\label{sec:c6}
-
-Deux substitutions qui ne diffèrent que par une symétrie du benzénoïde
-décrivent la \emph{même} molécule. Pour ne les compter qu'une fois, on
-exploite le groupe des automorphismes du graphe dual, $\Aut(\GD)$ (les
-permutations des sommets qui préservent les arêtes), dont on calcule un
-ensemble générateur $\{\pi_1, \dots, \pi_m\}$. Pour chaque générateur $\pi$,
-on impose une contrainte \emph{lex-leader}
-\[
-  (x_0, x_1, \dots, x_{h-1}) \;\le_{\text{lex}}\; (x_{\pi(0)}, x_{\pi(1)}, \dots, x_{\pi(h-1)}),
-\]
-qui ne retient, dans chaque orbite de solutions équivalentes, que le
-représentant minimal pour l'ordre lexicographique. Cette technique élimine
-les doublons et réduit fortement l'espace de recherche. Sa validité repose
-sur l'unicité du plongement planaire des graphes considérés (théorème de
-Whitney~\cite{whitney} et 2-connexité des benzénoïdes).
-
-\subsubsection{C7 --- Adjacence $5$--$7$ (motif azulène)}
+\subsubsection{C6 --- Adjacence $5$--$7$ (motif azulène)}
 \label{sec:c7}
 
 Cette contrainte est une piste d'amélioration explorée à la
@@ -1896,7 +1932,7 @@ Pour chaque sommet $v$ du graphe dual, notons
 \[
   \mathcal{N}(v) \;=\; \{\, u \in V_D \mid (u, v) \in E_D \,\}
 \]
-l'ensemble des voisins de $v$ dans \GD{}. La contrainte C7 traduit
+l'ensemble des voisins de $v$ dans \GD{}. La contrainte C6 traduit
 alors l'idée chimique dans le modèle PPC sous la forme
 \emph{tout pentagone a au moins un heptagone parmi ses voisins, et tout
 heptagone a au moins un pentagone parmi les siens} :
@@ -1918,10 +1954,11 @@ XCSP3. Selon les options choisies par l'utilisateur, il inclut les
 contraintes suivantes :
 \begin{itemize}
   \item \textbf{actives par défaut :} C1 (conservation du carbone), C2
-    (restriction géométrique du domaine), C3 (gel des hexagones de
-    degré $6$), C5 (voisinage admissible) et C6 (rupture de symétrie) ;
+    (restriction géométrique du domaine, incluant le gel des hexagones
+    de degré $6$), C3 (rupture de symétrie) et C5 (voisinage
+    admissible) ;
   \item \textbf{optionnelles :} C4 (gel des hexagones à blocs libres
-    fragmentés, activée par défaut mais désactivable) et C7 (adjacence
+    fragmentés, activée par défaut mais désactivable) et C6 (adjacence
     $5$--$7$, désactivée par défaut, étudiée à la section~\ref{sec:xp}).
 \end{itemize}
 
@@ -1964,31 +2001,6 @@ En partant du graphe carbone (défini en section~\ref{sec:dual}) du
 benzénoïde d'entrée, lorsque la solution affecte une taille $x_v \neq 6$
 à un hexagone $v$, il faut transformer ce cycle en un pentagone ou un
 heptagone \emph{sans} perturber les arêtes partagées avec ses voisins.
-
-\paragraph{Repérage des côtés libres.}
-Rappelons que le motif d'occupation $\sigma(v) \in \{0,1\}^6$ indique pour
-chacun des six côtés du cycle s'il est partagé avec un voisin ($\sigma_i = 1$)
-ou \emph{libre} ($\sigma_i = 0$). Les modifications topologiques opèrent
-exclusivement sur les sommets adjacents à des côtés libres ; les sommets
-attenants à au moins un côté partagé sont \emph{gelés}, sans quoi la
-modification briserait la fusion avec un voisin.
-
-\paragraph{Contraction en pentagone ($x_v = 5$).}
-On supprime un sommet du cycle parmi les sommets libres, en privilégiant celui
-qui se trouve au milieu d'un bloc de côtés libres consécutifs ; ses deux
-voisins dans le cycle sont alors reliés directement, réduisant le cycle de six
-à cinq sommets. Le choix du sommet à supprimer est unique lorsque l'hexagone
-possède un seul bloc libre (cas garanti par la condition $b(v) \le 1$ pour les
-hexagones non gelés, section~\ref{sec:modele}).
-
-\paragraph{Dilatation en heptagone ($x_v = 7$).}
-On insère un nouveau sommet entre deux sommets libres consécutifs (au milieu
-du bloc libre), ce qui ajoute une arête au cycle et le porte à sept sommets.
-
-\paragraph{Effet sur les voisins.}
-Une fois le cycle modifié, sa nouvelle séquence ordonnée de sommets est
-conservée dans la structure de données du graphe carbone afin que les cycles
-voisins continuent à le référencer correctement via leurs sommets partagés.
 
 \paragraph{Placement géométrique.}
 \label{sec:placement}
@@ -2117,10 +2129,9 @@ Une fois la géométrie optimisée par \xtb{}, il reste à décider si la
 molécule est plane. Nous utilisons deux métriques complémentaires, dont
 seule la seconde sert au verdict final.
 
-\paragraph{Métrique géométrique globale (ACP).} La première métrique,
-implémentée dès les premières versions du pipeline, applique une
-\textbf{analyse en composantes principales} aux positions des
-carbones, calcule la normale du plan moyen, et pour chaque cycle
+\paragraph{Métrique géométrique globale (ACP).} La première métrique
+applique une \textbf{analyse en composantes principales} aux positions
+des carbones, calcule la normale du plan moyen, et pour chaque cycle
 l'angle de gauchissement entre la normale locale du cycle et la
 normale globale. La quantité retenue, $\texttt{max\_angle\_deg}$, est
 le maximum de ces angles sur tous les cycles. Cette métrique donne une
@@ -2129,12 +2140,11 @@ produit un \texttt{max\_angle\_deg} élevé. Les détails techniques
 (diagonalisation de la covariance, formules) sont en
 annexe~\ref{app:acp}.
 
-\paragraph{Métrique chimique locale (angles dièdres).} En discussion
-avec les chimistes (Denis Hagebaum-Reignier, Yannick Carissan), nous
-avons constaté que la métrique précédente capturait bien la
-\emph{courbure d'ensemble} mais surestimait l'écart à la planéité du
-système $\pi$, qui n'est sensible qu'à des déformations
-\emph{localisées entre liaisons voisines}. Nous calculons donc, pour
+\paragraph{Métrique chimique locale (angles dièdres).} Cette métrique
+globale capture bien la \emph{courbure d'ensemble}, mais surestime
+l'écart à la planéité du système $\pi$, qui n'est sensible qu'à des
+déformations \emph{localisées entre liaisons voisines}. Nous calculons
+donc, pour
 chaque suite de quatre atomes de carbone $A$--$B$--$C$--$D$ tous
 connectés par des liaisons covalentes consécutives (trois liaisons en
 chaîne), l'angle dièdre signé $\varphi(A,B,C,D) \in (-180^\circ,
@@ -2263,111 +2273,48 @@ L'ensemble des étapes décrites jusqu'ici --- modèle PPC, reconstruction
 3D, validation \xtb{}, test de planéité, analyse électronique --- est
 intégré dans une application web unique, le \emph{designer}, qui sert à
 la fois d'interface d'utilisation et d'infrastructure de campagne
-expérimentale. Cette sous-section en donne un aperçu fonctionnel et
-détaille l'environnement technique (versions, machines, garanties de
-reproductibilité).
-
-\subsubsection{Saisie de l'instance}
-
-Un canevas hexagonal en SVG permet à l'utilisateur de \emph{dessiner} un
-benzénoïde de départ : on clique sur les hexagones du pavage pour les
-sélectionner, et le graphe dual sous-jacent est construit à la volée.
-La saisie peut aussi se faire par \emph{importation} : un benzénoïde
-déjà enregistré dans la base BenzDB (ou venant d'un fichier au format
-texte adapté) peut être chargé directement, ce qui est utile pour
-rejouer une campagne sur un corpus déjà fixé.
-
-\begin{figure}[h]
-\centering
-\fbox{\begin{minipage}[c][5cm][c]{0.75\linewidth}\centering
-  \emph{[Capture du designer en mode saisie d'instance --- à insérer]}
-\end{minipage}}
-\caption{Designer en mode saisie : canevas hexagonal pour dessiner un
-benzénoïde ou choisir un benzenoide importé depuis BenzDB.}
-\label{fig:designer-saisie}
-\end{figure}
-
-\subsubsection{Configuration des contraintes et exécution}
-
-Une fois l'instance posée, l'utilisateur configure le solveur depuis un
-panneau organisé en deux onglets. L'onglet \textbf{Préréglage} propose
-quatre configurations canoniques, sélectionnables d'un clic, qui
-correspondent exactement aux configurations étudiées
-expérimentalement (section~\ref{sec:xp}) :
-\begin{itemize}[leftmargin=1.4em]
-  \item \textbf{C1 --- Baseline} : contraintes structurelles
-    uniquement (C1+C2+C3+C5+C6).
-  \item \textbf{C2 --- Pb1 + adj\_57} : C1 plus pentagones plafonnés au
-    bord et appariement Stone--Wales obligatoire.
-  \item \textbf{C3 --- Pb1 + adj\_57 + pas de $7$--$7$ adjacents} :
-    durcissement local de la courbure (Gauss--Bonnet locale à zéro
-    dans un rayon de $2$ dans \GD{}).
-  \item \textbf{Ctopo --- Topologie complète} : C3 plus une blacklist
-    de motifs de rayon~$2$ du graphe dual et un pré-filtre exigeant un
-    squelette compact (au moins $4$ atomes péri-condensés). Recommandé
-    pour les grands squelettes ($h_9$).
-\end{itemize}
-L'onglet \textbf{Avancé} expose individuellement chaque flag (Pb1,
-adj\_57, tau\_gb, ctopo\_filter, etc.) pour les expérimentations
-fines.
-
-Un second panneau gère la \textbf{validation \xtb{}}. Le mode par
-défaut est \emph{skip xTB} : le pipeline s'arrête après la
-reconstruction 3D et produit directement les géométries planes
-(non optimisées), ce qui est très rapide et suffit pour visualiser les
-sorties du CSP. Pour valider la planéité physique, l'utilisateur bascule
-sur \emph{det-opt} (le protocole déterministe décrit
-section~\ref{sec:md}), ou plus rarement sur les modes \emph{md} et
-\emph{multi-runs} conservés pour comparaison historique. Une option
-permet aussi de comparer la planéité des solutions à celle du
-benzénoïde d'entrée pur (tout-hexagones).
-
-Le lancement d'une génération orchestre, derrière l'interface,
-l'ensemble du pipeline : compilation du modèle en XCSP3, appel à
-\ace{}, reconstruction 3D des solutions, validation \xtb{} (si
-demandée), test de planéité par ACP et calcul des métriques
-électroniques. Les résultats --- solutions, géométries XYZ compressées,
-statistiques par campagne --- sont persistés dans une base SQLite, ce
-qui rend chaque campagne facilement rejouable et comparable. Les
-exécutions sur le grand corpus ($h \ge 7$, jusqu'à plusieurs milliers
-de squelettes) sont distribuées sur le cluster décrit ci-dessous.
-
-\subsubsection{Exploration des solutions et visualiseur intégré}
-
-Une fois une campagne terminée, le designer présente l'ensemble des
-solutions produites sous forme d'une \textbf{liste paginée}
-(figure~\ref{fig:designer-list}). Chaque ligne récapitule les
-caractéristiques d'une solution : identifiant, composition
-$(n_5, n_6, n_7)$, verdict de planéité, angle maximal hors-plan, et
-distances quadratique / extrême au plan moyen.
-
-Plusieurs leviers facilitent l'exploration :
-\begin{itemize}
-  \item \textbf{Tri} sur n'importe quelle colonne (angle croissant ou
-    décroissant, identifiant, etc.) ;
-  \item \textbf{Filtrage} par verdict de planéité (\textsc{plan},
-    \textsc{non-plan}, géométrie infaisable, échec \xtb{}), par
-    sous-chaîne de la composition, ou par squelette de départ ;
-  \item navigation directe vers le \textbf{visualiseur 3D} d'une
-    solution donnée pour inspecter sa géométrie en relief, lire ses
-    structures de Kekulé, ses couvertures de Clar et ses RBO/CBO
-    (section~\ref{sec:analyse-elec}).
-\end{itemize}
-
-Le visualiseur, intégré à la même application web, est aussi accessible
-indépendamment du designer pour explorer la base de résultats du run
-final ($\sim$$1{,}5$~M de solutions sur $h_3$--$h_9$). Il sert à la fois
-d'outil d'exploration pour les chimistes et de banc de débogage pour le
-développement (vérifier en 3D qu'une géométrie produite par le pipeline
-ressemble à ce que l'on attend).
+expérimentale. L'utilisateur y saisit un benzénoïde de départ --- en le
+dessinant sur un canevas hexagonal ou en l'important depuis la base
+BenzDB ---, configure les contraintes actives (un préréglage en un clic
+parmi les configurations de la section~\ref{sec:xp}, ou un réglage fin
+contrainte par contrainte) ainsi que la profondeur de validation
+\xtb{} souhaitée, puis lance la génération. Le pipeline orchestre alors
+automatiquement, sans intervention supplémentaire, la compilation du
+modèle en XCSP3, sa résolution par \ace{}, la reconstruction 3D de
+chaque solution, la validation \xtb{} et le test de planéité, et le
+calcul des descripteurs électroniques (Kekulé, Clar, RBO/CBO). Les
+résultats sont persistés dans une base SQLite et explorables depuis une
+liste paginée, triable et filtrable, avec accès direct à un
+visualiseur 3D intégré pour inspecter chaque solution en relief. Le
+détail de chaque écran, avec les captures correspondantes, est donné en
+annexe~\ref{app:designer}.
 
 \begin{figure}[h]
 \centering
-\fbox{\begin{minipage}[c][5cm][c]{0.75\linewidth}\centering
-  \emph{[Capture de la liste des solutions dans le designer --- à insérer]}
-\end{minipage}}
-\caption{Liste des solutions avec tri et filtrage.}
-\label{fig:designer-list}
+\begin{tikzpicture}[
+  node distance=0.5cm and 0.5cm,
+  every node/.style={font=\small},
+  box/.style={draw, rounded corners, align=center, minimum height=0.95cm,
+    minimum width=2.5cm, fill=gray!8},
+  arr/.style={-{Stealth[length=2.5mm]}, thick}]
+  \node[box] (saisie) {Saisie\\(dessin / import BenzDB)};
+  \node[box, right=of saisie] (modele) {Modèle CSP\\(XCSP3 + \ace{})};
+  \node[box, right=of modele] (recon) {Reconstruction\\3D};
+  \node[box, right=of recon] (xtb) {Validation\\\xtb{} (optionnelle)};
+  \node[box, below=of xtb] (planeite) {Test de\\planéité};
+  \node[box, left=of planeite] (elec) {Analyse\\électronique};
+  \node[box, left=of elec] (db) {Persistance\\(SQLite)};
+  \node[box, left=of db] (viz) {Exploration /\\visualiseur 3D};
+  \draw[arr] (saisie) -- (modele);
+  \draw[arr] (modele) -- (recon);
+  \draw[arr] (recon) -- (xtb);
+  \draw[arr] (xtb) -- (planeite);
+  \draw[arr] (planeite) -- (elec);
+  \draw[arr] (elec) -- (db);
+  \draw[arr] (db) -- (viz);
+\end{tikzpicture}
+\caption{Pipeline intégré du designer, de la saisie au résultat exploré.}
+\label{fig:pipeline-designer}
 \end{figure}
 
 % (Reproductibilité et environnement déplacés dans la section expérimentale --
@@ -2472,10 +2419,10 @@ cluster) sont en annexe~\ref{app:detopt}.
 \subsection{$\mathbf{C_1}$ --- Baseline (contraintes structurelles seules)}
 
 La première configuration mesure la référence : avec les seules contraintes
-structurelles (section~\ref{sec:modele}) --- conservation du carbone C1, gel
-des hexagones de degré $6$ (C3), table de voisinage (C5) et rupture de
-symétrie (C4) ---, quelle proportion des solutions est réellement plane après
-validation \xtb{}~?
+structurelles (section~\ref{sec:modele}) --- conservation du carbone (C1),
+restriction géométrique du domaine incluant le gel des hexagones de degré
+$6$ (C2), rupture de symétrie (C3) et table de voisinage (C5) ---, quelle
+proportion des solutions est réellement plane après validation \xtb{}~?
 
 Le tableau~\ref{tab:res-c1} récapitule les résultats sur le corpus
 $h_3$--$h_9$.
@@ -2514,7 +2461,7 @@ plus efficaces parmi les variantes locales explorées :
     l'observation empirique que les pentagones de bord, qui introduisent une
     courbure locale non compensée par un voisin opposé, sont particulièrement
     déstabilisants ; la limiter améliore fortement le taux de planéité.
-  \item \textbf{adj\_57} (contrainte C7, section~\ref{sec:c7}) :
+  \item \textbf{adj\_57} (contrainte C6, section~\ref{sec:c7}) :
     appariement Stone--Wales obligatoire (tout pentagone a un heptagone
     voisin, et réciproquement). Localement, la paire $5$--$7$ compense
     exactement la courbure de Gauss--Bonnet ($+\pi/3 - \pi/3 = 0$).
@@ -2980,6 +2927,115 @@ Implémentation vectorielle en NumPy : $\sim 0{,}4$~ms par molécule.
 Le calcul sur l'intégralité de la base finale ($\sim 805\,000$
 géométries optimisées) prend environ $5$ minutes en mono-thread, sans
 nouvelle invocation de \xtb{}.
+
+% ---------------------------------------------------------------
+\subsection{Interface du designer (détails)}
+\label{app:designer}
+% ---------------------------------------------------------------
+
+Cette annexe détaille, écran par écran, l'interface du \emph{designer}
+dont le pipeline est résumé en figure~\ref{fig:pipeline-designer}
+(section~\ref{sec:logiciel}).
+
+\paragraph{Saisie de l'instance.}
+Un canevas hexagonal en SVG permet à l'utilisateur de \emph{dessiner} un
+benzénoïde de départ : on clique sur les hexagones du pavage pour les
+sélectionner, et le graphe dual sous-jacent est construit à la volée.
+La saisie peut aussi se faire par \emph{importation} : un benzénoïde
+déjà enregistré dans la base BenzDB (ou venant d'un fichier au format
+texte adapté) peut être chargé directement, ce qui est utile pour
+rejouer une campagne sur un corpus déjà fixé.
+
+\begin{figure}[h]
+\centering
+\fbox{\begin{minipage}[c][5cm][c]{0.75\linewidth}\centering
+  \emph{[Capture du designer en mode saisie d'instance --- à insérer]}
+\end{minipage}}
+\caption{Designer en mode saisie : canevas hexagonal pour dessiner un
+benzénoïde ou choisir un benzenoide importé depuis BenzDB.}
+\label{fig:designer-saisie}
+\end{figure}
+
+\paragraph{Configuration des contraintes et exécution.}
+Une fois l'instance posée, l'utilisateur configure le solveur depuis un
+panneau organisé en deux onglets. L'onglet \textbf{Préréglage} propose
+quatre configurations canoniques, sélectionnables d'un clic, qui
+correspondent exactement aux configurations étudiées
+expérimentalement (section~\ref{sec:xp}) :
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{C1 --- Baseline} : contraintes structurelles
+    uniquement (C1+C2+C3+C5).
+  \item \textbf{C2 --- Pb1 + adj\_57} : C1 plus pentagones plafonnés au
+    bord et appariement Stone--Wales obligatoire.
+  \item \textbf{C3 --- Pb1 + adj\_57 + pas de $7$--$7$ adjacents} :
+    durcissement local de la courbure (Gauss--Bonnet locale à zéro
+    dans un rayon de $2$ dans \GD{}).
+  \item \textbf{Ctopo --- Topologie complète} : C3 plus une blacklist
+    de motifs de rayon~$2$ du graphe dual et un pré-filtre exigeant un
+    squelette compact (au moins $4$ atomes péri-condensés). Recommandé
+    pour les grands squelettes ($h_9$).
+\end{itemize}
+L'onglet \textbf{Avancé} expose individuellement chaque flag (Pb1,
+adj\_57, tau\_gb, ctopo\_filter, etc.) pour les expérimentations
+fines.
+
+Un second panneau gère la \textbf{validation \xtb{}}. Le mode par
+défaut est \emph{skip xTB} : le pipeline s'arrête après la
+reconstruction 3D et produit directement les géométries planes
+(non optimisées), ce qui est très rapide et suffit pour visualiser les
+sorties du CSP. Pour valider la planéité physique, l'utilisateur bascule
+sur \emph{det-opt} (le protocole déterministe décrit
+section~\ref{sec:md}), ou plus rarement sur les modes \emph{md} et
+\emph{multi-runs} conservés pour comparaison historique. Une option
+permet aussi de comparer la planéité des solutions à celle du
+benzénoïde d'entrée pur (tout-hexagones).
+
+Le lancement d'une génération orchestre, derrière l'interface,
+l'ensemble du pipeline : compilation du modèle en XCSP3, appel à
+\ace{}, reconstruction 3D des solutions, validation \xtb{} (si
+demandée), test de planéité par ACP et calcul des métriques
+électroniques. Les résultats --- solutions, géométries XYZ compressées,
+statistiques par campagne --- sont persistés dans une base SQLite, ce
+qui rend chaque campagne facilement rejouable et comparable. Les
+exécutions sur le grand corpus ($h \ge 7$, jusqu'à plusieurs milliers
+de squelettes) sont distribuées sur le cluster décrit ci-dessous.
+
+\paragraph{Exploration des solutions et visualiseur intégré.}
+Une fois une campagne terminée, le designer présente l'ensemble des
+solutions produites sous forme d'une \textbf{liste paginée}
+(figure~\ref{fig:designer-list}). Chaque ligne récapitule les
+caractéristiques d'une solution : identifiant, composition
+$(n_5, n_6, n_7)$, verdict de planéité, angle maximal hors-plan, et
+distances quadratique / extrême au plan moyen.
+
+Plusieurs leviers facilitent l'exploration :
+\begin{itemize}
+  \item \textbf{Tri} sur n'importe quelle colonne (angle croissant ou
+    décroissant, identifiant, etc.) ;
+  \item \textbf{Filtrage} par verdict de planéité (\textsc{plan},
+    \textsc{non-plan}, géométrie infaisable, échec \xtb{}), par
+    sous-chaîne de la composition, ou par squelette de départ ;
+  \item navigation directe vers le \textbf{visualiseur 3D} d'une
+    solution donnée pour inspecter sa géométrie en relief, lire ses
+    structures de Kekulé, ses couvertures de Clar et ses RBO/CBO
+    (section~\ref{sec:analyse-elec}).
+\end{itemize}
+
+Le visualiseur, intégré à la même application web, est aussi accessible
+indépendamment du designer pour explorer la base de résultats du run
+final ($\sim$$1{,}5$~M de solutions sur $h_3$--$h_9$). Il sert à la fois
+d'outil d'exploration pour les chimistes et de banc de débogage pour le
+développement (vérifier en 3D qu'une géométrie produite par le pipeline
+ressemble à ce que l'on attend).
+
+\begin{figure}[h]
+\centering
+\fbox{\begin{minipage}[c][5cm][c]{0.75\linewidth}\centering
+  \emph{[Capture de la liste des solutions dans le designer --- à insérer]}
+\end{minipage}}
+\caption{Liste des solutions avec tri et filtrage.}
+\label{fig:designer-list}
+\end{figure}
 
 % =====================================================================
 %  BIBLIOGRAPHIE
