@@ -1035,7 +1035,7 @@ $3 \times 3$. Les chiffres initialement présents sont appelés
     3/1/4, 4/1/1, 5/1/9, 8/1/5,
     4/0/8, 7/0/7, 8/0/9
   } {
-    \node[font=\large] at (\x+0.5, \y+0.5) {\v};
+    \node[font=\small] at (\x+0.5, \y+0.5) {\v};
   }
 \end{tikzpicture}
 \hspace{0.6cm}
@@ -1049,9 +1049,9 @@ $3 \times 3$. Les chiffres initialement présents sont appelés
     \draw[thick] (\i,0)--(\i,9);
     \draw[thick] (0,\i)--(9,\i);
   }
-  \fill[gray!30] (3,4) rectangle (4,5);
-  \node[font=\Large] at (3.5,4.5) {$x_{ij}$};
-  \draw[red, thick] (0,4) rectangle (9,5);
+  \fill[gray!30] (3,5) rectangle (4,6);
+  \node[font=\Large] at (3.5,5.5) {$x_{ij}$};
+  \draw[red, thick] (0,5) rectangle (9,6);
   \draw[red, thick] (3,0) rectangle (4,9);
   \draw[green!60!black, thick] (3,3) rectangle (6,6);
 \end{tikzpicture}
@@ -1254,7 +1254,7 @@ $v$ une taille de cycle $x_v \in \{5, 6, 7\}$ : conserver l'hexagone
 ($x_v = 6$), le contracter en pentagone ($x_v = 5$) ou le dilater en
 heptagone ($x_v = 7$). La substitution doit satisfaire les deux contraintes suivantes :
 \begin{itemize}[leftmargin=1.4em]
-  \item \textbf{conservation du graphe dual} : les arêtes partagées entre
+  \item \textbf{conservation des interactions entre les cycles} : les arêtes partagées entre
     cycles voisins sont préservées, donc \GD{} reste identique avant et
     après transformation. C'est un point essentiel de la modélisation :
     elle garantit que chaque cycle de la solution correspond
@@ -2454,6 +2454,48 @@ une base \textbf{SQLite} (mode \texttt{WAL}). Les détails du protocole
 (variables d'environnement, \texttt{PYTHONHASHSEED}, orchestration
 cluster) sont en annexe~\ref{app:detopt}.
 
+\subsection{Comparaison du solveur ACE vs Choco}
+
+Bien que le solveur \textsc{ACE} ait été utilisé comme moteur par défaut dans notre pipeline, une comparaison scientifique systématique avec \textsc{Choco} a été menée pour quantifier leurs performances respectives. L'enjeu était de déterminer dans quelle mesure le choix du solveur influence la rapidité d'exécution et l'exhaustivité de l'énumération, sur un corpus de 11 956 instances couvrant les tailles de graphes de \(h=3\) à \(h=9\) et les configurations \textsc{Cf1}, \textsc{Cf2}, \textsc{Cf3} et \textsc{Ctopo}. L'intégralité des problèmes a été résolue sans échec ni dépassement de temps (timeout fixé à 300 s). Les résultats, détaillés dans les tableaux~\ref{tab:bench_time_h} et~\ref{tab:bench_time_config}, montrent une avance nette de \textsc{Choco} sur tous les cas testés.
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{|c|r|r|r|r|}
+\hline
+\textbf{} & \textbf{\textsc{ACE} (ms)} & \textbf{\textsc{Choco} (ms)} & \textbf{Rapport ACE/Choco} & \textbf{Solutions moyennes} \\
+\hline
+h3 & 963 & 501 & 1,92 & 2,8 \\
+h4 & 965 & 520 & 1,85 & 4,5 \\
+h5 & 982 & 520 & 1,88 & 7,2 \\
+h6 & 966 & 511 & 1,88 & 15,5 \\
+h7 & 986 & 519 & 1,90 & 33,3 \\
+h8 & 1 001 & 536 & 1,87 & 78,9 \\
+h9 & 1 013 & 546 & 1,85 & 159,6 \\
+\hline
+\end{tabular}
+\caption{Temps d'exécution moyens par nombre d'hexagones et nombre moyen de solutions}
+\label{tab:bench_time_h}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{|c|r|r|r|}
+\hline
+\textbf{Configuration} & \textbf{\textsc{ACE} (ms)} & \textbf{\textsc{Choco} (ms)} & \textbf{Rapport ACE/Choco} \\
+\hline
+\textsc{Cf1} & 966 & 516 & 1,87 \\
+\textsc{Cf2} & 1 006 & 533 & 1,89 \\
+\textsc{Cf3} & 1 030 & 558 & 1,85 \\
+\textsc{Ctopo} & 1 036 & 563 & 1,84 \\
+\hline
+\end{tabular}
+\caption{Temps d'exécution moyens par configuration (toutes tailles confondues)}
+\label{tab:bench_time_config}
+\end{table}
+
+\noindent \textbf{Interprétation.} Quelle que soit la taille du graphe ou la configuration testée, \textsc{Choco} est systématiquement environ 1,85 à 1,90 fois plus rapide que \textsc{ACE}. Si l'on se fie uniquement à la performance brute, \textsc{Choco} serait donc plus adapté pour de futures campagnes de génération à grande échelle. 
+
+
 \subsection{$\mathbf{Cf_1}$ --- Baseline (contraintes structurelles seules)}
 
 La première configuration mesure la référence : avec les seules contraintes
@@ -2681,47 +2723,6 @@ Cette démarche --- générer un corpus, analyser ses échecs, en extraire
 des contraintes, ré-énumérer --- préfigure une boucle d'apprentissage
 que nous discutons en perspective (section~\ref{sec:conclusion}).
 
-
-\subsection{Comparaison du solveur ACE vs Choco}
-
-Bien que le solveur \textsc{ACE} ait été utilisé comme moteur par défaut dans notre pipeline, une comparaison scientifique systématique avec \textsc{Choco} a été menée pour quantifier leurs performances respectives. L'enjeu était de déterminer dans quelle mesure le choix du solveur influence la rapidité d'exécution et l'exhaustivité de l'énumération, sur un corpus de 11 956 instances couvrant les tailles de graphes de \(h=3\) à \(h=9\) et les configurations \textsc{Cf1}, \textsc{Cf2}, \textsc{Cf3} et \textsc{Ctopo}. L'intégralité des problèmes a été résolue sans échec ni dépassement de temps (timeout fixé à 300 s). Les résultats, détaillés dans les tableaux~\ref{tab:bench_time_h} et~\ref{tab:bench_time_config}, montrent une avance nette de \textsc{Choco} sur tous les cas testés.
-
-\begin{table}[htbp]
-\centering
-\begin{tabular}{|c|r|r|r|r|}
-\hline
-\textbf{} & \textbf{\textsc{ACE} (ms)} & \textbf{\textsc{Choco} (ms)} & \textbf{Rapport ACE/Choco} & \textbf{Solutions moyennes} \\
-\hline
-h3 & 963 & 501 & 1,92 & 2,8 \\
-h4 & 965 & 520 & 1,85 & 4,5 \\
-h5 & 982 & 520 & 1,88 & 7,2 \\
-h6 & 966 & 511 & 1,88 & 15,5 \\
-h7 & 986 & 519 & 1,90 & 33,3 \\
-h8 & 1 001 & 536 & 1,87 & 78,9 \\
-h9 & 1 013 & 546 & 1,85 & 159,6 \\
-\hline
-\end{tabular}
-\caption{Temps d'exécution moyens par nombre d'hexagones et nombre moyen de solutions}
-\label{tab:bench_time_h}
-\end{table}
-
-\begin{table}[htbp]
-\centering
-\begin{tabular}{|c|r|r|r|}
-\hline
-\textbf{Configuration} & \textbf{\textsc{ACE} (ms)} & \textbf{\textsc{Choco} (ms)} & \textbf{Rapport ACE/Choco} \\
-\hline
-\textsc{Cf1} & 966 & 516 & 1,87 \\
-\textsc{Cf2} & 1 006 & 533 & 1,89 \\
-\textsc{Cf3} & 1 030 & 558 & 1,85 \\
-\textsc{Ctopo} & 1 036 & 563 & 1,84 \\
-\hline
-\end{tabular}
-\caption{Temps d'exécution moyens par configuration (toutes tailles confondues)}
-\label{tab:bench_time_config}
-\end{table}
-
-\noindent \textbf{Interprétation.} Quelle que soit la taille du graphe ou la configuration testée, \textsc{Choco} est systématiquement environ 1,85 à 1,90 fois plus rapide que \textsc{ACE}. Si l'on se fie uniquement à la performance brute, \textsc{Choco} serait donc plus adapté pour de futures campagnes de génération à grande échelle. 
 
 % =====================================================================
 \section{Conclusion et perspectives}
