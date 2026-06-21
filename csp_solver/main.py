@@ -85,6 +85,22 @@ radius_gb = _parse_int_arg("--radius-gb") or 2  # rayon BFS Gauss-Bonnet
 ctopo_filter = "--ctopo" in _own_argv
 ctopo_min_n_peri = _parse_int_arg("--ctopo-min-n-peri") or 4
 
+# Solveur CSP : 'choco' (defaut) ou 'ace' (LEGACY, conserve pour
+# reproductibilite du run final cluster). La migration vers Choco a ete
+# decidee suite au bench complet (cf. doc/choco_vs_ace.md) : Choco gagne
+# en moyenne sur ce corpus, et la difference marginale de propagation
+# de LexIncreasing est corrigee par un post-filtre dedup_by_orbit cote
+# Python.
+solver_name = "choco"
+if "--solver" in _own_argv:
+    idx = _own_argv.index("--solver")
+    if idx + 1 < len(_own_argv):
+        solver_name = _own_argv[idx + 1].lower()
+        if solver_name not in ("choco", "ace"):
+            print(f"ERREUR : --solver doit etre 'choco' ou 'ace', recu '{solver_name}'",
+                  file=sys.stderr)
+            sys.exit(1)
+
 # --- Preset (catalogue presets.py) ---
 # Si --preset NAME est passe, il SURCHARGE les flags individuels (sauf
 # ceux qui sont deja explicites en CLI).
@@ -150,6 +166,8 @@ def main():
         print("                  voir utils/validation/ pour les strategies disponibles")
         print("  --md-no-deterministic : autoriser xTB MD multi-thread (plus rapide,")
         print("                          mais runs non-reproductibles ; defaut deterministe)")
+        print("  --solver S    : solveur CSP, 'choco' (defaut) ou 'ace' (LEGACY)")
+        print("                  Choco est par defaut depuis juin 2026 (cf. doc/choco_vs_ace)")
         print("Exemple: python main.py data/first.graph --validate --n-runs 10")
         print("Exemple: python main.py data/first.graph --validate --method md")
         sys.exit(1)
@@ -184,6 +202,8 @@ def main():
 
     # --- Etape 3 : Resolution ---
     print("=== Resolution CSP ===")
+    print(f"  Solveur : {solver_name.upper()}"
+          f"{' (LEGACY)' if solver_name == 'ace' else ' (defaut)'}")
     if adj_57:
         print("  Contrainte C5 (adjacence 5-7) : ACTIVEE")
     if no_table:
@@ -207,7 +227,8 @@ def main():
                                 K_sym=K_sym, K_pb=K_pb, K_hb=K_hb, K_tot=K_tot,
                                 tau_gb=tau_gb, radius_gb=radius_gb,
                                 ctopo_filter=ctopo_filter,
-                                ctopo_min_n_peri=ctopo_min_n_peri)
+                                ctopo_min_n_peri=ctopo_min_n_peri,
+                                solver=solver_name)
 
     if not solutions:
         print("Aucune solution trouvee.")

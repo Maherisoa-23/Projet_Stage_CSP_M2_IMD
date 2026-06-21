@@ -1,9 +1,16 @@
 """
-Construction et resolution du modele CSP avec PyCSP3 + ACE.
+Construction et resolution du modele CSP avec PyCSP3 + Choco (defaut)
+ou ACE (LEGACY, conserve pour reproductibilite du run final).
 
-PyCSP3 est utilise pour generer le fichier XCSP3 (XML).
-ACE est appele directement via subprocess (plus fiable que
-le mecanisme interne de PyCSP3 qui pose des problemes avec sys.argv).
+PyCSP3 est utilise pour generer le fichier XCSP3 (XML), puis le solveur
+choisi est appele directement via subprocess. Le solveur par defaut est
+Choco depuis la migration de juin 2026 (cf. doc/choco_vs_ace.md) :
+Choco est en moyenne plus rapide sur ce corpus et toujours en accord
+avec ACE sur les petits squelettes h3-h6, avec une difference marginale
+(<= 0.26%) liee a la propagation de LexIncreasing sur les grands
+squelettes (Choco garde quelques solutions equivalentes par
+automorphisme). Le post-filtre dedup_by_orbit() applique en sortie
+neutralise cette difference.
 """
 
 import subprocess
@@ -13,18 +20,33 @@ from pathlib import Path
 from pycsp3 import *
 
 
-# Chemin vers le jar ACE (dans l'installation de pycsp3)
+# =====================================================================
+#  Localisation des jars solveurs (bundle dans pycsp3)
+# =====================================================================
+
 def _find_ace_jar():
-    """Localise le jar ACE dans l'installation de pycsp3."""
+    """[LEGACY] Localise le jar ACE dans l'installation de pycsp3.
+
+    Conserve pour reproductibilite du run final cluster (lance avec ACE).
+    Le pipeline designer utilise maintenant Choco par defaut.
+    """
     import pycsp3
     pycsp3_dir = Path(pycsp3.__file__).parent
     jar = pycsp3_dir / "solvers" / "ace" / "ACE-2.5.jar"
     if jar.exists():
         return str(jar)
-    # Fallback : chercher n'importe quel ACE-*.jar
     for f in (pycsp3_dir / "solvers" / "ace").glob("ACE-*.jar"):
         return str(f)
     raise FileNotFoundError("ACE jar introuvable dans pycsp3")
+
+
+def _find_choco_jar():
+    """Localise le jar Choco (bundle avec pycsp3)."""
+    import pycsp3
+    pycsp3_dir = Path(pycsp3.__file__).parent
+    for f in (pycsp3_dir / "solvers" / "choco").glob("choco-parsers-*.jar"):
+        return str(f)
+    raise FileNotFoundError("Choco jar introuvable dans pycsp3")
 
 
 # =====================================================================
@@ -101,8 +123,9 @@ def build_and_solve(graph, preprocessed, enumerate_all=True,
                     adj_57=False, no_table=False, count_hexagon=False,
                     K_sym=None, K_pb=None, K_hb=None, K_tot=None,
                     tau_gb=None, radius_gb=2,
-                    ctopo_filter=False, ctopo_min_n_peri=4):
-    """Construit le modele CSP, genere le XML, et appelle ACE.
+                    ctopo_filter=False, ctopo_min_n_peri=4,
+                    solver="choco"):
+    """Construit le modele CSP, genere le XML, et appelle le solveur.
 
     Args:
         graph: BenzenoidGraph
@@ -126,6 +149,9 @@ def build_and_solve(graph, preprocessed, enumerate_all=True,
             squelette pour considerer Ctopo applicable. Defaut 4. Si le
             squelette en a moins, la contrainte est silencieusement
             desactivee (retourne liste vide via pre-check dans main.py).
+        solver: "choco" (defaut) ou "ace" (LEGACY). Choco est plus rapide
+            sur ce corpus (cf. doc/choco_vs_ace.md). ACE est conserve pour
+            reproductibilite du run final cluster.
 
     Returns:
         Liste de solutions, chaque solution est un dict {v: taille}
@@ -267,31 +293,83 @@ def build_and_solve(graph, preprocessed, enumerate_all=True,
     compile(filename=xml_path)
     print(f"  Modele XCSP3 genere: {xml_path}")
 
-    # --- Appeler ACE directement ---
-    ace_jar = _find_ace_jar()
-    cmd = ["java", "-jar", ace_jar, xml_path]
-    if enumerate_all:
-        cmd.extend(["-s=all", "-xe"])
+    # =================================================================
+    # [LEGACY] Invocation ACE -- conservee pour reference (run final
+    # cluster lance avec ACE). Le pipeline designer utilise Choco par
+    # defaut (cf. doc/choco_vs_ace.md : Choco gagne ~96 % du corpus en
+    # temps median, ecart de solutions <= 0.26 % corrige par
+    # _dedup_by_orbit). Pour reactiver ACE, passer solver="ace" :
+    #
+    #     ace_jar = _find_ace_jar()
+    #     cmd = ["java", "-jar", ace_jar, xml_path]
+    #     if enumerate_all:
+    #         cmd.extend(["-s=all", "-xe"])
+    #     print(f"  Lancement d'ACE...")
+    #     print(f"  Commande: {' '.join(cmd)}")
+    #     result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    #     print("  --- Sortie ACE (stdout) ---")
+    #     for line in result.stdout.splitlines():
+    #         print(f"  | {line}")
+    #     solutions_list = _parse_ace_output(result.stdout, h)
+    # =================================================================
 
-    print(f"  Lancement d'ACE...")
-    print(f"  Commande: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-
-    # Debug : afficher la sortie brute d'ACE
-    print("  --- Sortie ACE (stdout) ---")
-    for line in result.stdout.splitlines():
-        print(f"  | {line}")
-    if result.stderr.strip():
-        print("  --- Sortie ACE (stderr) ---")
-        for line in result.stderr.splitlines():
+    if solver == "ace":
+        # Branche LEGACY : reactive le bloc commente ci-dessus.
+        ace_jar = _find_ace_jar()
+        cmd = ["java", "-jar", ace_jar, xml_path]
+        if enumerate_all:
+            cmd.extend(["-s=all", "-xe"])
+        print(f"  Lancement d'ACE [LEGACY]...")
+        print(f"  Commande: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        print("  --- Sortie ACE (stdout) ---")
+        for line in result.stdout.splitlines():
             print(f"  | {line}")
-    print("  --- Fin sortie ACE ---")
+        if result.stderr.strip():
+            print("  --- Sortie ACE (stderr) ---")
+            for line in result.stderr.splitlines():
+                print(f"  | {line}")
+        print("  --- Fin sortie ACE ---")
+        solutions_list = _parse_ace_output(result.stdout, h)
+        print(f"  Statut ACE: {'SAT' if solutions_list else 'UNSAT'}")
+        print(f"  Solutions trouvees (brut): {len(solutions_list)}")
+    else:
+        # --- Appeler Choco (defaut) ---
+        # -a : all solutions
+        # -p 1 : single thread (comparaison juste avec ACE single-thread,
+        #        identique a l'usage du bench)
+        # -limit 60s : timeout solveur cote Choco (en plus du timeout python)
+        choco_jar = _find_choco_jar()
+        cmd = [
+            "java", "-cp", choco_jar,
+            "org.chocosolver.parser.xcsp.ChocoXCSP",
+            xml_path, "-a", "-p", "1", "-limit", "60s",
+        ]
+        print(f"  Lancement de Choco...")
+        print(f"  Commande: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        print("  --- Sortie Choco (stdout, dernieres lignes) ---")
+        for line in result.stdout.splitlines()[-10:]:
+            print(f"  | {line}")
+        if result.stderr.strip():
+            print("  --- Sortie Choco (stderr) ---")
+            for line in result.stderr.splitlines():
+                print(f"  | {line}")
+        print("  --- Fin sortie Choco ---")
+        solutions_list = _parse_choco_output(result.stdout, h)
+        print(f"  Statut Choco: {'SAT' if solutions_list else 'UNSAT'}")
+        print(f"  Solutions brutes Choco: {len(solutions_list)}")
 
-    # --- Parser la sortie ACE ---
-    solutions_list = _parse_ace_output(result.stdout, h)
-
-    print(f"  Statut ACE: {'SAT' if solutions_list else 'UNSAT'}")
-    print(f"  Solutions trouvees (brut): {len(solutions_list)}")
+        # --- Post-filtre : dedup par orbite d'automorphisme ---
+        # Choco propage LexIncreasing un peu moins strictement qu'ACE,
+        # acceptant parfois (~0.26 % du corpus) des sols equivalentes par
+        # automorphisme du graphe dual. On les dedup ici cote Python pour
+        # obtenir le meme nombre de sols qu'ACE.
+        if generators and solutions_list:
+            before = len(solutions_list)
+            solutions_list = _dedup_by_orbit(solutions_list, generators, h)
+            if len(solutions_list) < before:
+                print(f"  Dedup orbite (Choco) : {before} -> {len(solutions_list)}")
 
     # --- Post-filtre : exclure la solution tout-hexagones (benzenoide d'origine) ---
     # Choix architectural : post-filtre plutot qu'une contrainte CSP globale, car
@@ -340,6 +418,98 @@ def _parse_ace_output(output: str, h: int) -> list:
             solutions.append(sol)
 
     return solutions
+
+
+def _parse_choco_output(output: str, h: int) -> list:
+    """Parse la sortie texte de Choco pour extraire les solutions.
+
+    Choco affiche chaque sol en XCSP3 :
+        v <instantiation id='solN' type='solution' >
+        v     <list>x[0] x[1] ... </list>
+        v     <values>5 6 7 ...</values>
+        v </instantiation>
+    Et termine par :
+        d FOUND SOLUTIONS N
+
+    Choco peut aussi afficher la derniere sol 2 fois en fin de stdout
+    (une fois dans la boucle puis une fois apres "s SATISFIABLE").
+    On deduplique en respectant l'ordre.
+    """
+    solutions = []
+    seen = set()
+    pattern_xml = r'<values>\s*(.+?)\s*</values>'
+    for match in re.finditer(pattern_xml, output):
+        vals_str = match.group(1).strip()
+        values = []
+        for token in vals_str.split():
+            try:
+                values.append(int(token))
+            except ValueError:
+                # Choco ne devrait pas produire de format compact "Nx3", mais
+                # par defense on skip les tokens non-numeriques.
+                continue
+        if len(values) >= h:
+            sol_tuple = tuple(values[:h])
+            if sol_tuple in seen:
+                continue
+            seen.add(sol_tuple)
+            sol = {i: sol_tuple[i] for i in range(h)}
+            solutions.append(sol)
+    return solutions
+
+
+def _dedup_by_orbit(solutions: list, generators: list, h: int) -> list:
+    """Dedup les solutions par orbite du groupe d'automorphismes.
+
+    Pour chaque solution, calcule son orbite sous les generateurs et
+    garde le min lex comme representant canonique. Deux solutions dans
+    la meme orbite sont considerees identiques.
+
+    Choco propage LexIncreasing moins strictement qu'ACE et garde
+    parfois plusieurs representants d'une meme orbite -- ce filtre
+    Python les ramene a une seule representante (le min lex), ce qui
+    aligne le nombre de solutions Choco sur celui d'ACE.
+
+    Si `generators` est vide, retourne `solutions` tel quel.
+    """
+    if not generators:
+        return solutions
+
+    def _to_tuple(sol_dict):
+        return tuple(sol_dict[i] for i in range(h))
+
+    def _to_dict(sol_tuple):
+        return {i: sol_tuple[i] for i in range(h)}
+
+    def _apply_perm(sol_tuple, perm):
+        # perm est un dict v -> pi(v). RHS = (x[pi(0)], ..., x[pi(h-1)])
+        return tuple(sol_tuple[perm[v]] for v in range(h))
+
+    def _canonical(sol_tuple):
+        """Retourne le min lex de l'orbite de sol_tuple."""
+        orbit = {sol_tuple}
+        queue = [sol_tuple]
+        while queue:
+            cur = queue.pop()
+            for gen in generators:
+                new = _apply_perm(cur, gen)
+                if new not in orbit:
+                    orbit.add(new)
+                    queue.append(new)
+        return min(orbit)
+
+    seen_canonical = set()
+    out = []
+    for sol_dict in solutions:
+        sol_t = _to_tuple(sol_dict)
+        can = _canonical(sol_t)
+        if can in seen_canonical:
+            continue
+        seen_canonical.add(can)
+        # On garde la SOL min lex comme representante canonique, pas la
+        # sol originale (qui peut ne pas etre min lex chez Choco).
+        out.append(_to_dict(can))
+    return out
 
 
 def format_solution(sol: dict, index: int = None) -> str:

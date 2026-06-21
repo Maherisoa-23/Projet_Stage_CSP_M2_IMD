@@ -1,0 +1,98 @@
+\babel@toc {french}{}\relax 
+\contentsline {section}{\numberline {1}Introduction}{4}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Contexte}{4}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}Objectif et problématique}{4}{subsection.1.2}%
+\contentsline {subsection}{\numberline {1.3}Positionnement et contributions}{4}{subsection.1.3}%
+\contentsline {section}{\numberline {2}Préliminaires et état de l'art}{5}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Notions de chimie}{5}{subsection.2.1}%
+\contentsline {subsubsection}{\numberline {2.1.1}Définitions préliminaires}{5}{subsubsection.2.1.1}%
+\contentsline {subsubsection}{\numberline {2.1.2}HAP, benzénoïdes et graphe dual}{5}{subsubsection.2.1.2}%
+\contentsline {subsubsection}{\numberline {2.1.3}Aromaticité et délocalisation}{6}{subsubsection.2.1.3}%
+\contentsline {subsubsection}{\numberline {2.1.4}Structures de Kekulé}{7}{subsubsection.2.1.4}%
+\contentsline {subsubsection}{\numberline {2.1.5}Sextets et couvertures de Clar}{7}{subsubsection.2.1.5}%
+\contentsline {subsubsection}{\numberline {2.1.6}Ring Bond Order (RBO)}{8}{subsubsection.2.1.6}%
+\contentsline {paragraph}{Extension aux cycles de taille quelconque.}{9}{section*.5}%
+\contentsline {subsubsection}{\numberline {2.1.7}Sites radicalaires}{9}{subsubsection.2.1.7}%
+\contentsline {subsubsection}{\numberline {2.1.8}Planéité et courbure}{10}{subsubsection.2.1.8}%
+\contentsline {subsubsection}{\numberline {2.1.9}Validation quantique semi-empirique (\textsc {xTB}{})}{10}{subsubsection.2.1.9}%
+\contentsline {subsection}{\numberline {2.2}Programmation par contraintes (PPC)}{10}{subsection.2.2}%
+\contentsline {subsubsection}{\numberline {2.2.1}Réseau de contraintes}{10}{subsubsection.2.2.1}%
+\contentsline {subsubsection}{\numberline {2.2.2}Un exemple : le Sudoku}{11}{subsubsection.2.2.2}%
+\contentsline {subsubsection}{\numberline {2.2.3}Résolution : propagation et recherche arborescente}{11}{subsubsection.2.2.3}%
+\contentsline {subsubsection}{\numberline {2.2.4}Contraintes en extension et contraintes globales}{12}{subsubsection.2.2.4}%
+\contentsline {paragraph}{Reformulation du Sudoku avec \texttt {allDifferent}.}{12}{section*.6}%
+\contentsline {paragraph}{Illustration de la résolution.}{12}{section*.7}%
+\contentsline {subsubsection}{\numberline {2.2.5}Isomorphisme de graphes}{13}{subsubsection.2.2.5}%
+\contentsline {section}{\numberline {3}Le problème}{13}{section.3}%
+\contentsline {subsection}{\numberline {3.1}La difficulté combinatoire}{14}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}La difficulté géométrique et topologique}{14}{subsection.3.2}%
+\contentsline {section}{\numberline {4}Modélisation}{15}{section.4}%
+\contentsline {subsection}{\numberline {4.1}Variables et domaines}{15}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Préalable : motif d'occupation $\sigma (v)$ et blocs libres}{15}{subsection.4.2}%
+\contentsline {paragraph}{Exemple.}{15}{section*.8}%
+\contentsline {subsection}{\numberline {4.3}Contraintes}{16}{subsection.4.3}%
+\contentsline {subsubsection}{\numberline {4.3.1}Contraintes structurelles (C1--C3)}{16}{subsubsection.4.3.1}%
+\contentsline {paragraph}{Contraction en pentagone ($x_v = 5$).}{17}{section*.11}%
+\contentsline {paragraph}{Dilatation en heptagone ($x_v = 7$).}{17}{section*.12}%
+\contentsline {paragraph}{Énoncé formel.}{17}{section*.13}%
+\contentsline {paragraph}{Cas particulier : hexagones de degré $6$ gelés.}{18}{section*.14}%
+\contentsline {paragraph}{Exemple.}{18}{section*.15}%
+\contentsline {subsection}{\numberline {4.4}Résolution}{20}{subsection.4.4}%
+\contentsline {section}{\numberline {5}Réalisation : des solutions du modèle aux molécules validées et analysées}{20}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Reconstruction 3D, validation et test de planéité}{20}{subsection.5.1}%
+\contentsline {subsubsection}{\numberline {5.1.1}Reconstruction 3D des solutions}{21}{subsubsection.5.1.1}%
+\contentsline {paragraph}{Modifications topologiques du graphe de carbone.}{21}{section*.21}%
+\contentsline {paragraph}{Placement géométrique.}{21}{section*.22}%
+\contentsline {paragraph}{Rayon des cycles.}{21}{section*.23}%
+\contentsline {paragraph}{Parcours en largeur du graphe dual.}{21}{section*.24}%
+\contentsline {paragraph}{Positionnement d'un cycle enfant.}{21}{section*.25}%
+\contentsline {paragraph}{Algorithme global.}{22}{section*.26}%
+\contentsline {paragraph}{Assemblage moléculaire.}{22}{section*.27}%
+\contentsline {subsubsection}{\numberline {5.1.2}Validation par \textsc {xTB}{} : protocole d'optimisation déterministe}{22}{subsubsection.5.1.2}%
+\contentsline {subsubsection}{\numberline {5.1.3}Test de planéité}{22}{subsubsection.5.1.3}%
+\contentsline {paragraph}{Métrique angles dièdres : }{22}{section*.28}%
+\contentsline {paragraph}{Critère de décision : }{22}{section*.29}%
+\contentsline {subsection}{\numberline {5.2}Analyse électronique des structures}{23}{subsection.5.2}%
+\contentsline {paragraph}{Modèle PPC $\mathcal {M}_K$ pour les structures de Kekulé.}{23}{section*.30}%
+\contentsline {paragraph}{Modèle PPC $\mathcal {M}_C$ pour les couvertures de Clar.}{23}{section*.32}%
+\contentsline {paragraph}{Extension du RBO aux cycles $5$ et $7$.}{23}{section*.34}%
+\contentsline {subsection}{\numberline {5.3}Le designer : interface et pipeline intégré}{24}{subsection.5.3}%
+\contentsline {section}{\numberline {6}Étude expérimentale}{25}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Protocole et banc d'essai}{25}{subsection.6.1}%
+\contentsline {subsection}{\numberline {6.2}Environnement logiciel et reproductibilité}{25}{subsection.6.2}%
+\contentsline {paragraph}{Stack logicielle.}{26}{section*.35}%
+\contentsline {paragraph}{Cluster de calcul.}{26}{section*.36}%
+\contentsline {subsection}{\numberline {6.3}Comparaison du solveur ACE vs Choco}{26}{subsection.6.3}%
+\contentsline {subsection}{\numberline {6.4}$\mathbf {Cf_1}$ : Baseline (contraintes structurelles)}{27}{subsection.6.4}%
+\contentsline {subsection}{\numberline {6.5}$\mathbf {Cf_2}$ : Pb1 + adjacence $5$--$7$ (motif azulène)}{27}{subsection.6.5}%
+\contentsline {subsection}{\numberline {6.6}$\mathbf {Cf_3}$ : Interdire les paires $7$--$7$ adjacentes}{28}{subsection.6.6}%
+\contentsline {subsection}{\numberline {6.7}$\mathbf {C_{\text {topo}}}$ : Topologie complète}{28}{subsection.6.7}%
+\contentsline {paragraph}{Descripteur 1 : motifs de rayon~$2$ dans le graphe dual.}{28}{section*.37}%
+\contentsline {paragraph}{Descripteur 2 : topologie du squelette.}{29}{section*.38}%
+\contentsline {paragraph}{Résultats.}{29}{section*.39}%
+\contentsline {subsection}{\numberline {6.8}Bilan expérimental}{29}{subsection.6.8}%
+\contentsline {paragraph}{Lecture chimique de la zone « acceptable ».}{29}{section*.40}%
+\contentsline {section}{\numberline {7}Conclusion et perspectives}{30}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Conclusion}{30}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}Perspectives}{30}{subsection.7.2}%
+\contentsline {section}{\numberline {A}Annexe}{31}{appendix.A}%
+\contentsline {subsection}{\numberline {A.1}Définitions formelles de cohérence}{31}{subsection.A.1}%
+\contentsline {subsection}{\numberline {A.2}Règle de Hückel}{31}{subsection.A.2}%
+\contentsline {subsection}{\numberline {A.3}Protocole de validation \textsc {xTB}{} (détails)}{31}{subsection.A.3}%
+\contentsline {paragraph}{Historique : abandon de la dynamique moléculaire.}{31}{section*.41}%
+\contentsline {paragraph}{Protocole déterministe retenu.}{31}{section*.42}%
+\contentsline {paragraph}{Filtre anti-fragmentation.}{32}{section*.43}%
+\contentsline {paragraph}{Persistance.}{32}{section*.44}%
+\contentsline {subsection}{\numberline {A.4}Calcul de la métrique dièdre \texttt {max\_dihedral\_deg}}{32}{subsection.A.4}%
+\contentsline {paragraph}{Énumération des chemins.}{32}{section*.45}%
+\contentsline {paragraph}{Angle dièdre.}{32}{section*.46}%
+\contentsline {paragraph}{Écart au plan.}{32}{section*.47}%
+\contentsline {paragraph}{Coût.}{32}{section*.48}%
+\contentsline {subsection}{\numberline {A.5}Interface du designer (détails)}{32}{subsection.A.5}%
+\contentsline {paragraph}{Saisie de l'instance.}{32}{section*.49}%
+\contentsline {paragraph}{Configuration des contraintes et exécution.}{33}{section*.50}%
+\contentsline {paragraph}{Exploration des solutions et visualiseur intégré.}{33}{section*.51}%
+\contentsline {subsection}{\numberline {A.6}Détails de l'assemblage moléculaire}{34}{subsection.A.6}%
+\contentsline {paragraph}{Liaisons doubles.}{34}{section*.52}%
+\contentsline {paragraph}{Ajout des hydrogènes.}{34}{section*.53}%
+\contentsline {paragraph}{Export.}{34}{section*.54}%
