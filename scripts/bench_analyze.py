@@ -171,7 +171,7 @@ def render_tables(analysis, out_md_path):
     lines = []
     lines.append("# Comparaison des solveurs CSP : ACE vs Choco\n")
     lines.append(f"_Bench sur **{g['n_total_done']:,} instances** "
-                 f"(corpus h3-h9 x configs C1/C2/C3/Ctopo) executees en local "
+                 f"(corpus h3-h9 x configs Cf1/Cf2/Cf3/Ctopo) executees en local "
                  f"avec 8 workers en parallele, timeout 300 s par solveur._\n")
 
     # ----- Introduction methodologique -----
@@ -250,10 +250,10 @@ def render_tables(analysis, out_md_path):
 
     lines.append("## Tableau croise (h x config)\n")
     lines.append("Temps median en ms (ACE / Choco), speedup median.\n")
-    lines.append("| h \\ config | C1 | C2 | C3 | Ctopo |")
+    lines.append("| h \\ config | Cf1 | Cf2 | Cf3 | Ctopo |")
     lines.append("|---|---|---|---|---|")
     h_vals = sorted({d["h"] for d in by_hc.values()})
-    cfgs = ["C1", "C2", "C3", "Ctopo"]
+    cfgs = ["Cf1", "Cf2", "Cf3", "Ctopo"]
     for h_val in h_vals:
         row = [f"**h{h_val}**"]
         for cfg in cfgs:
@@ -427,7 +427,7 @@ def render_figures(rows, out_dir):
     # Scatter ACE vs Choco
     fig, ax = plt.subplots(figsize=(6, 6))
     colors = {3: "#1f77b4", 4: "#ff7f0e", 5: "#2ca02c", 6: "#d62728",
-              7: "#9467bd", 8: "#8c564b", 9: "#e377c2"}
+              7: "#9467bd", 8: "#8c564b", 9: "#e377cf2"}
     for h_val in h_vals:
         rs = [r for r in ok_rows if r["h"] == h_val]
         xs = [r["t_ace_ms"] for r in rs]
