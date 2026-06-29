@@ -437,23 +437,20 @@
         if (signedArea < 0) {
           shrunk.reverse();
         }
-        // Triangulation en eventail depuis le centroide, une seule face.
+        // Triangulation en eventail depuis le centroide, BATCHEE en UN seul
+        // addCustom (un seul mesh three.js par cycle au lieu d'un par triangle).
+        // Reduit fortement le nombre d'objets WebGL -> rendu plus rapide.
         const center = { x: cx, y: cy, z: cz };
+        const vertexArr = [center, ...shrunk];
+        const normalArr = vertexArr.map(() => ({ x: 0, y: 0, z: 1 }));
+        const faceArr = [];
         for (let k = 0; k < shrunk.length; k++) {
-          const a = shrunk[k];
-          const b = shrunk[(k + 1) % shrunk.length];
-          v.addCustom({
-            vertexArr: [center, a, b],
-            normalArr: [
-              { x: 0, y: 0, z: 1 },
-              { x: 0, y: 0, z: 1 },
-              { x: 0, y: 0, z: 1 },
-            ],
-            faceArr: [0, 1, 2],
-            color: color,
-            opacity: 1.0,
-          });
+          // triangle (centre=0, sommet k+1, sommet suivant)
+          const a = k + 1;
+          const b = ((k + 1) % shrunk.length) + 1;
+          faceArr.push(0, a, b);
         }
+        v.addCustom({ vertexArr, normalArr, faceArr, color, opacity: 1.0 });
       }
     }
 
@@ -968,5 +965,44 @@
     return true;
   }
 
-  window.MolViz = { open, openSafe, close };
+  // Pre-chauffage du contexte WebGL de 3Dmol. Le PREMIER createViewer d'une
+  // page est lent (~200-500 ms) car three.js compile ses shaders et initialise
+  // le contexte WebGL a ce moment-la. On paie ce cout une fois, en arriere-plan
+  // au chargement, sur un div jetable hors-ecran -> la premiere ouverture reelle
+  // du modal devient quasi instantanee. Idempotent et sans effet sur le flux
+  // open()/close() (div separe, detruit immediatement).
+  let _warmedUp = false;
+  function warmup() {
+    if (_warmedUp || typeof $3Dmol === "undefined") return;
+    _warmedUp = true;
+    try {
+      const tmp = el("div", {
+        style: "position:absolute;width:2px;height:2px;left:-9999px;"
+             + "top:-9999px;visibility:hidden;",
+        id: "molviz-warmup",
+      });
+      document.body.appendChild(tmp);
+      const vw = $3Dmol.createViewer("molviz-warmup", { backgroundColor: "white" });
+      // un minuscule rendu force la compilation des shaders
+      vw.addSphere({ center: { x: 0, y: 0, z: 0 }, radius: 0.1, color: 0x000000 });
+      vw.render();
+      // nettoyage immediat
+      try { vw.removeAllModels(); } catch (_) {}
+      try { vw.removeAllShapes(); } catch (_) {}
+      tmp.remove();
+    } catch (_) {
+      // si le warmup echoue, ce n'est pas grave : open() recreera un viewer.
+    }
+  }
+
+  // Declenche le warmup des que le DOM est pret (sans bloquer le chargement).
+  if (typeof document !== "undefined") {
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", () => setTimeout(warmup, 0));
+    } else {
+      setTimeout(warmup, 0);
+    }
+  }
+
+  window.MolViz = { open, openSafe, close, warmup };
 })();
