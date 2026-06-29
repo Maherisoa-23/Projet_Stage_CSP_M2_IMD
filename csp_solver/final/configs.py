@@ -55,6 +55,49 @@ CONFIGS = {
         "no_table": False,
         "freeze_b2": False,
     },
+    # ------------------------------------------------------------------
+    # Configs "isolation de C5 (table de voisinage)" -- ajoutees pour les
+    # 2 slides annexe « C structurel vs C structurel + C5 ».
+    #
+    # On ne lance QUE Cstr (no_table, no adj_57) : c'est le sur-ensemble.
+    # Les 3 autres configs de la comparaison se DERIVENT sans nouveau run :
+    #   - « C structurel + C5 »       = C1 (deja en base finale, meme table)
+    #   - « C structurel + C6 »        = Cstr filtre par le predicat adj_57
+    #   - « C structurel + C6 + C5 »   = C1 filtre par le predicat adj_57
+    # (le verdict xTB est deterministe en (mol, sizes), donc filtrer ne
+    #  change pas les verdicts -- cf. analysis/c5_isolation/).
+    #
+    # MEMES reglages structurels que C1 (freeze_b2=False, gel deg=6 via
+    # preprocessing), SEULE la table est desactivee (no_table=True).
+    "Cstr": {
+        "label": "C structurel seul (sans table de voisinage)",
+        "preset_name": None,
+        "K_sym": None,
+        "K_pb": None,
+        "K_hb": None,
+        "K_tot": None,
+        "tau_gb": None,
+        "radius_gb": 2,
+        "adj_57": False,
+        "no_table": True,
+        "freeze_b2": False,
+    },
+    # Variante optionnelle (NON lancee par defaut : derivable de Cstr par
+    # filtrage adj_57). Definie ici comme filet de securite si l'on veut la
+    # comparer directement plutot que par derivation.
+    "Cstr_C6": {
+        "label": "C structurel + C6 (adj 5-7, sans table)",
+        "preset_name": None,
+        "K_sym": None,
+        "K_pb": None,
+        "K_hb": None,
+        "K_tot": None,
+        "tau_gb": None,
+        "radius_gb": 2,
+        "adj_57": True,
+        "no_table": True,
+        "freeze_b2": False,
+    },
 }
 
 

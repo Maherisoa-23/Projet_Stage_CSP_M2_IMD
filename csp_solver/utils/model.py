@@ -340,14 +340,16 @@ def build_and_solve(graph, preprocessed, enumerate_all=True,
         #        identique a l'usage du bench)
         # -limit 60s : timeout solveur cote Choco (en plus du timeout python)
         choco_jar = _find_choco_jar()
+        _limit = os.environ.get("CHOCO_LIMIT", "60s")
+        _pytimeout = int(os.environ.get("CHOCO_PY_TIMEOUT", "60"))
         cmd = [
             "java", "-cp", choco_jar,
             "org.chocosolver.parser.xcsp.ChocoXCSP",
-            xml_path, "-a", "-p", "1", "-limit", "60s",
+            xml_path, "-a", "-p", "1", "-limit", _limit,
         ]
         print(f"  Lancement de Choco...")
         print(f"  Commande: {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=_pytimeout)
         print("  --- Sortie Choco (stdout, dernieres lignes) ---")
         for line in result.stdout.splitlines()[-10:]:
             print(f"  | {line}")
