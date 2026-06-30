@@ -55,6 +55,22 @@ doc from commit/
 experiments/v1/plane/
 experiments/v1/experiments_bundle.zip
 
+# ===== Pipelines experimentaux abandonnes (v1/v2/v3, remplaces par =====
+# ===== viewer/ + csp_solver/final/) — ne pas re-tracker. =====
+experiments/v1/
+experiments/v2/
+experiments/v3/
+
+# ===== Scripts cluster one-shot (SSH/SLURM, lances manuellement, pas =====
+# ===== importes par le pipeline) — ne pas re-tracker. =====
+cluster/ops/
+
+# ===== Scripts/figures one-shot lies a la redaction (memoire, bench) =====
+scripts/figures/
+scripts/migrate_to_dihedral_verdicts.py
+scripts/recompute_dihedrals.py
+*.png
+
 # ===== Sorties d'experimentations (regenerables via run_one_job) =====
 experiments/**/output/
 experiments/**/_runs/
@@ -81,6 +97,18 @@ doc/motifs_bord_h8.pdf
 
 # Docs personnels d'auto-formation pour la soutenance (NE PAS PUSH)
 doc/apprentissage_*.md
+
+# ===== Rapports de stage / memoire (redaction, pas du code) =====
+doc/memoire.tex
+doc/memoire.pdf
+doc/explication_lex_leader.tex
+doc/explication_lex_leader.pdf
+doc/modele_csp_kekule_clar.tex
+divers/old_resume_standalone.tex
+divers/old_resume_standalone.pdf
+experiments/v2/rapport_exp_v2.tex
+experiments/v3/rapport_exp_v3.tex
+*.pdf
 
 
 # ===== PyCSP3 generated XML (race condition entre test CLI et CSP) =====
