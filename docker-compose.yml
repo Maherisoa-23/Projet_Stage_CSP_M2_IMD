@@ -1,0 +1,28 @@
+# Lancement du designer pour les chimistes.
+#
+# Usage :
+#     docker compose up            (premier lancement : build + run)
+#     docker compose up -d         (en arriere-plan)
+#     docker compose down          (arret ; les donnees restent dans le volume)
+#
+# Puis ouvrir http://localhost:8765/designer dans le navigateur.
+#
+# Mise a jour apres un changement de code :
+#     docker compose up --build    (rebuild l'image, garde le volume de donnees)
+
+services:
+  designer:
+    build: .
+    image: csp-designer:latest
+    ports:
+      - "8765:8765"
+    volumes:
+      # Volume nomme : persiste la DB designer + les solutions generees
+      # entre redemarrages et mises a jour de l'image.
+      - csp_designer_data:/data
+    environment:
+      - DESIGNER_CLUSTER_ENABLED=0
+    restart: unless-stopped
+
+volumes:
+  csp_designer_data:

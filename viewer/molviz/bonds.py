@@ -28,20 +28,27 @@ import numpy as np
 
 
 # Seuils en Angstroms.
-# BOND_MAX a 2.00 pour tolerer les reconstructions non-relaxees du designer
+# BOND_MAX a 2.10 pour tolerer les reconstructions non-relaxees du designer
 # en mode skip xTB : a l'interface 5-6-7, le placement BFS rigide a 1.42 A
-# fait sortir certaines aretes jusqu'a ~1.98 A (mesure empirique sur 200 sol :
-# 97 ont au moins un bond > 1.75 A, pire cas 1.98 A). Sous le seuil 1.75
-# precedent, ces aretes etaient ratees -> carbones sous-coordonnes -> Kekule
-# les marquait radicaux -> rendu en spheres violettes "flottantes" au-dessus
-# du squelette.
-# 2.00 reste sous les distances non-liees (~2.4 A+), et le filtre cycle<=8
-# de _build_mol_graph_from_atoms rejette toute diagonale accidentelle qui ne
-# participerait a aucune face raisonnable.
+# fait sortir certaines aretes jusqu'a ~2.01 A (mesure empirique). Sous un
+# seuil plus bas, ces aretes etaient ratees -> carbones sous-coordonnes ->
+# Kekule les marquait radicaux -> rendu en spheres violettes "flottantes"
+# au-dessus du squelette.
+#
+# 2.10 laisse passer quelques DIAGONALES accidentelles (2nd voisins a ~2.0-2.1
+# dans les cycles tres deformes), mais celles-ci sont eliminees ensuite par :
+#   1. mutual_knn_filter  : borne chaque atome a ses 3 plus proches voisins
+#      mutuels -> supprime la sur-coordination (deg > 3).
+#   2. prune_small_cycle_diagonals : retire l'arete la plus longue de tout
+#      3- ou 4-cycle (= diagonale parasite), sans jamais sous-coordonner.
+# Cette combinaison (mesuree sur 170 sols designer) reduit a la fois les
+# carbones sous-coordonnes (13 -> 10, le reste etant de VRAIS degre-1) et les
+# cycles anormaux (12 -> 10) par rapport a l'ancien filtre "cycle <= 8".
 # Pas d'effet de bord sur les structures optimisees xTB (aromatique 1.39-1.42 A,
-# single 1.54 A, tres en dessous de 2.00 A).
+# single 1.54 A, tres en dessous de 2.10 A).
 BOND_MIN = 1.20    # < : on est sur d'une triple ou d'une erreur
-BOND_MAX = 2.00    # > : pas de liaison
+BOND_MAX = 2.10    # > : pas de liaison
+KNN_MAX_NEIGHBORS = 3  # un carbone sp2 a au plus 3 voisins C
 
 
 @dataclass
@@ -197,6 +204,92 @@ def detect_bonds(atoms: List[Atom],
     return bonds
 
 
+def mutual_knn_filter(atoms: List[Atom],
+                      bonds: List[Tuple[int, int]],
+                      k: int = KNN_MAX_NEIGHBORS) -> List[Tuple[int, int]]:
+    """Garde une arete (i,j) seulement si j est parmi les k plus proches
+    voisins de i ET i parmi les k plus proches de j (k-NN mutuel).
+
+    Borne la coordination de chaque atome a k. Pour un PAH (carbones sp2,
+    au plus 3 voisins C), k=3 elimine les diagonales accidentelles captees
+    par le seuil de distance sans jamais retirer une vraie liaison du
+    squelette : une vraie liaison est toujours parmi les 3 plus proches des
+    deux cotes, alors qu'une diagonale (2nd voisin) ne l'est generalement
+    pas d'au moins un cote.
+    """
+    n = len(atoms)
+    if n < 2 or not bonds:
+        return list(bonds)
+    coords = np.array([[a.x, a.y, a.z] for a in atoms])
+
+    # Distances uniquement entre atomes deja relies (suffit pour le tri kNN
+    # restreint au voisinage candidat).
+    from collections import defaultdict
+    nbr_dist = defaultdict(list)
+    for (u, v) in bonds:
+        d = float(np.linalg.norm(coords[u] - coords[v]))
+        nbr_dist[u].append((d, v))
+        nbr_dist[v].append((d, u))
+
+    # k plus proches voisins de chaque atome parmi les candidats
+    knn = {}
+    for v, lst in nbr_dist.items():
+        lst.sort()
+        knn[v] = {w for _, w in lst[:k]}
+
+    kept = []
+    for (u, v) in bonds:
+        if v in knn.get(u, ()) and u in knn.get(v, ()):
+            kept.append((u, v))
+    return kept
+
+
+def prune_small_cycle_diagonals(atoms: List[Atom],
+                                bonds: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+    """Retire l'arete la plus longue de chaque 3- ou 4-cycle (= diagonale
+    parasite issue d'une geometrie deformee), MAIS uniquement si ses deux
+    extremites conservent un degre >= 2 apres retrait.
+
+    Une vraie face d'un PAH a au moins 5 cotes ; un 3- ou 4-cycle est donc
+    toujours un artefact (une corde a travers un cycle reel). On retire la
+    corde et pas un cote du vrai cycle en ciblant l'arete la plus LONGUE du
+    petit cycle (la corde traverse, donc plus longue que les cotes). La
+    garde "degre >= 2" empeche de creer un atome sous-coordonne.
+
+    Iteratif : retirer une corde peut en reveler une autre (cycles imbriques).
+    """
+    import networkx as nx
+
+    coords = np.array([[a.x, a.y, a.z] for a in atoms])
+    dist = lambda e: float(np.linalg.norm(coords[e[0]] - coords[e[1]]))
+    cur = set(tuple(sorted(e)) for e in bonds)
+
+    while True:
+        g = nx.Graph()
+        g.add_edges_from(cur)
+        deg = dict(g.degree())
+        removed = False
+        for cyc in nx.cycle_basis(g):
+            if len(cyc) not in (3, 4):
+                continue
+            edges = [tuple(sorted((cyc[i], cyc[(i + 1) % len(cyc)])))
+                     for i in range(len(cyc))]
+            edges = [e for e in edges if e in cur]
+            if not edges:
+                continue
+            # Arete la plus longue dont le retrait ne sous-coordonne pas
+            for e in sorted(edges, key=dist, reverse=True):
+                if deg.get(e[0], 0) > 2 and deg.get(e[1], 0) > 2:
+                    cur.discard(e)
+                    removed = True
+                    break
+            if removed:
+                break
+        if not removed:
+            break
+    return list(cur)
+
+
 def filter_carbons(atoms: List[Atom]) -> Tuple[List[Atom], List[int]]:
     """Retourne (carbones_seulement, mapping_old_idx_to_new).
     Les indices de bonds doivent ensuite etre re-mappes via ce mapping.
@@ -339,36 +432,26 @@ def _build_mol_graph_from_atoms(raw_atoms: List[Atom]) -> MolGraph:
         return MolGraph()
 
     carbons, _old_to_new = filter_carbons(raw_atoms)
+
+    # Etape 1 : detection brute par seuil de distance (genereux, 2.10 A).
     bonds = detect_bonds(carbons, only_cc=True)
     if not bonds:
         return MolGraph(atoms=carbons, bonds=[], cycles=[])
 
-    # Etape 2 : premier SSSR pour reperer les bonds legitimes
-    first_pass = _compute_cycles_sssr(len(carbons), bonds)
+    # Etape 2 : k-NN mutuel -> borne chaque atome a 3 voisins, supprime les
+    # diagonales captees par le seuil large (elimine la sur-coordination).
+    bonds = mutual_knn_filter(carbons, bonds)
 
-    # Etape 3 : ne garder que les bonds dans au moins un cycle "petit" (<=8)
-    valid_edges = set()
-    for c in first_pass:
-        if c.size > 8:
-            # Cycle trop grand : probablement compose, on n'en tire pas
-            # d'info pour la legitimite des bonds.
-            continue
-        atoms = c.atoms
-        for k in range(len(atoms)):
-            a, b = atoms[k], atoms[(k + 1) % len(atoms)]
-            valid_edges.add(tuple(sorted((a, b))))
-
-    cleaned_bonds = [
-        (u, v) for (u, v) in bonds
-        if tuple(sorted((u, v))) in valid_edges
-    ]
+    # Etape 3 : retrait des cordes des 3/4-cycles parasites, sans jamais
+    # sous-coordonner un atome. Cible la geometrie deformee a l'interface 5/7.
+    cleaned_bonds = prune_small_cycle_diagonals(carbons, bonds)
     if not cleaned_bonds:
-        # Fallback : si le nettoyage a tout supprime (graphe sans cycle <=8),
-        # on garde les bonds bruts et on prend le SSSR tel quel.
+        # Garde-fou : ne jamais retourner un squelette vide si on avait des bonds.
         cleaned_bonds = bonds
-        cycles_final = first_pass
-    else:
-        cycles_final = _compute_cycles_sssr(len(carbons), cleaned_bonds)
+
+    # Etape 4 : SSSR final sur le graphe nettoye. Tout cycle hors {5,6,7}
+    # est conserve mais flagge anomaly=True (signal visuel cote viewer).
+    cycles_final = _compute_cycles_sssr(len(carbons), cleaned_bonds)
 
     return MolGraph(atoms=carbons, bonds=cleaned_bonds, cycles=cycles_final)
 
@@ -378,17 +461,14 @@ def build_mol_graph(xyz_path) -> MolGraph:
     liaisons + cycles.
 
     Workflow :
-      1. Detection des bonds C-C par seuil de distance (1.20-1.65 A).
-      2. Calcul du SSSR (Smallest Set of Smallest Rings) via
-         nx.minimum_cycle_basis : pour un graphe planaire 2-connecte c'est
-         equivalent aux faces internes du plongement.
-      3. Filtrage des bonds parasites : on supprime ceux qui n'appartiennent
-         a aucun cycle de la base de taille raisonnable (<= 8). Cible les
-         "chord bonds" qui apparaissent dans les structures tendues quand
-         deux atomes non-adjacents s'approchent < 1.65 A.
-      4. Recalcul du SSSR sur le graphe nettoye -> cycles finaux.
-         Tout cycle dont la taille n'est pas dans {5,6,7} est conserve mais
-         flagge `anomaly=True` (signal visuel cote viewer).
+      1. Detection des bonds C-C par seuil de distance (1.20-2.10 A).
+      2. k-NN mutuel (k=3) : borne chaque carbone a ses 3 plus proches
+         voisins mutuels -> elimine les diagonales captees par le seuil
+         large (supprime la sur-coordination), sans retirer de vraie liaison.
+      3. prune_small_cycle_diagonals : retire la corde (arete la plus longue)
+         de tout 3/4-cycle parasite, sans jamais sous-coordonner un atome.
+      4. SSSR final via nx.minimum_cycle_basis -> faces 5/6/7. Tout cycle
+         hors {5,6,7} est conserve mais flagge `anomaly=True`.
     """
     return _build_mol_graph_from_atoms(read_xyz(Path(xyz_path)))
 

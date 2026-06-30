@@ -131,9 +131,11 @@ def _build_remote_command(config, remote_graph, remote_output):
         "&& python -m csp_solver.main",
         shlex.quote(remote_graph),
     ]
-    if config.get("validate", True):
+    method = (config.get("method") or "skip").lower()
+    if method != "skip" and config.get("validate", True):
         parts.append("--validate")
-    if config.get("no_freeze"):
+    # Gel b(v) >= 2 desactive par defaut : --no-freeze sauf si "freeze_bv2" coche.
+    if not config.get("freeze_bv2") or config.get("no_freeze"):
         parts.append("--no-freeze")
     if config.get("no_table"):
         parts.append("--no-table")
@@ -150,11 +152,7 @@ def _build_remote_command(config, remote_graph, remote_output):
     if config.get("K_tot") is not None:
         parts.extend(["--tot", str(int(config["K_tot"]))])
     parts.extend(["--output-dir", shlex.quote(remote_output)])
-    n_runs = config.get("n_runs")
-    if n_runs and int(n_runs) > 1:
-        parts.extend(["--n-runs", str(int(n_runs))])
-    method = config.get("method", "md")
-    if method:
+    if method != "skip":
         parts.extend(["--method", str(method)])
     return " ".join(parts)
 

@@ -568,7 +568,7 @@
   // configState contient TOUT l'etat du panneau :
   //   - preset           : 'C1' | 'C2' | 'C3' | 'Ctopo' | 'custom'
   //   - <flag advanced>  : chaque cle des CSP_ADVANCED_OPTIONS (K_pb, ...)
-  //   - method, n_runs, cluster (validation)
+  //   - method, test_original, cluster (validation)
   //
   // Quand preset != 'custom', les flags advanced sont IGNORES par le
   // backend (ecrases par les flags du preset). On les conserve quand meme
@@ -753,7 +753,7 @@
     }
   }
 
-  // ---- Bloc "Validation xTB" : method + n_runs + cluster ----
+  // ---- Bloc "Validation xTB" : method + test_original + cluster ----
   function renderValidationPanel() {
     const panel = document.getElementById("validation-panel");
     panel.innerHTML = "";

@@ -18,6 +18,7 @@ de fichier (text/plain).
 """
 
 import json
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -64,7 +65,15 @@ def _project_root() -> Path:
 
 
 def _designer_output_root() -> Path:
-    """Dossier ou sont stockes les outputs des jobs designer."""
+    """Dossier ou sont stockes les outputs des jobs designer.
+
+    Configurable via DESIGNER_OUTPUT_DIR (utilise en conteneur pour pointer
+    vers un volume persistant, ex. /data/output/designer_jobs). Par defaut,
+    chemin relatif au projet (usage local hors conteneur).
+    """
+    override = os.getenv("DESIGNER_OUTPUT_DIR")
+    if override:
+        return Path(override)
     return _project_root() / "viewer" / "output" / "designer_jobs"
 
 
@@ -204,10 +213,14 @@ def api_run():
     # Cree le job en DB
     db_path = current_app.config["DB_PATH"]
     job_id_tmp = jobs.create_job(db_path, graph_content, config, output_dir="tmp")
-    # Maintenant qu'on a un job_id, fixe le vrai output_dir relatif
-    rel_output = (Path("viewer/output/designer_jobs")
-                  / job_id_tmp).as_posix()
-    jobs.update_job(db_path, job_id_tmp, output_dir=rel_output)
+    # Maintenant qu'on a un job_id, fixe le vrai output_dir.
+    # _designer_output_root() respecte DESIGNER_OUTPUT_DIR si definie (mode
+    # conteneur, volume persistant) ; sinon chemin relatif au projet (usage
+    # local). runner.py fait `project_root / job["output_dir"]`, ce qui
+    # retourne directement le chemin absolu si on lui en donne un (pathlib),
+    # donc les deux cas sont geres sans changement cote runner.
+    job_output_dir = _designer_output_root() / job_id_tmp
+    jobs.update_job(db_path, job_id_tmp, output_dir=str(job_output_dir))
 
     # Lance le thread runner
     runner.start_job_thread(db_path, job_id_tmp, _project_root())

@@ -247,7 +247,7 @@ def _resolve_preset_flags(config: Dict) -> Dict:
 
     Returns:
         Un nouveau dict de config avec les flags resolus. Les options
-        orthogonales (validate, no_freeze, no_table, method, n_runs,
+        orthogonales (validate, freeze_bv2, no_table, method,
         count_hexagon, cluster) sont preservees.
     """
     try:
@@ -290,7 +290,10 @@ def _build_command(python_exe: str, main_py: Path, graph_path: Path,
             cmd.append("--validate")
 
     # --- Contraintes CSP ---
-    if config.get("no_freeze"):
+    # Gel b(v) >= 2 DESACTIVE par defaut cote designer : on passe --no-freeze
+    # sauf si l'utilisateur a explicitement coche "Activer le gel b(v) >= 2".
+    # (Retro-compat : un ancien config avec no_freeze=True force aussi --no-freeze.)
+    if not config.get("freeze_bv2") or config.get("no_freeze"):
         cmd.append("--no-freeze")
     if config.get("no_table"):
         cmd.append("--no-table")
@@ -317,9 +320,6 @@ def _build_command(python_exe: str, main_py: Path, graph_path: Path,
 
     # --- Output et validation ---
     cmd.extend(["--output-dir", str(output_dir)])
-    n_runs = config.get("n_runs")
-    if n_runs and int(n_runs) > 1 and method == "multi-runs":
-        cmd.extend(["--n-runs", str(int(n_runs))])
     if method and method != "skip":
         cmd.extend(["--method", str(method)])
     return cmd

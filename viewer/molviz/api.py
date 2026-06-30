@@ -15,6 +15,7 @@ Cache LRU 256 entrees (~2 MB max) pour eviter de recalculer matching +
 cycles a chaque clic sur la meme molecule.
 """
 
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from flask import Blueprint, abort, jsonify, request, send_from_directory
 
 from .bonds import build_mol_graph_from_text
 from .clar import enumerate_clar_covers
+from .dual import build_dual, parse_sizes_from_name
 from .kekule import assign_kekule, enumerate_kekule
 from .rbo import compute_rbo, DEFAULT_MAX_KEKULE
 
@@ -32,6 +34,51 @@ bp = Blueprint(
     static_folder=str(_HERE / "static"),
     static_url_path="/molviz_static",
 )
+
+
+# Segment de chemin d'une solution designer : "sol_13_6_7_6_5_5_7".
+# Capture les tailles de cycles attendues (ici [6,7,6,5,5,7]).
+_SOL_SIZES_RE = re.compile(r"/sol_?\d+_((?:\d+_)*\d+)/")
+
+
+def _detect_unclosed_ring(cache_key: str, mol) -> bool:
+    """Detecte une geometrie skip CASSEE (a signaler dans le viewer).
+
+    Le mode skip reconstruit une geometrie rigide (placement BFS sans
+    relaxation xTB). A l'interface 5/7, la deformation produit deux types
+    d'artefacts :
+      a) un cycle non ferme  -> atome de degre 1 + cycle manquant (faux radical
+         "flottant" dans le viewer) ;
+      b) un cycle mal dimensionne -> un 5 ou un 7 deforme est detecte comme un
+         hexagone (ou autre), parce que les distances ne correspondent plus a
+         la taille reelle du cycle.
+
+    On detecte les DEUX en comparant le MULTISET des tailles de cycles
+    detectees au multiset ATTENDU (lu depuis le nom de dossier
+    sol_<idx>_<s1>_<s2>...). Tout ecart = geometrie skip non fiable.
+
+    Conditions (toutes requises) :
+      1. Geometrie skip (chemin se terminant par source.xyz).
+      2. Tailles attendues lisibles depuis le nom de dossier.
+      3. Le multiset des tailles detectees DIFFERE du multiset attendu.
+
+    En geometrie xTB (md_final_opt.xyz) on ne signale jamais : la relaxation
+    retablit les vraies tailles 5/7, et les rares atomes degre-1 restants sont
+    de vrais carbones terminaux.
+    """
+    from collections import Counter
+
+    if not cache_key.endswith("source.xyz"):
+        return False
+    m = _SOL_SIZES_RE.search("/" + cache_key.replace("\\", "/") + "/")
+    if not m:
+        return False
+    try:
+        expected_sizes = Counter(int(s) for s in m.group(1).split("_"))
+    except (AttributeError, ValueError):
+        return False
+    detected_sizes = Counter(c.size for c in mol.cycles)
+    return detected_sizes != expected_sizes
 
 
 @lru_cache(maxsize=256)
@@ -47,6 +94,7 @@ def _compute_mol3d(cache_key: str, xyz_text: str) -> dict:
     kekule = assign_kekule(mol)
 
     n_anomaly = sum(1 for c in mol.cycles if c.anomaly)
+    unclosed_ring = _detect_unclosed_ring(cache_key, mol)
     return {
         "atoms": [a.to_dict() for a in mol.atoms],
         "bonds": [
@@ -70,6 +118,7 @@ def _compute_mol3d(cache_key: str, xyz_text: str) -> dict:
             "n_cycles": len(mol.cycles),
             "n_anomaly_cycles": n_anomaly,
             "perfect_matching": bool(kekule.is_perfect),
+            "unclosed_ring": bool(unclosed_ring),
             "source": cache_key,
         },
     }
@@ -205,7 +254,7 @@ def _compute_rbo_payload(cache_key: str, xyz_text: str, max_count: int) -> dict:
     }
 
 
-def init_app(app, resolve_path_fn, load_xyz_text_fn):
+def init_app(app, resolve_path_fn, load_xyz_text_fn, load_graph_text_fn=None):
     """Branche le blueprint sur l'app Flask.
 
     Args:
@@ -218,6 +267,9 @@ def init_app(app, resolve_path_fn, load_xyz_text_fn):
                            xyz_files, contenu gzippe). Centralisee dans
                            server.py pour partager le meme comportement avec
                            la route /file.
+      load_graph_text_fn : `(rel_path: str) -> str | None`. Charge le .graph
+                           DIMACS de la solution designer (pour /api/dual).
+                           Optionnel : si None, /api/dual renvoie un dual vide.
     """
     def _resolve_xyz_key_and_text():
         """Extrait le param 'path', verifie suffix .xyz, charge le contenu
@@ -269,5 +321,36 @@ def init_app(app, resolve_path_fn, load_xyz_text_fn):
         max_count = _parse_max(default=DEFAULT_MAX_KEKULE,
                                 hard_cap=DEFAULT_MAX_KEKULE)
         return jsonify(_compute_rbo_payload(cache_key, text, max_count))
+
+    @bp.route("/api/dual")
+    def api_dual():
+        """Graphe dual (vue topologique 2D) d'une solution designer.
+
+        Renvoie {available, nodes, edges, sizes_expected} ou {available:False}
+        si le .graph n'est pas accessible (solution non-designer, ou callback
+        load_graph_text_fn absent).
+        """
+        rel = request.args.get("path", "")
+        if not rel:
+            abort(400, description="missing 'path' parameter")
+        cache_key = rel.replace("\\", "/").lstrip("/")
+        sizes = parse_sizes_from_name(cache_key)
+        if load_graph_text_fn is None:
+            return jsonify({"available": False,
+                            "reason": "graph loader indisponible"})
+        graph_text = load_graph_text_fn(cache_key)
+        if not graph_text:
+            return jsonify({"available": False,
+                            "reason": "graphe d'entree introuvable"})
+        dual = build_dual(graph_text, sizes or [])
+        if dual is None:
+            return jsonify({"available": False,
+                            "reason": "dual non constructible"})
+        return jsonify({
+            "available": True,
+            "nodes": dual["nodes"],
+            "edges": dual["edges"],
+            "sizes_expected": sizes,
+        })
 
     app.register_blueprint(bp)

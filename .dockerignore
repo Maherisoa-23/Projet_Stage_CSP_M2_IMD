@@ -1,0 +1,46 @@
+# Exclus du contexte de build Docker (image livrable designer uniquement).
+# Objectif : contexte de build leger et rapide, ne pas embarquer les 3.9 GB
+# de DB d'exploration ni l'historique de developpement.
+
+.git/
+.gitignore
+
+# Environnements Python locaux (l'image installe ses propres deps)
+venv/
+__pycache__/
+*.pyc
+
+# Bases de donnees volumineuses (exploration de corpus, hors perimetre
+# du livrable designer ; pas montees dans l'image, seulement en option
+# via un volume externe si besoin plus tard)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+viewer/db_all.db
+
+# Donnees de jobs designer locaux (l'image part d'un /data vide)
+viewer/output/
+
+# Resultats experimentaux / cluster (volumineux, hors perimetre)
+experiments/
+cluster_results/
+backup/
+
+# Documentation / memoire (pas necessaire dans l'image)
+doc/
+implementation_csp/
+*.pdf
+*.tex
+
+# Outils annexes non utilises par le designer en conteneur
+pah-tools-master/
+divers/
+non_benzenoid_generator/
+optimisation_et_test_planarite/
+
+# Fichiers de dev
+.vscode/
+.idea/
+*.log
+_docker_poc_test/
