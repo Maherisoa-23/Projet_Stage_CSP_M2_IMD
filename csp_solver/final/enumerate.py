@@ -38,10 +38,6 @@ def enumerate_solutions(graph_path: str, config: dict) -> list:
     graph = parse(graph_path)
     preprocessed = preprocess(graph, freeze_b2=config.get("freeze_b2", False))
 
-    # On force solver="ace" pour preserver la reproductibilite du run
-    # final cluster (qui a tourne avec ACE). Le pipeline designer
-    # (csp_solver/main.py CLI) utilise Choco par defaut depuis la
-    # migration de juin 2026 (cf. doc/choco_vs_ace.md).
     solutions = build_and_solve(
         graph, preprocessed,
         enumerate_all=True,
@@ -54,7 +50,7 @@ def enumerate_solutions(graph_path: str, config: dict) -> list:
         K_tot=config.get("K_tot"),
         tau_gb=config.get("tau_gb"),
         radius_gb=config.get("radius_gb", 2),
-        solver="ace",
+        solver="choco",
     )
     return solutions or []
 
