@@ -22,7 +22,7 @@ Structure :
 
   VALIDATION_OPTIONS :
       Options de validation xTB affichees dans le bloc dedie en bas de
-      la sidebar (methode, n_runs, cluster, ...).
+      la sidebar (methode, test_original, cluster, ...).
 
 Le frontend lit ces 3 listes via /api/designer/configs et construit l'UI.
 """
@@ -115,7 +115,7 @@ CSP_PRESETS_LEGACY = {
 #   1. contraintes-bord (Pb*, count_hexagon)
 #   2. contraintes-symetrie (K_sym, K_hb, K_tot)
 #   3. contraintes-adjacence (adj_57, tau_gb, radius_gb)
-#   4. preprocessing (no_freeze, no_table)
+#   4. preprocessing (freeze_bv2, no_table)
 CSP_ADVANCED_OPTIONS = [
     # --- Contraintes de bord ---
     {
@@ -187,10 +187,11 @@ CSP_ADVANCED_OPTIONS = [
 
     # --- Preprocessing ---
     {
-        "key": "no_freeze", "type": "bool", "default": False,
-        "label": "Desactiver le gel b(v) >= 2",
-        "help": "Sans cette option, les hexagones a 2+ blocs d'aretes libres "
-                "separes sont geles. Active = considere libres (--no-freeze).",
+        "key": "freeze_bv2", "type": "bool", "default": False,
+        "label": "Activer le gel b(v) >= 2",
+        "help": "Par defaut le gel est DESACTIVE (les hexagones a 2+ blocs "
+                "d'aretes libres separes sont consideres libres). Cocher pour "
+                "activer le gel b(v) >= 2.",
         "group": "preprocessing",
     },
     {
@@ -217,32 +218,18 @@ VALIDATION_OPTIONS = [
     {
         "key": "method", "type": "select", "default": "skip",
         "options": [
-            {"value": "skip",       "label": "Skip xTB (geometrie plate z=0, pas d'opt)"},
-            {"value": "det-opt",    "label": "det-opt (reproductible, ~5-15s par sol)"},
-            {"value": "md",         "label": "MD + opt (non-deterministe, legacy)"},
-            {"value": "multi-runs", "label": "Multi-runs (N optimisations independantes)"},
+            {"value": "skip",    "label": "Skip (rapide, geometrie plate)"},
+            {"value": "det-opt", "label": "Validation xTB (optimisation 3D)"},
         ],
-        "label": "Methode de validation",
-        "help": "Skip (defaut) : reconstruit la geometrie plate (z=0) sans optimiser, "
-                "tres rapide pour visualiser la sol CSP sans xTB. "
-                "det-opt : perturbation analytique deterministe + xtb --opt "
-                "(byte-reproductible, recommande pour valider la planarite). "
-                "MD : ancienne methode, non-deterministe. "
-                "Multi-runs : N optimisations independantes.",
-    },
-    {
-        "key": "n_runs", "type": "int", "default": 1, "min": 1, "max": 10,
-        "label": "n_runs (multi-runs uniquement)",
-        "help": "Nombre d'optimisations xTB par solution. Utilise uniquement "
-                "avec methode = multi-runs. Ignore sinon.",
+        "label": "Methode",
+        "help": "Skip : reconstruit la geometrie a plat, tres rapide, pour "
+                "visualiser la solution sans calcul. "
+                "Validation xTB : optimise la geometrie 3D et verifie la "
+                "planarite (~5-15s par solution).",
     },
     {
         "key": "test_original", "type": "bool", "default": False,
-        "label": "Tester le benzenoide d'origine (xTB sur tout-hexagones)",
-        "help": "Avant les sols substituees, lance xTB sur le benzenoide pur "
-                "(tous cycles = hex) pour servir de reference de planarite. "
-                "Cout : ~5-15s. Coche pour comparer les sols a la geometrie "
-                "optimisee du benzenoide d'entree.",
+        "label": "Tester le benzenoide d'entree",
     },
     {
         "key": "cluster", "type": "bool", "default": False,

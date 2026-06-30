@@ -15,6 +15,7 @@ Cache LRU 256 entrees (~2 MB max) pour eviter de recalculer matching +
 cycles a chaque clic sur la meme molecule.
 """
 
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -34,6 +35,51 @@ bp = Blueprint(
 )
 
 
+# Segment de chemin d'une solution designer : "sol_13_6_7_6_5_5_7".
+# Capture les tailles de cycles attendues (ici [6,7,6,5,5,7]).
+_SOL_SIZES_RE = re.compile(r"/sol_?\d+_((?:\d+_)*\d+)/")
+
+
+def _detect_unclosed_ring(cache_key: str, mol) -> bool:
+    """Detecte une geometrie skip CASSEE (a signaler dans le viewer).
+
+    Le mode skip reconstruit une geometrie rigide (placement BFS sans
+    relaxation xTB). A l'interface 5/7, la deformation produit deux types
+    d'artefacts :
+      a) un cycle non ferme  -> atome de degre 1 + cycle manquant (faux radical
+         "flottant" dans le viewer) ;
+      b) un cycle mal dimensionne -> un 5 ou un 7 deforme est detecte comme un
+         hexagone (ou autre), parce que les distances ne correspondent plus a
+         la taille reelle du cycle.
+
+    On detecte les DEUX en comparant le MULTISET des tailles de cycles
+    detectees au multiset ATTENDU (lu depuis le nom de dossier
+    sol_<idx>_<s1>_<s2>...). Tout ecart = geometrie skip non fiable.
+
+    Conditions (toutes requises) :
+      1. Geometrie skip (chemin se terminant par source.xyz).
+      2. Tailles attendues lisibles depuis le nom de dossier.
+      3. Le multiset des tailles detectees DIFFERE du multiset attendu.
+
+    En geometrie xTB (md_final_opt.xyz) on ne signale jamais : la relaxation
+    retablit les vraies tailles 5/7, et les rares atomes degre-1 restants sont
+    de vrais carbones terminaux.
+    """
+    from collections import Counter
+
+    if not cache_key.endswith("source.xyz"):
+        return False
+    m = _SOL_SIZES_RE.search("/" + cache_key.replace("\\", "/") + "/")
+    if not m:
+        return False
+    try:
+        expected_sizes = Counter(int(s) for s in m.group(1).split("_"))
+    except (AttributeError, ValueError):
+        return False
+    detected_sizes = Counter(c.size for c in mol.cycles)
+    return detected_sizes != expected_sizes
+
+
 @lru_cache(maxsize=256)
 def _compute_mol3d(cache_key: str, xyz_text: str) -> dict:
     """Calcul lourd : parse XYZ + bonds + Kekule + cycles.
@@ -47,6 +93,7 @@ def _compute_mol3d(cache_key: str, xyz_text: str) -> dict:
     kekule = assign_kekule(mol)
 
     n_anomaly = sum(1 for c in mol.cycles if c.anomaly)
+    unclosed_ring = _detect_unclosed_ring(cache_key, mol)
     return {
         "atoms": [a.to_dict() for a in mol.atoms],
         "bonds": [
@@ -70,6 +117,7 @@ def _compute_mol3d(cache_key: str, xyz_text: str) -> dict:
             "n_cycles": len(mol.cycles),
             "n_anomaly_cycles": n_anomaly,
             "perfect_matching": bool(kekule.is_perfect),
+            "unclosed_ring": bool(unclosed_ring),
             "source": cache_key,
         },
     }

@@ -11,12 +11,15 @@ Strategies disponibles :
       puis classification statistique (bloc data.json "runs"). Comportement
       historique. Implementation : multi_runs.MultiRunsStrategy.
 
-    - (futures) "md" : MD/MTD xTB suivi d'optimisation finale, deterministe
-      avec seed fixe. Implementation : md.MDStrategy.
+    - "md" / "det-opt" : perturbation z analytique deterministe + xtb --opt,
+      1 run par solution (bloc data.json "md_validation"). Les deux noms
+      pointent vers la meme MDStrategy ; "det-opt" est le nom aligne sur le
+      module xTB renomme (cf. csp_solver/xtb/det_opt.py), "md" reste pour
+      retro-compat. Implementation : md.MDStrategy.
 
 Usage :
     from utils.validation import get_strategy
-    strategy = get_strategy("multi-runs", n_runs=10, threshold=10.0)
+    strategy = get_strategy("det-opt", threshold=10.0)
     results = strategy.validate_solutions(graph, solutions, output_dir)
 """
 
@@ -26,9 +29,17 @@ from utils.validation.md import MDStrategy
 
 # Registry des strategies disponibles. Pour ajouter une methode, importer
 # la classe et l'enregistrer ici.
+#
+# Note sur "det-opt" : le module xTB sous-jacent a ete renomme md -> det_opt
+# en juin 2026 (la "MD" etait en realite une perturbation z analytique
+# deterministe + opt, pas une vraie dynamique). Le designer expose desormais
+# l'option "det-opt". On l'enregistre comme ALIAS de MDStrategy (meme code,
+# meme bloc data.json 'md_validation') pour que le nouveau nom fonctionne sans
+# casser la retro-compat de "md".
 _STRATEGIES = {
     "multi-runs": MultiRunsStrategy,
     "md": MDStrategy,
+    "det-opt": MDStrategy,
 }
 
 

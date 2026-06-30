@@ -921,16 +921,45 @@
     // cliquer sur la chip.
     updateModeLabels(data.meta.n_radicals || 0);
     const nAnomaly = data.meta.n_anomaly_cycles || 0;
+    const unclosed = !!data.meta.unclosed_ring;
     refs.headerMeta.innerHTML = `
       <span>${data.meta.n_carbons} C</span>
       <span>${data.meta.n_bonds} liaisons (${data.meta.n_doubles} doubles)</span>
-      ${data.meta.n_radicals > 0
-        ? `<span style="color:#9333ea">${data.meta.n_radicals} radical${data.meta.n_radicals>1?'aux':''}</span>`
-        : `<span style="color:#16a34a">perfect matching</span>`}
+      ${unclosed
+        ? ""
+        : (data.meta.n_radicals > 0
+            ? `<span style="color:#9333ea">${data.meta.n_radicals} radical${data.meta.n_radicals>1?'aux':''}</span>`
+            : `<span style="color:#16a34a">perfect matching</span>`)}
       ${nAnomaly > 0
         ? `<span style="color:#a16207" title="Cycles de taille != 5/6/7 detectes (bond parasite ou geometrie cassee)">${nAnomaly} cycle${nAnomaly>1?'s':''} anormal${nAnomaly>1?'aux':''}</span>`
         : ""}
     `;
+
+    // Bandeau "geometrie non relaxee" : affiche UNIQUEMENT pour le cas
+    // detecte cote serveur (mode skip + cycle non ferme). On masque alors le
+    // compteur de radicaux (qui serait trompeur : ce sont de faux radicaux dus
+    // a un cycle ouvert, pas de vrais sites radicalaires).
+    if (unclosed) {
+      const banner = el("div", {
+        class: "molviz-unclosed-banner",
+        title: "La reconstruction rapide (skip) a deforme la geometrie a "
+             + "l'interface 5/7 : les tailles de cycles affichees ne "
+             + "correspondent pas a la solution (un 5 ou un 7 peut apparaitre "
+             + "comme un hexagone, ou un cycle peut rester ouvert). "
+             + "Relancez en validation xTB pour une geometrie exacte.",
+      },
+        "⚠ Geometrie non relaxee : les cycles affiches ne correspondent pas "
+        + "exactement a la solution (reconstruction rapide). "
+        + "Lancez la validation xTB pour une vue exacte.");
+      // Insere le bandeau juste sous l'en-tete, avant la barre de modes.
+      const modal = refs.overlay.querySelector(".molviz-modal");
+      const modeBar = modal && modal.querySelector(".molviz-modebar");
+      if (modal && modeBar) {
+        modal.insertBefore(banner, modeBar);
+      } else if (modal) {
+        modal.insertBefore(banner, modal.children[1] || null);
+      }
+    }
 
     // Affiche le swatch "anomalie" dans la legende uniquement si necessaire
     const anomalyItem = document.querySelector(".legend-anomaly");
