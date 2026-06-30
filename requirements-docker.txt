@@ -1,0 +1,23 @@
+# Dependances Python pour l'image Docker du designer (livrable chimistes).
+#
+# Sous-ensemble de requirements.txt : exclut playwright (generation de
+# figures du memoire, inutile en conteneur, evite d'embarquer Chromium).
+#
+# Prerequis systeme geres par le Dockerfile (pas pip) :
+#   - JRE headless (pour Choco, solveur CSP via pycsp3)
+#   - binaire xtb (validation de planarite)
+
+# === Solveur CSP ===
+pycsp3==2.5.1
+
+# === Graphes et numerique ===
+networkx==3.6.1
+numpy
+
+# === Parsing XML (pycsp3 utilise lxml) ===
+lxml==6.0.4
+
+# === Viewer Flask ===
+flask
+jinja2
+werkzeug

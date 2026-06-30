@@ -19,6 +19,7 @@ Puis ouvrir http://127.0.0.1:8765 dans le navigateur.
 
 import argparse
 import gzip
+import os
 import re
 import sqlite3
 import sys
@@ -417,6 +418,44 @@ def _load_xyz_text(rel: str) -> str | None:
         return None
 
 
+# Path designer d'une solution : .../designer_jobs/<job_id>/sol_.../source.xyz
+_DESIGNER_JOB_RE = re.compile(r"designer_jobs/([^/]+)/")
+
+
+def _load_graph_text(rel: str) -> str | None:
+    """Charge le contenu .graph de la solution designer designee par `rel`.
+
+    `rel` est un chemin de solution (ex. .../designer_jobs/<job>/sol_X/source.xyz).
+    On en extrait le job_id et on lit designer_jobs.graph_content (le .graph
+    DIMACS d'entree, qui contient les lignes 'h' decrivant les hexagones).
+
+    Retourne le texte .graph, ou None si pas un path designer / job absent.
+    Utilise par le viewer pour construire le graphe dual (vue topologique).
+    """
+    rel_norm = rel.replace("\\", "/").lstrip("/")
+    m = _DESIGNER_JOB_RE.search(rel_norm)
+    if not m:
+        return None
+    job_id = m.group(1)
+    try:
+        with db() as conn:
+            has_jobs = conn.execute(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE name='designer_jobs' AND type='table'"
+            ).fetchone()
+            if not has_jobs:
+                return None
+            row = conn.execute(
+                "SELECT graph_content FROM designer_jobs WHERE job_id = ?",
+                (job_id,),
+            ).fetchone()
+    except sqlite3.Error:
+        return None
+    if not row or not row["graph_content"]:
+        return None
+    return row["graph_content"]
+
+
 @app.route("/file")
 def serve_file():
     """Sert un fichier (xyz, json, ...) reference par chemin relatif depuis
@@ -453,25 +492,47 @@ def serve_file():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--db", default=str(_HERE / "db_all.db"))
+    # Defaut : DESIGNER_DB_PATH si definie (mode conteneur, volume /data),
+    # sinon le chemin local historique viewer/db_all.db.
+    ap.add_argument("--db", default=os.getenv("DESIGNER_DB_PATH",
+                                               str(_HERE / "db_all.db")))
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--debug", action="store_true")
+    ap.add_argument(
+        "--designer-only", action="store_true",
+        help="Demarre sans exiger la DB d'exploration h3-h9 (final_solutions, "
+             "configs, ...). Cree juste les tables designer_* dans une DB "
+             "vide/neuve. Usage : livrable conteneurise pour les chimistes, "
+             "qui n'ont besoin que du designer (dessin + CSP + xTB + viz), "
+             "pas de l'explorateur de corpus pre-calcule (DB ~4 GB).",
+    )
     args = ap.parse_args()
     app.config["DB_PATH"] = args.db
     # Branche le blueprint molviz (endpoint /api/mol3d). Il recoit deux
     # callbacks : _resolve_local_path (fs avec reecritures cluster<->local)
     # et _load_xyz_text (fs first + fallback DB xyz_files gzippe).
-    molviz_api.init_app(app, _resolve_local_path, _load_xyz_text)
+    molviz_api.init_app(app, _resolve_local_path, _load_xyz_text,
+                        _load_graph_text)
     # Branche le blueprint designer (page /designer, endpoints /api/designer/*).
-    # Cree au passage la table designer_jobs et le dossier de sortie.
+    # Cree au passage la table designer_jobs et le dossier de sortie, meme
+    # si le fichier DB n'existait pas encore (sqlite3.connect le cree).
     designer_api.init_app(app)
-    if not Path(args.db).is_file():
+    db_exists = Path(args.db).is_file()
+    if not db_exists and not args.designer_only:
         print(f"ERREUR : DB introuvable : {args.db}")
         print("Lance d'abord :")
         print(f"    python {_HERE / 'build_db.py'} --auto-detect")
+        print("(ou demarre avec --designer-only si tu n'as besoin que du "
+              "designer, sans l'explorateur de corpus h3-h9)")
         return
-    print(f"DB    : {args.db}")
+    if args.designer_only and not db_exists:
+        print(f"DB    : {args.db} (neuve, tables designer_* uniquement)")
+        print("Mode designer-only : l'explorateur de corpus (/, /api/datasets, "
+              "/api/molecules, ...) n'affichera aucune donnee. Seul /designer "
+              "est fonctionnel.")
+    else:
+        print(f"DB    : {args.db}")
     print(f"Serve : http://{args.host}:{args.port}")
     app.run(host=args.host, port=args.port, debug=args.debug)
 

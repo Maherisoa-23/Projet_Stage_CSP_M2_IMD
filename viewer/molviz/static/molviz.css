@@ -74,6 +74,13 @@
 
 .molviz-body {
   flex: 1;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+}
+
+.molviz-canvas-wrap {
+  flex: 1;
   position: relative;
   overflow: hidden;
 }
@@ -82,6 +89,56 @@
   position: absolute;
   inset: 0;
   background: #fafafa;
+}
+
+/* Panneau graphe dual (colonne droite, largeur fixe). */
+.molviz-dual {
+  width: 250px;
+  flex-shrink: 0;
+  border-left: 1px solid #e5e7eb;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  padding: 0.6rem 0.5rem;
+  gap: 0.4rem;
+}
+.molviz-dual-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+  text-align: center;
+}
+.molviz-dual-svg {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.molviz-dual-empty {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  text-align: center;
+  padding: 0.5rem;
+}
+.molviz-dual-legend {
+  display: flex;
+  justify-content: center;
+  gap: 0.8rem;
+  font-size: 0.78rem;
+  color: #475569;
+}
+.molviz-dual-leg-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.molviz-dual-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid #00000020;
+  display: inline-block;
 }
 
 .molviz-loading {

@@ -23,6 +23,7 @@ from flask import Blueprint, abort, jsonify, request, send_from_directory
 
 from .bonds import build_mol_graph_from_text
 from .clar import enumerate_clar_covers
+from .dual import build_dual, parse_sizes_from_name
 from .kekule import assign_kekule, enumerate_kekule
 from .rbo import compute_rbo, DEFAULT_MAX_KEKULE
 
@@ -253,7 +254,7 @@ def _compute_rbo_payload(cache_key: str, xyz_text: str, max_count: int) -> dict:
     }
 
 
-def init_app(app, resolve_path_fn, load_xyz_text_fn):
+def init_app(app, resolve_path_fn, load_xyz_text_fn, load_graph_text_fn=None):
     """Branche le blueprint sur l'app Flask.
 
     Args:
@@ -266,6 +267,9 @@ def init_app(app, resolve_path_fn, load_xyz_text_fn):
                            xyz_files, contenu gzippe). Centralisee dans
                            server.py pour partager le meme comportement avec
                            la route /file.
+      load_graph_text_fn : `(rel_path: str) -> str | None`. Charge le .graph
+                           DIMACS de la solution designer (pour /api/dual).
+                           Optionnel : si None, /api/dual renvoie un dual vide.
     """
     def _resolve_xyz_key_and_text():
         """Extrait le param 'path', verifie suffix .xyz, charge le contenu
@@ -317,5 +321,36 @@ def init_app(app, resolve_path_fn, load_xyz_text_fn):
         max_count = _parse_max(default=DEFAULT_MAX_KEKULE,
                                 hard_cap=DEFAULT_MAX_KEKULE)
         return jsonify(_compute_rbo_payload(cache_key, text, max_count))
+
+    @bp.route("/api/dual")
+    def api_dual():
+        """Graphe dual (vue topologique 2D) d'une solution designer.
+
+        Renvoie {available, nodes, edges, sizes_expected} ou {available:False}
+        si le .graph n'est pas accessible (solution non-designer, ou callback
+        load_graph_text_fn absent).
+        """
+        rel = request.args.get("path", "")
+        if not rel:
+            abort(400, description="missing 'path' parameter")
+        cache_key = rel.replace("\\", "/").lstrip("/")
+        sizes = parse_sizes_from_name(cache_key)
+        if load_graph_text_fn is None:
+            return jsonify({"available": False,
+                            "reason": "graph loader indisponible"})
+        graph_text = load_graph_text_fn(cache_key)
+        if not graph_text:
+            return jsonify({"available": False,
+                            "reason": "graphe d'entree introuvable"})
+        dual = build_dual(graph_text, sizes or [])
+        if dual is None:
+            return jsonify({"available": False,
+                            "reason": "dual non constructible"})
+        return jsonify({
+            "available": True,
+            "nodes": dual["nodes"],
+            "edges": dual["edges"],
+            "sizes_expected": sizes,
+        })
 
     app.register_blueprint(bp)

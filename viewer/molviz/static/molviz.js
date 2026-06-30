@@ -97,6 +97,9 @@
   let clarChipRef = null;     // bouton chip "Clar"
   let clarLabelRef = null;    // span "Clar N=..." dans la barre de nav
 
+  // Panneau du graphe dual (SVG 2D, verite topologique de la solution).
+  let dualPanelRef = null;
+
   function el(tag, attrs, ...children) {
     const e = document.createElement(tag);
     if (attrs) {
@@ -146,6 +149,7 @@
     clarStatusRef = null;
     clarChipRef = null;
     clarLabelRef = null;
+    dualPanelRef = null;
     document.removeEventListener("keydown", onKey);
   }
 
@@ -203,12 +207,33 @@
     );
 
     const body = el("div", { class: "molviz-body" });
+    // Zone 3D (flex:1) : wrapper qui contient le canvas 3Dmol + le loader.
+    const canvasWrap = el("div", { class: "molviz-canvas-wrap" });
     const canvas = el("div", { class: "molviz-canvas", id: "molviz-canvas" });
     const loading = el("div", { class: "molviz-loading" },
       el("div", null, "Chargement de la molecule…"),
     );
-    body.appendChild(canvas);
-    body.appendChild(loading);
+    canvasWrap.appendChild(canvas);
+    canvasWrap.appendChild(loading);
+    body.appendChild(canvasWrap);
+
+    // Panneau "graphe dual" (vue topologique 2D, verite de la solution CSP).
+    // Rendu en SVG, independant de la geometrie 3D. Sert a confirmer les
+    // vraies tailles de cycles (5/6/7) meme quand le rendu 3D skip est deforme.
+    const dualPanel = el("div", { class: "molviz-dual", id: "molviz-dual" },
+      el("div", { class: "molviz-dual-title" }, "Graphe dual (solution)"),
+      el("div", { class: "molviz-dual-svg", id: "molviz-dual-svg" }, "—"),
+      el("div", { class: "molviz-dual-legend" },
+        el("span", { class: "molviz-dual-leg-item" },
+          el("span", { class: "molviz-dual-swatch", style: "background:#fed7aa" }), "5"),
+        el("span", { class: "molviz-dual-leg-item" },
+          el("span", { class: "molviz-dual-swatch", style: "background:#cbd5e1" }), "6"),
+        el("span", { class: "molviz-dual-leg-item" },
+          el("span", { class: "molviz-dual-swatch", style: "background:#a5b4fc" }), "7"),
+      ),
+    );
+    body.appendChild(dualPanel);
+    dualPanelRef = dualPanel;
 
     // Barre de modes : chips pour basculer entre les vues
     // (defaut = matching max, kekule = navigation parmi tous les Kekule)
@@ -878,6 +903,75 @@
     rerender();
   }
 
+  // Couleurs des cycles pour le SVG dual (memes teintes que le 3D).
+  function dualCycleColor(size) {
+    if (size === 5) return "#fed7aa";  // orange peche
+    if (size === 6) return "#cbd5e1";  // gris-bleu
+    if (size === 7) return "#a5b4fc";  // indigo clair
+    return "#fde047";                   // jaune (taille inattendue)
+  }
+
+  /** Construit le SVG du graphe dual a partir du payload /api/dual. */
+  function renderDualSvg(dual) {
+    if (!dual || !dual.available || !dual.nodes || dual.nodes.length === 0) {
+      return `<div class="molviz-dual-empty">Graphe dual indisponible
+              (solution non-designer ou graphe d'entree absent).</div>`;
+    }
+    const nodes = dual.nodes;
+    const edges = dual.edges || [];
+    // Bornes pour normaliser dans le viewbox SVG.
+    const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const W = 220, H = 240, PAD = 30, R = 18;
+    const spanX = (maxX - minX) || 1, spanY = (maxY - minY) || 1;
+    const sx = (W - 2 * PAD) / spanX;
+    const sy = (H - 2 * PAD) / spanY;
+    const scale = Math.min(sx, sy);
+    // Centrage
+    const offX = (W - spanX * scale) / 2 - minX * scale;
+    const offY = (H - spanY * scale) / 2 - minY * scale;
+    const px = n => offX + n.x * scale;
+    const py = n => offY + n.y * scale;
+
+    let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" `
+            + `xmlns="http://www.w3.org/2000/svg">`;
+    // Aretes d'abord (sous les noeuds)
+    for (const e of edges) {
+      const a = nodes[e.a], b = nodes[e.b];
+      if (!a || !b) continue;
+      svg += `<line x1="${px(a).toFixed(1)}" y1="${py(a).toFixed(1)}" `
+           + `x2="${px(b).toFixed(1)}" y2="${py(b).toFixed(1)}" `
+           + `stroke="#475569" stroke-width="2" />`;
+    }
+    // Noeuds : cercle colore par taille + label de la taille
+    for (const n of nodes) {
+      const cx = px(n).toFixed(1), cy = py(n).toFixed(1);
+      svg += `<circle cx="${cx}" cy="${cy}" r="${R}" `
+           + `fill="${dualCycleColor(n.size)}" stroke="#1e293b" stroke-width="1.5" />`;
+      svg += `<text x="${cx}" y="${cy}" text-anchor="middle" `
+           + `dominant-baseline="central" font-size="14" font-weight="600" `
+           + `fill="#1e293b">${n.size != null ? n.size : "?"}</text>`;
+    }
+    svg += `</svg>`;
+    return svg;
+  }
+
+  /** Fetch /api/dual et injecte le SVG dans le panneau. Lazy, non bloquant. */
+  async function loadAndRenderDual(xyzRel) {
+    if (!dualPanelRef) return;
+    const svgHost = dualPanelRef.querySelector("#molviz-dual-svg");
+    if (!svgHost) return;
+    try {
+      const r = await fetch(`/api/dual?path=${encodeURIComponent(xyzRel)}`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const dual = await r.json();
+      svgHost.innerHTML = renderDualSvg(dual);
+    } catch (e) {
+      svgHost.innerHTML = `<div class="molviz-dual-empty">Graphe dual indisponible.</div>`;
+    }
+  }
+
   /** Charge un .xyz et ouvre le modal. Accepte deux formes d'info :
    *   - {xyz_path, title, subtitle}   pour ouvrir un xyz arbitraire
    *   - {sol_dir, sol_idx, sizes, verdict}  pour les solutions (retro-compat)
@@ -900,6 +994,8 @@
       return;
     }
     currentXyzRel = xyzRel;
+    // Charge le graphe dual en parallele (non bloquant pour le rendu 3D).
+    loadAndRenderDual(xyzRel);
     let data;
     try {
       const r = await fetch(`/api/mol3d?path=${encodeURIComponent(xyzRel)}`);
