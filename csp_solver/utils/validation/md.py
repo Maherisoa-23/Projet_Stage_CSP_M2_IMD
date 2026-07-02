@@ -35,7 +35,7 @@ class MDStrategy(ValidationStrategy):
     name = "md"
 
     def __init__(self, threshold=10.0, opt_level="tight",
-                 md_params=None, deterministic=True):
+                 md_params=None, deterministic=True, cache_db_path=None):
         """
         Args:
             threshold     : seuil de planarite en degres.
@@ -48,6 +48,10 @@ class MDStrategy(ValidationStrategy):
                             consecutifs IDENTIQUES (verifie par md5). False ->
                             multi-thread plus rapide mais variation minime
                             possible entre runs due aux race conditions SCF.
+            cache_db_path : si fourni, chemin d'une DB sqlite pour le cache
+                            xTB (cf. csp_solver/xtb/cache.py). Evite de
+                            relancer xTB si un source.xyz identique a deja
+                            ete valide. None (defaut) = pas de cache.
         """
         self.threshold = float(threshold)
         self.opt_level = opt_level
@@ -56,6 +60,7 @@ class MDStrategy(ValidationStrategy):
             params.update(md_params)
         self.md_params = params
         self.deterministic = bool(deterministic)
+        self.cache_db_path = cache_db_path
 
     def validate_solutions(self, graph, solutions, output_dir):
         from reconstruction.pipeline import _run_md
@@ -67,6 +72,7 @@ class MDStrategy(ValidationStrategy):
             r = _run_md(graph, sol, i, self.threshold, self.opt_level,
                         output_dir, sol_str,
                         md_params=self.md_params,
-                        deterministic=self.deterministic)
+                        deterministic=self.deterministic,
+                        cache_db_path=self.cache_db_path)
             results.append(r)
         return results

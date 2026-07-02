@@ -76,6 +76,14 @@ CREATE TABLE IF NOT EXISTS designer_xyz_files (
 );
 """
 
+# Colonnes ajoutees apres la creation initiale (juillet 2026, cache xTB
+# partage entre jobs, cf. csp_solver/xtb/cache.py). ALTER TABLE idempotent :
+# on catch l'erreur "duplicate column" plutot que d'inspecter PRAGMA
+# table_info a chaque demarrage (meme pattern que jobs.py::_MIGRATIONS).
+_MIGRATIONS = [
+    "ALTER TABLE designer_solutions ADD COLUMN from_cache INTEGER",
+]
+
 
 def _xyz_files_is_view(conn: sqlite3.Connection) -> bool:
     """Detecte si xyz_files est une VIEW (cas DB run-final migree)
@@ -111,6 +119,12 @@ def init_solutions_table(db_path: str) -> None:
     """Cree designer_solutions et (si absente) xyz_files."""
     with _open_conn(db_path) as conn:
         conn.executescript(_SCHEMA)
+        for stmt in _MIGRATIONS:
+            try:
+                conn.execute(stmt)
+            except sqlite3.OperationalError as e:
+                if "duplicate column" not in str(e).lower():
+                    raise
         conn.commit()
 
 
@@ -142,20 +156,22 @@ def _insert_solution(conn: sqlite3.Connection, job_id: str, sol_name: str,
                      md_xyz_path: Optional[str], md_verdict: str,
                      n_attempts: Optional[int], planar: Optional[bool],
                      angle_deg: Optional[float], rmsd: Optional[float],
-                     height: Optional[float], threshold_deg: float) -> None:
+                     height: Optional[float], threshold_deg: float,
+                     from_cache: Optional[bool] = None) -> None:
     """Helper interne : INSERT OR REPLACE dans designer_solutions."""
     conn.execute(
         "INSERT OR REPLACE INTO designer_solutions ("
         "  job_id, sol_idx, sizes, sol_name,"
         "  source_xyz_path, md_xyz_path,"
         "  md_verdict, n_attempts,"
-        "  planar, angle_deg, rmsd, height, threshold_deg"
-        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "  planar, angle_deg, rmsd, height, threshold_deg, from_cache"
+        ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (job_id, sol_idx, sizes, sol_name,
          source_xyz_path, md_xyz_path,
          md_verdict, n_attempts,
          None if planar is None else int(bool(planar)),
-         angle_deg, rmsd, height, threshold_deg),
+         angle_deg, rmsd, height, threshold_deg,
+         None if from_cache is None else int(bool(from_cache))),
     )
 
 
@@ -172,7 +188,7 @@ def get_job_solutions(db_path: str, job_id: str) -> List[Dict]:
         rows = conn.execute(
             "SELECT sol_idx, sizes, sol_name, source_xyz_path, md_xyz_path,"
             "       md_verdict, n_attempts, planar, angle_deg, rmsd, height,"
-            "       threshold_deg "
+            "       threshold_deg, from_cache "
             "FROM designer_solutions "
             "WHERE job_id = ? "
             "ORDER BY sol_idx ASC",
@@ -183,6 +199,7 @@ def get_job_solutions(db_path: str, job_id: str) -> List[Dict]:
         d = dict(r)
         if d["planar"] is not None:
             d["planar"] = bool(d["planar"])
+        d["from_cache"] = bool(d.get("from_cache"))
         out.append(d)
     return out
 
@@ -318,8 +335,10 @@ def ingest_local_job(db_path: str, job_id: str, output_dir: Path,
                 meta = _read_json_safe(md_dir / "md_meta.json")
                 md_verdict = "unknown"
                 n_attempts: Optional[int] = None
+                from_cache: Optional[bool] = None
                 if meta is not None:
                     n_attempts = meta.get("n_attempts")
+                    from_cache = bool(meta.get("from_cache", False))
                     if meta.get("success") and meta.get("converged"):
                         md_verdict = "md_ok"
                     else:
@@ -345,7 +364,7 @@ def ingest_local_job(db_path: str, job_id: str, output_dir: Path,
                 _insert_solution(conn, job_id, sol_dir.name, sol_idx, sizes,
                                  source_rel, md_rel, md_verdict, n_attempts,
                                  planar, angle_deg, rmsd, height,
-                                 threshold_deg)
+                                 threshold_deg, from_cache=from_cache)
                 n_ingested += 1
             except Exception:
                 # On note l'echec mais on continue avec les autres sols.

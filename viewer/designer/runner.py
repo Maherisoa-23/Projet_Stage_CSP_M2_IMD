@@ -72,6 +72,7 @@ def _setup_imports(project_root: Path) -> Dict:
     mod_assembler = importlib.import_module("reconstruction.assembler")
     mod_xtb_opt = importlib.import_module("csp_solver.xtb.optimizer")
     mod_planarity = importlib.import_module("csp_solver.planarity.pca")
+    mod_xtb_cache = importlib.import_module("csp_solver.xtb.cache")
 
     cache = {
         "plan_mod": mod_planarity,
@@ -80,6 +81,7 @@ def _setup_imports(project_root: Path) -> Dict:
         "export_xyz": mod_assembler.export_xyz,
         "optimize_xtb": mod_xtb_opt.optimize_xtb,
         "read_optimized_coords": mod_xtb_opt.read_optimized_coords,
+        "init_cache_table": mod_xtb_cache.init_cache_table,
     }
     _setup_imports._done = True
     _setup_imports._cache = cache
@@ -271,8 +273,14 @@ def _resolve_preset_flags(config: Dict) -> Dict:
 
 
 def _build_command(python_exe: str, main_py: Path, graph_path: Path,
-                   output_dir: Path, config: Dict) -> list:
-    """Construit la commande subprocess depuis le dict de config."""
+                   output_dir: Path, config: Dict,
+                   cache_db_path: Optional[str] = None) -> list:
+    """Construit la commande subprocess depuis le dict de config.
+
+    cache_db_path : si fourni, ajoute --cache-db (cache xTB partage entre
+        tous les jobs designer, cf. csp_solver/xtb/cache.py). Sans effet
+        pour method="skip" (pas de xTB dans ce mode).
+    """
     config = _resolve_preset_flags(config)
     cmd = [python_exe, str(main_py), str(graph_path)]
 
@@ -322,6 +330,8 @@ def _build_command(python_exe: str, main_py: Path, graph_path: Path,
     cmd.extend(["--output-dir", str(output_dir)])
     if method and method != "skip":
         cmd.extend(["--method", str(method)])
+        if cache_db_path:
+            cmd.extend(["--cache-db", str(cache_db_path)])
     return cmd
 
 
@@ -397,8 +407,18 @@ def run_job(db_path: str, job_id: str, project_root: Path,
     graph_path = output_dir / "input.graph"
     graph_path.write_text(job["graph_content"], encoding="utf-8")
 
+    # Cache xTB (cf. csp_solver/xtb/cache.py) : table dans la meme DB que
+    # les jobs, partagee entre tous les jobs designer. Best-effort : si
+    # l'init echoue, on continue sans cache plutot que de faire echouer
+    # le job pour une optimisation.
+    try:
+        mods = _setup_imports(project_root)
+        mods["init_cache_table"](db_path)
+    except Exception:
+        pass
+
     cmd = _build_command(python_exe, main_py, graph_path, output_dir,
-                          job.get("config", {}))
+                          job.get("config", {}), cache_db_path=db_path)
 
     t_start = time.time()
 

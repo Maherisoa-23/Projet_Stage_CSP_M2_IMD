@@ -289,6 +289,7 @@ tbody tr:last-child td { border-bottom: none; }
 .badge.partial { background: var(--warn-bg); color: var(--warn); }
 .badge.infeasible { background: var(--warn-bg); color: var(--warn); }
 .badge.xtb-failed { background: #e0e7ff; color: #4338ca; }
+.badge.cache-hit { background: #fef9c3; color: #854d0e; margin-left: 0.3rem; }
 
 /* Lignes geometriquement infaisables ou xtb-failed : grisees */
 tr.row-infeasible td,

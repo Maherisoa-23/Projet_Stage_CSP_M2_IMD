@@ -123,7 +123,7 @@ def _run_single(graph, sol, i, threshold, opt_level, output_dir, sol_str):
 
 
 def _run_md(graph, sol, i, threshold, opt_level, output_dir, sol_str,
-            md_params=None, deterministic=True):
+            md_params=None, deterministic=True, cache_db_path=None):
     """1 run protocole MD + opt finale (Yannick Carissan).
 
     Reconstruit la molecule (variante 0), ecrit source.xyz, puis lance
@@ -138,6 +138,16 @@ def _run_md(graph, sol, i, threshold, opt_level, output_dir, sol_str,
     Le test de planarite est fait sur md_final_opt.xyz.
     Si deterministic=True (defaut), xTB tourne en single-thread pour
     reproductibilite parfaite entre runs.
+
+    Si cache_db_path est fourni, cherche d'abord un resultat deja calcule
+    pour ce source.xyz + ces parametres (cf. csp_solver/xtb/cache.py) :
+    la reconstruction 3D et le protocole det-opt sont tous deux
+    byte-deterministes, donc deux solutions identiques (meme graphe +
+    meme substitution) produisent le meme source.xyz et sont garanties
+    de donner le meme resultat xTB. En cas de hit, on ecrit directement
+    md_final_opt.xyz depuis le cache et on saute l'appel xTB (le plus
+    couteux du pipeline). En cas de miss, le calcul est lance normalement
+    puis le resultat est stocke pour les prochains hits.
     """
     sizes_str = "_".join(str(sol[v]) for v in sorted(sol.keys()))
     sol_dir = output_dir / f"sol_{i}_{sizes_str}"
@@ -157,14 +167,55 @@ def _run_md(graph, sol, i, threshold, opt_level, output_dir, sol_str,
     md_dir = sol_dir / "md_validation"
 
     # Import local pour eviter de charger optimizer_md si la strategy
-    # MD n'est pas utilisee.
+    # MD n'est pas utilisee. DEFAULT_PERTURB_PARAMS vient de det_opt.py
+    # directement : le shim retro-compat xtb/md.py ne le re-exporte pas.
     from csp_solver.xtb.md import md_then_optimize
+    from csp_solver.xtb.det_opt import DEFAULT_PERTURB_PARAMS
 
-    success, final_xyz, info = md_then_optimize(
-        str(source_path), str(md_dir),
-        params=md_params, opt_level=opt_level,
-        deterministic=deterministic,
-    )
+    cache_key = None
+    cached = None
+    if cache_db_path:
+        from csp_solver.xtb import cache as xtb_cache
+        perturb_params = dict(DEFAULT_PERTURB_PARAMS)
+        if md_params:
+            perturb_params.update({k: v for k, v in md_params.items()
+                                   if k in ("amplitude", "phase", "mode", "seed")})
+        source_text = source_path.read_text(encoding="utf-8")
+        cache_key = xtb_cache.compute_cache_key(source_text, opt_level, perturb_params)
+        try:
+            cached = xtb_cache.lookup(cache_db_path, cache_key)
+        except Exception:
+            cached = None  # cache indisponible (DB verrouillee, etc.) : on retombe sur xTB
+
+    if cached is not None:
+        md_dir.mkdir(parents=True, exist_ok=True)
+        final_path = md_dir / "md_final_opt.xyz"
+        final_path.write_text(cached["xyz_text"], encoding="utf-8")
+        success = True
+        final_xyz = final_path
+        info = {
+            "method": "det-opt",
+            "params": {},
+            "deterministic": deterministic,
+            "converged": cached["converged"],
+            "trajectory_file": None,
+            "final_opt_file": final_path.name,
+            "message": "Resultat repris du cache (solution identique deja calculee)",
+            "attempts": [],
+            "n_attempts": 0,
+            "n_frames": 2,
+            "expected_frames": 2,
+            "from_cache": True,
+        }
+        print(f"  Cache HIT : resultat xTB repris (source.xyz identique)")
+    else:
+        success, final_xyz, info = md_then_optimize(
+            str(source_path), str(md_dir),
+            params=md_params, opt_level=opt_level,
+            deterministic=deterministic,
+        )
+        info["from_cache"] = False
+
     # Persistance des metadonnees du run MD (retries, frames, etc.) dans
     # md_validation/md_meta.json. aggregate_md.py les relit pour les
     # surfacer dans data.json (cles 'n_attempts', 'attempts', 'n_frames').
@@ -183,6 +234,7 @@ def _run_md(graph, sol, i, threshold, opt_level, output_dir, sol_str,
             "converged": info.get("converged"),
             "deterministic": info.get("deterministic"),
             "message": info.get("message", ""),
+            "from_cache": info.get("from_cache", False),
         }
         meta_path.write_text(_json.dumps(meta, indent=2, ensure_ascii=False),
                              encoding="utf-8")
@@ -209,6 +261,22 @@ def _run_md(graph, sol, i, threshold, opt_level, output_dir, sol_str,
     n_att = info.get("n_attempts", 1)
     retry_note = f" [{n_att} tentatives]" if n_att and n_att > 1 else ""
     print(f"  MD + opt : {status} {'(converge)' if info['converged'] else '(non converge)'}{retry_note}")
+
+    # Alimente le cache seulement pour un calcul frais (pas la peine de
+    # re-stocker un hit) : angle + XYZ optimise, associes a cache_key.
+    if not info.get("from_cache") and cache_db_path and cache_key:
+        try:
+            from csp_solver.xtb import cache as xtb_cache
+            xtb_cache.store(
+                cache_db_path, cache_key,
+                Path(final_xyz).read_text(encoding="utf-8"),
+                angle_deg=plan["angle_deg"],
+                converged=info.get("converged", False),
+                source_sol_name=sol_dir.name,
+                opt_level=opt_level,
+            )
+        except Exception:
+            pass  # le cache est une acceleration best-effort, jamais bloquant
 
     return {
         "index": i,
@@ -272,7 +340,8 @@ def _run_multi(graph, sol, i, threshold, opt_level, output_dir, sol_str, n_runs)
 def reconstruct_and_validate(graph: BenzenoidGraph, solutions: list,
                              threshold=10.0, opt_level="tight",
                              output_dir=None, n_runs=1, method="md",
-                             md_params=None, md_deterministic=True):
+                             md_params=None, md_deterministic=True,
+                             cache_db_path=None):
     """Pour chaque solution CSP, reconstruit la molecule et la valide.
 
     La validation est deleguee a une 'strategy' selectionnee par le parametre
@@ -289,6 +358,11 @@ def reconstruct_and_validate(graph: BenzenoidGraph, solutions: list,
         avec selection de la meilleure variante multi-blocs ; si n_runs>1,
         structure sol_X/run_NN_opt.xyz avec stats calculees par aggregate_runs.py.
       - autres a venir : voir utils.validation.list_strategies().
+
+    cache_db_path : si fourni (et method="md"), active le cache xTB
+        (cf. csp_solver/xtb/cache.py) -- evite de relancer xTB pour une
+        solution deja calculee (meme source.xyz + memes parametres).
+        Ignore pour les autres strategies.
     """
     if output_dir is None:
         output_dir = Path(__file__).parent.parent / "output" / "molecules"
@@ -318,6 +392,8 @@ def reconstruct_and_validate(graph: BenzenoidGraph, solutions: list,
         if md_params is not None:
             strategy_kwargs["md_params"] = md_params
         strategy_kwargs["deterministic"] = md_deterministic
+        if cache_db_path is not None:
+            strategy_kwargs["cache_db_path"] = cache_db_path
     strategy = get_strategy(method, **strategy_kwargs)
 
     results = strategy.validate_solutions(graph, solutions, output_dir)

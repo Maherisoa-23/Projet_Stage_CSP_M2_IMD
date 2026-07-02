@@ -634,6 +634,9 @@ function renderJobSolTable() {
     } else {
       badge = `<span class="badge infeasible" title="Planarite non calculee">—</span>`;
     }
+    if (s.from_cache) {
+      badge += ` <span class="badge cache-hit" title="Solution identique deja calculee : resultat repris du cache, xTB non relance">⚡ cache</span>`;
+    }
 
     angleCell = (s.angle_deg != null) ? s.angle_deg.toFixed(3) + "°" : "—";
     rmsdCell = (s.rmsd != null) ? s.rmsd.toFixed(4) : "—";

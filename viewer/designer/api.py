@@ -423,6 +423,7 @@ def _build_sol_dict_from_db(row):
         "rmsd": row.get("rmsd"),
         "height": row.get("height"),
         "verdict": _compute_verdict(md_verdict, planar),
+        "from_cache": bool(row.get("from_cache")),
     }
 
 
@@ -541,11 +542,13 @@ def api_job_solutions(job_id: str):
         # md_verdict + n_attempts depuis md_meta.json
         md_verdict = "unknown"
         n_attempts = None
+        from_cache = False
         meta_file = md_dir / "md_meta.json"
         if meta_file.is_file():
             try:
                 meta = json.loads(meta_file.read_text(encoding="utf-8"))
                 n_attempts = meta.get("n_attempts")
+                from_cache = bool(meta.get("from_cache", False))
                 if meta.get("success") and meta.get("converged"):
                     md_verdict = "md_ok"
                 else:
@@ -604,6 +607,7 @@ def api_job_solutions(job_id: str):
             "rmsd": rmsd,
             "height": height,
             "verdict": verdict,
+            "from_cache": from_cache,
         })
 
     # Compteurs agreges pour les badges du frontend
@@ -661,5 +665,8 @@ def init_app(app):
         jobs.init_jobs_table(db_path)
         solutions_db.init_solutions_table(db_path)
         collections_mod.init_collections_table(db_path)
+        # xtb_cache (table du cache xTB) est initialisee depuis runner.py,
+        # qui a deja acces a csp_solver.* via _setup_imports (sys.path pas
+        # encore configure a ce stade du demarrage serveur).
     _designer_output_root().mkdir(parents=True, exist_ok=True)
     app.register_blueprint(bp)

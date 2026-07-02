@@ -59,6 +59,15 @@ if "--method" in _own_argv:
 # (plus rapide mais runs non-reproductibles -- xTB n'a pas de seed pour MD).
 md_deterministic = "--md-no-deterministic" not in _own_argv
 
+# Cache xTB (cf. csp_solver/xtb/cache.py) : optionnel, evite de relancer xTB
+# pour une solution deja calculee (meme source.xyz + memes parametres).
+# Utilise par le designer web (viewer/designer/runner.py) qui connait
+# toujours son db_path ; absent en CLI pur (pas de dependance sqlite forcee).
+cache_db_path = None
+if "--cache-db" in _own_argv:
+    idx = _own_argv.index("--cache-db")
+    if idx + 1 < len(_own_argv):
+        cache_db_path = _own_argv[idx + 1]
 
 # --- Contraintes additionnelles (issues d'experiments_v2/v3) ---
 # Toutes optionnelles : None = desactivees.
@@ -168,6 +177,7 @@ def main():
         print("                          mais runs non-reproductibles ; defaut deterministe)")
         print("  --solver S    : solveur CSP, 'choco' (defaut) ou 'ace' (LEGACY)")
         print("                  Choco est par defaut depuis juin 2026 (cf. doc/choco_vs_ace)")
+        print("  --cache-db PATH : active le cache xTB dans cette DB sqlite (methode md)")
         print("Exemple: python main.py data/first.graph --validate --n-runs 10")
         print("Exemple: python main.py data/first.graph --validate --method md")
         sys.exit(1)
@@ -291,10 +301,14 @@ def main():
     if do_validate and solutions:
         print()
         print("=== Validation xTB + planarite ===")
+        if cache_db_path:
+            from csp_solver.xtb.cache import init_cache_table
+            init_cache_table(cache_db_path)
         from reconstruction import reconstruct_and_validate
         reconstruct_and_validate(graph, solutions, output_dir=output_dir,
                                  n_runs=n_runs, method=method,
-                                 md_deterministic=md_deterministic)
+                                 md_deterministic=md_deterministic,
+                                 cache_db_path=cache_db_path)
 
 
 if __name__ == "__main__":
