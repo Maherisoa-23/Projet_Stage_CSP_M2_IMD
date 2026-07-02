@@ -15,11 +15,13 @@ Cache LRU 256 entrees (~2 MB max) pour eviter de recalculer matching +
 cycles a chaque clic sur la meme molecule.
 """
 
+import io
 import re
+import zipfile
 from functools import lru_cache
 from pathlib import Path
 
-from flask import Blueprint, abort, jsonify, request, send_from_directory
+from flask import Blueprint, abort, jsonify, request, send_file, send_from_directory
 
 from .bonds import build_mol_graph_from_text
 from .clar import enumerate_clar_covers
@@ -321,6 +323,81 @@ def init_app(app, resolve_path_fn, load_xyz_text_fn, load_graph_text_fn=None):
         max_count = _parse_max(default=DEFAULT_MAX_KEKULE,
                                 hard_cap=DEFAULT_MAX_KEKULE)
         return jsonify(_compute_rbo_payload(cache_key, text, max_count))
+
+    def _xyz_download_name(rel_path: str) -> str:
+        """Derive un nom de fichier .xyz lisible depuis un chemin relatif.
+
+        Le chemin type est ".../designer_jobs/<job>/sol_3_5_6_7/source.xyz"
+        (peu parlant si on garde juste "source.xyz" ou "md_final_opt.xyz").
+        On prefixe par le nom du dossier de solution (sol_3_5_6_7) quand il
+        est disponible, sinon on retombe sur le nom du fichier seul.
+        """
+        p = Path(rel_path.replace("\\", "/"))
+        stem = p.stem  # "source" ou "md_final_opt"
+        parent_name = p.parent.name  # ex. "sol_3_5_6_7", ou "" si racine
+        if parent_name and parent_name.lower() not in ("", "."):
+            return f"{parent_name}_{stem}.xyz"
+        return p.name
+
+    @bp.route("/api/xyz_export")
+    def api_xyz_export():
+        """Exporte un ou plusieurs .xyz : telechargement direct si un seul
+        chemin, sinon un .zip construit en memoire.
+
+        Query params :
+          path     : chemin relatif d'un .xyz. Repetable (?path=a&path=b).
+          filename : nom du zip a produire (optionnel, sinon "export.zip").
+
+        Reutilise load_xyz_text_fn (meme resolution fs/DB que /api/mol3d),
+        donc aucun acces filesystem direct ici -- la validation de chemin
+        (suffixe .xyz, existence) est deleguee au meme point que le reste
+        du module.
+        """
+        rels = request.args.getlist("path")
+        if not rels:
+            abort(400, description="missing 'path' parameter (repeatable)")
+        if len(rels) > 500:
+            abort(400, description="too many paths (max 500)")
+
+        entries = []  # [(download_name, xyz_text)]
+        for rel in rels:
+            cache_key = rel.replace("\\", "/").lstrip("/")
+            if not cache_key.lower().endswith(".xyz"):
+                continue  # ignore silencieusement les paths invalides du lot
+            text = load_xyz_text_fn(cache_key)
+            if text is None:
+                continue  # idem pour les fichiers introuvables
+            entries.append((_xyz_download_name(cache_key), text))
+
+        if not entries:
+            abort(404, description="no exportable .xyz found for given paths")
+
+        if len(entries) == 1:
+            name, text = entries[0]
+            buf = io.BytesIO(text.encode("utf-8"))
+            return send_file(buf, mimetype="chemical/x-xyz",
+                             as_attachment=True, download_name=name)
+
+        # Plusieurs fichiers : zip en memoire. Deduplique les noms (au cas
+        # ou deux chemins differents produiraient le meme download_name).
+        zip_buf = io.BytesIO()
+        seen_names = {}
+        with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for name, text in entries:
+                if name in seen_names:
+                    seen_names[name] += 1
+                    stem = name[:-4] if name.lower().endswith(".xyz") else name
+                    name = f"{stem}_{seen_names[name]}.xyz"
+                else:
+                    seen_names[name] = 0
+                zf.writestr(name, text)
+        zip_buf.seek(0)
+
+        zip_name = request.args.get("filename") or "export.zip"
+        if not zip_name.lower().endswith(".zip"):
+            zip_name += ".zip"
+        return send_file(zip_buf, mimetype="application/zip",
+                         as_attachment=True, download_name=zip_name)
 
     @bp.route("/api/dual")
     def api_dual():

@@ -100,6 +100,9 @@
   // Panneau du graphe dual (SVG 2D, verite topologique de la solution).
   let dualPanelRef = null;
 
+  // Lien de telechargement du .xyz de la molecule courante (header du modal).
+  let exportLinkRef = null;
+
   function el(tag, attrs, ...children) {
     const e = document.createElement(tag);
     if (attrs) {
@@ -150,6 +153,7 @@
     clarChipRef = null;
     clarLabelRef = null;
     dualPanelRef = null;
+    exportLinkRef = null;
     document.removeEventListener("keydown", onKey);
   }
 
@@ -200,9 +204,19 @@
     const overlay = el("div", { class: "molviz-overlay" });
     const modal = el("div", { class: "molviz-modal", onclick: (e) => e.stopPropagation() });
 
+    const exportLink = el("a", {
+      class: "molviz-export",
+      id: "molviz-export-link",
+      title: "Telecharger le fichier .xyz de cette molecule",
+      download: "",
+      href: "#",
+    }, "⬇ .xyz");
+    exportLinkRef = exportLink;
+
     const header = el("div", { class: "molviz-header" },
       el("div", { class: "title" }, buildHeaderTitle(info)),
       el("div", { class: "meta", id: "molviz-meta" }, "—"),
+      exportLink,
       el("button", { class: "molviz-close", title: "Fermer (Esc)", onclick: close }, "✕"),
     );
 
@@ -994,6 +1008,11 @@
       return;
     }
     currentXyzRel = xyzRel;
+    // Lien de telechargement direct : le navigateur gere le download via
+    // Content-Disposition, pas besoin de fetch cote JS.
+    if (exportLinkRef) {
+      exportLinkRef.href = `/api/xyz_export?path=${encodeURIComponent(xyzRel)}`;
+    }
     // Charge le graphe dual en parallele (non bloquant pour le rendu 3D).
     loadAndRenderDual(xyzRel);
     let data;

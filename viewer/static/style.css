@@ -230,6 +230,26 @@ main {
 .toolbar input { flex: 1; min-width: 250px; }
 .toolbar label { font-size: 0.9rem; color: var(--muted); }
 
+.btn-export {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-export:hover:not(:disabled) { background: var(--primary-dark); }
+.btn-export:disabled { background: var(--muted); cursor: not-allowed; opacity: 0.6; }
+
+/* Case a cocher de la colonne export : centree, un peu d'espace autour. */
+#job-sol-table-wrap td:first-child,
+#job-sol-table-wrap th:first-child {
+  text-align: center;
+  width: 2.2rem;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

@@ -450,6 +450,7 @@ async function loadJobView(jobId) {
   state.jobSolutions = [];
   state.jobOriginal = null;
   state.jobCounts = null;
+  jobSolSelection.clear();  // nouvelle vue job -> selection d'export reinitialisee
   setView("job");
   $("#job-title").textContent = `Job designer #${jobId}`;
   $("#job-meta").innerHTML = '<div class="item"><span class="muted">Chargement…</span></div>';
@@ -581,6 +582,11 @@ function filteredJobSolutions() {
   return sols;
 }
 
+// Selection courante pour l'export zip (cles = best_xyz_path). Reinitialisee
+// a chaque changement de job (cf. loadJobView) mais PAS a chaque re-render
+// du tableau (filtre/recherche), pour que la selection survive un filtrage.
+const jobSolSelection = new Set();
+
 function renderJobSolTable() {
   const wrap = $("#job-sol-table-wrap");
   const sols = filteredJobSolutions();
@@ -593,12 +599,14 @@ function renderJobSolTable() {
     } else {
       wrap.innerHTML = `<div class="empty">Aucune solution ne correspond au filtre.</div>`;
     }
+    updateJobExportBar();
     return;
   }
 
-  // Colonnes alignees sur view-mol : Sol_idx, Sizes, Verdict, Angle, RMSD,
-  // Height, Tentatives MD, Vue 3D. Verdict = plan/non_plan/md_failed/unknown.
+  // Colonnes alignees sur view-mol + case a cocher (export) en tete.
+  // Verdict = plan/non_plan/md_failed/unknown.
   let h = `<table><thead><tr>
+    <th><input type="checkbox" id="job-sol-select-all" title="Tout selectionner"></th>
     <th>Sol_idx</th>
     <th>Sizes</th>
     <th>Verdict</th>
@@ -632,7 +640,12 @@ function renderJobSolTable() {
       ? `<button class="btn-3d" data-path="${s.best_xyz_path}" data-name="${s.name}" data-sizes="${sizesDisplay}" data-verdict="${s.verdict}">3D</button>`
       : `<span class="muted">—</span>`;
 
+    const checkCell = s.best_xyz_path
+      ? `<input type="checkbox" class="job-sol-check" data-path="${s.best_xyz_path}"${jobSolSelection.has(s.best_xyz_path) ? " checked" : ""}>`
+      : `<input type="checkbox" disabled title="Pas de fichier .xyz pour cette solution">`;
+
     h += `<tr${rowClass ? ` class="${rowClass}"` : ""}>
+      <td>${checkCell}</td>
       <td><strong>${s.sol_idx}</strong></td>
       <td><code>${sizesDisplay}</code></td>
       <td>${badge}</td>
@@ -656,6 +669,52 @@ function renderJobSolTable() {
       });
     });
   });
+
+  wrap.querySelectorAll(".job-sol-check").forEach((cb) => {
+    cb.addEventListener("change", () => {
+      if (cb.checked) jobSolSelection.add(cb.dataset.path);
+      else jobSolSelection.delete(cb.dataset.path);
+      updateJobExportBar();
+    });
+  });
+
+  // "Tout selectionner" ne porte que sur les lignes actuellement visibles
+  // (apres filtre) : coherent avec ce que l'utilisateur voit a l'ecran.
+  const selectAll = $("#job-sol-select-all");
+  const visiblePaths = sols.map((s) => s.best_xyz_path).filter(Boolean);
+  selectAll.checked = visiblePaths.length > 0 && visiblePaths.every((p) => jobSolSelection.has(p));
+  selectAll.addEventListener("change", () => {
+    for (const p of visiblePaths) {
+      if (selectAll.checked) jobSolSelection.add(p);
+      else jobSolSelection.delete(p);
+    }
+    renderJobSolTable();
+  });
+
+  updateJobExportBar();
+}
+
+/** Met a jour le compteur + l'etat du bouton "Exporter la selection". */
+function updateJobExportBar() {
+  const bar = $("#job-export-bar");
+  const countEl = $("#job-export-count");
+  const btn = $("#job-export-btn");
+  if (!bar) return;
+  const n = jobSolSelection.size;
+  bar.classList.toggle("hidden", n === 0);
+  if (countEl) countEl.textContent = `${n} solution${n > 1 ? "s" : ""} selectionnee${n > 1 ? "s" : ""}`;
+  if (btn) btn.disabled = n === 0;
+}
+
+/** Construit l'URL /api/xyz_export pour la selection courante et declenche
+ *  le telechargement (navigation directe : Content-Disposition fait le reste).
+ */
+function exportJobSelection() {
+  if (jobSolSelection.size === 0) return;
+  const params = new URLSearchParams();
+  for (const p of jobSolSelection) params.append("path", p);
+  params.set("filename", `job_${state.jobId}_export`);
+  window.location.href = `/api/xyz_export?${params.toString()}`;
 }
 
 // ===== Pagination =====
@@ -764,6 +823,7 @@ $("#job-sol-filter").addEventListener("change", (e) => {
   state.jobSolFilter = e.target.value;
   renderJobSolTable();
 });
+$("#job-export-btn").addEventListener("click", exportJobSelection);
 
 // ===== Initial load =====
 (async () => {
