@@ -466,6 +466,10 @@ async function loadJobView(jobId) {
     state.jobSolutions = sols.solutions || [];
     state.jobOriginal = sols.original || null;
     state.jobCounts = sols.counts || null;
+    // Titre : nom personnalise si defini (page "Mes tests"), sinon #job_id.
+    $("#job-title").textContent = job.name
+      ? `${job.name} (#${jobId})`
+      : `Job designer #${jobId}`;
     renderJobMeta(job);
     renderJobOriginal(state.jobOriginal);
     renderJobSolTable();

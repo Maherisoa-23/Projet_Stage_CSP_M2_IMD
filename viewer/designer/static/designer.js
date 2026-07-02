@@ -984,7 +984,6 @@
         runner.pollTimer = null;
         hideLoadingModal();
         showResultModal(job);
-        refreshRecentJobs();
         return;
       }
     } catch (e) {
@@ -1168,51 +1167,6 @@
   }
 
   // ====================================================================
-  //  Recent jobs panel
-  // ====================================================================
-
-  async function refreshRecentJobs() {
-    try {
-      const r = await fetch("/api/designer/jobs");
-      const data = await r.json();
-      const list = data.jobs || [];
-      const panel = document.getElementById("recent-jobs-list");
-      if (list.length === 0) {
-        panel.innerHTML = '<p class="dz-muted">Aucun job recent</p>';
-        return;
-      }
-      panel.innerHTML = "";
-      for (const j of list.slice(0, 10)) {
-        const item = document.createElement("div");
-        item.className = "dz-job-item";
-        const left = document.createElement("span");
-        left.className = "dz-job-id";
-        left.textContent = `#${j.job_id}`;
-        const right = document.createElement("span");
-        right.className = `dz-job-state ${j.state}`;
-        right.textContent = j.state;
-        item.appendChild(left);
-        item.appendChild(right);
-        // Clic sur un job success/failed pour rouvrir son modal de resultats
-        if (["success", "failed", "cancelled"].includes(j.state)) {
-          item.style.cursor = "pointer";
-          item.title = "Cliquer pour rouvrir les resultats";
-          item.addEventListener("click", async () => {
-            try {
-              const r = await fetch(`/api/designer/jobs/${j.job_id}`);
-              const job = await r.json();
-              showResultModal(job);
-            } catch (e) { /* ignore */ }
-          });
-        }
-        panel.appendChild(item);
-      }
-    } catch (e) {
-      console.warn("recent jobs failed", e);
-    }
-  }
-
-  // ====================================================================
   //  Boot
   // ====================================================================
 
@@ -1242,7 +1196,6 @@
     initFileImport();
     loadConfigPanel();
     loadTemplates();
-    refreshRecentJobs();
     onHexesChanged();
     updateStatus("Pret. Clic pour ajouter un hexagone.");
 

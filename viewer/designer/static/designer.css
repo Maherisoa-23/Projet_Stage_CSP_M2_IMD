@@ -420,30 +420,18 @@ body {
   font-size: 0.95rem;
 }
 
-.dz-recent-jobs {
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  padding: 0.4rem 0.7rem;
+/* Lien vers la page "Mes tests" (organisation des jobs designer),
+ * remplace l'ancien panneau replie "Jobs recents". */
+.dz-tests-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  text-align: center;
+  text-decoration: none;
   font-size: 0.85rem;
 }
-.dz-recent-jobs summary {
-  cursor: pointer;
-  font-weight: 600;
-  color: #4b5563;
-  padding: 0.2rem 0;
-}
-.dz-job-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.3rem 0;
-  border-top: 1px solid #f3f4f6;
-  font-size: 0.78rem;
-}
-.dz-job-id {
-  font-family: ui-monospace, monospace;
-  color: #6b7280;
-}
+
 .dz-job-state {
   padding: 0.1rem 0.4rem;
   border-radius: 3px;

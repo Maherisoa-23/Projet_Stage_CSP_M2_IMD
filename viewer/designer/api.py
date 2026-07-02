@@ -24,6 +24,7 @@ from typing import Optional
 
 from flask import Blueprint, abort, jsonify, render_template, request, current_app
 
+from . import collections as collections_mod
 from . import graph_io, jobs, runner, solutions_db
 from .csp_presets import (
     CSP_PRESETS_CANONICAL,
@@ -230,9 +231,24 @@ def api_run():
 
 @bp.route("/api/designer/jobs")
 def api_jobs_list():
-    """Liste les jobs recents (limite a 50)."""
+    """Liste les jobs, avec filtres optionnels pour la page 'Mes tests'.
+
+    Query params (tous optionnels) :
+      collection_id : ne retourne que les jobs de cette collection.
+      unfiled       : "1" -> ne retourne que les jobs sans collection
+                       (prioritaire sur collection_id).
+      search        : filtre sur name/job_id (substring, insensible casse).
+      limit         : defaut 50 (comportement historique inchange si aucun
+                       filtre n'est passe).
+    """
     db_path = current_app.config["DB_PATH"]
-    return jsonify({"jobs": jobs.list_jobs(db_path, limit=50)})
+    limit = request.args.get("limit", 50, type=int)
+    collection_id = request.args.get("collection_id")
+    unfiled = request.args.get("unfiled") == "1"
+    search = request.args.get("search") or None
+    result = jobs.list_jobs(db_path, limit=limit, collection_id=collection_id,
+                            search=search, unfiled_only=unfiled)
+    return jsonify({"jobs": result})
 
 
 @bp.route("/api/designer/jobs/<job_id>")
@@ -248,12 +264,118 @@ def api_job_status(job_id: str):
     return jsonify(job)
 
 
+@bp.route("/api/designer/jobs/<job_id>", methods=["PATCH"])
+def api_job_update(job_id: str):
+    """Renomme un job et/ou le deplace vers une collection.
+
+    Body JSON : {"name": "..."} et/ou {"collection_id": "..." | null}.
+    collection_id=null remet le job en "non classe". Ni l'un ni l'autre
+    champ n'est obligatoire (on ne met a jour que ce qui est fourni), mais
+    au moins un des deux doit etre present.
+    """
+    db_path = current_app.config["DB_PATH"]
+    if jobs.get_job(db_path, job_id) is None:
+        abort(404, description="job not found")
+    data = request.get_json(silent=True) or {}
+    fields = {}
+    if "name" in data:
+        name = data["name"]
+        fields["name"] = (name or "").strip()[:200] or None
+    if "collection_id" in data:
+        coll_id = data["collection_id"]
+        if coll_id is not None and collections_mod.get_collection(db_path, coll_id) is None:
+            abort(400, description="collection not found")
+        fields["collection_id"] = coll_id
+    if not fields:
+        abort(400, description="no updatable field provided (name, collection_id)")
+    jobs.update_job(db_path, job_id, **fields)
+    return jsonify(jobs.get_job(db_path, job_id))
+
+
+@bp.route("/api/designer/jobs/<job_id>", methods=["DELETE"])
+def api_job_delete(job_id: str):
+    """Supprime un job : ligne DB + dossier de sortie (.xyz generes) sur disque."""
+    db_path = current_app.config["DB_PATH"]
+    ok = jobs.delete_job(db_path, job_id)
+    if not ok:
+        abort(404, description="job not found")
+    return jsonify({"ok": True})
+
+
 @bp.route("/api/designer/jobs/<job_id>/cancel", methods=["POST"])
 def api_job_cancel(job_id: str):
     """Tente d'annuler un job en cours."""
     db_path = current_app.config["DB_PATH"]
     ok = runner.cancel_job(db_path, job_id)
     return jsonify({"ok": ok})
+
+
+# =====================================================================
+#  Collections (regroupement de jobs, page "Mes tests")
+# =====================================================================
+
+@bp.route("/api/designer/collections")
+def api_collections_list():
+    """Liste toutes les collections avec leur nombre de jobs, plus le
+    compte des jobs non classes (unfiled_count) pour l'affichage du
+    pseudo-dossier "Non classes" dans l'UI.
+    """
+    db_path = current_app.config["DB_PATH"]
+    return jsonify({
+        "collections": collections_mod.list_collections(db_path),
+        "unfiled_count": collections_mod.count_unfiled_jobs(db_path),
+    })
+
+
+@bp.route("/api/designer/collections", methods=["POST"])
+def api_collections_create():
+    """Cree une nouvelle collection. Body JSON : {"name": "...", "description": "..."}."""
+    db_path = current_app.config["DB_PATH"]
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    if not name:
+        abort(400, description="'name' is required")
+    description = (data.get("description") or "").strip() or None
+    coll_id = collections_mod.create_collection(db_path, name[:200], description)
+    return jsonify(collections_mod.get_collection(db_path, coll_id)), 201
+
+
+@bp.route("/api/designer/collections/<coll_id>", methods=["PATCH"])
+def api_collections_update(coll_id: str):
+    """Renomme / modifie la description d'une collection."""
+    db_path = current_app.config["DB_PATH"]
+    if collections_mod.get_collection(db_path, coll_id) is None:
+        abort(404, description="collection not found")
+    data = request.get_json(silent=True) or {}
+    fields = {}
+    if "name" in data:
+        name = (data["name"] or "").strip()
+        if not name:
+            abort(400, description="'name' cannot be empty")
+        fields["name"] = name[:200]
+    if "description" in data:
+        fields["description"] = (data["description"] or "").strip() or None
+    if not fields:
+        abort(400, description="no updatable field provided (name, description)")
+    collections_mod.update_collection(db_path, coll_id, **fields)
+    return jsonify(collections_mod.get_collection(db_path, coll_id))
+
+
+@bp.route("/api/designer/collections/<coll_id>", methods=["DELETE"])
+def api_collections_delete(coll_id: str):
+    """Supprime une collection. Les jobs qu'elle contenait redeviennent
+    'non classes' (collection_id -> NULL), ils ne sont PAS supprimes."""
+    db_path = current_app.config["DB_PATH"]
+    ok = collections_mod.delete_collection(db_path, coll_id)
+    if not ok:
+        abort(404, description="collection not found")
+    return jsonify({"ok": True})
+
+
+@bp.route("/tests")
+def page_tests():
+    """Page 'Mes tests' : organisation des jobs designer en collections."""
+    return render_template("tests.html")
 
 
 def _compute_verdict(md_verdict, planar):
@@ -531,11 +653,13 @@ def init_app(app):
     """Branche le blueprint sur l'app Flask.
 
     Doit etre appele apres app.config['DB_PATH'] = ...
-    Cree la table designer_jobs et le dossier de sortie au passage.
+    Cree les tables designer_jobs / designer_collections et le dossier
+    de sortie au passage.
     """
     db_path = app.config.get("DB_PATH")
     if db_path:
         jobs.init_jobs_table(db_path)
         solutions_db.init_solutions_table(db_path)
+        collections_mod.init_collections_table(db_path)
     _designer_output_root().mkdir(parents=True, exist_ok=True)
     app.register_blueprint(bp)

@@ -17,6 +17,13 @@ que le reste du viewer, pour eviter de multiplier les fichiers) :
     duration_s    : temps d'execution en secondes (set a la fin)
     pid           : PID du subprocess (pour cancel), sinon NULL
     summary_json  : resume des resultats (json : n_solutions, n_plans, ...)
+    name          : nom personnalise donne par l'utilisateur (nullable ;
+                    retombe sur "#job_id" cote affichage si NULL)
+    collection_id : FK vers designer_collections.id (nullable ; NULL =
+                    "Non classes" cote UI). Pas de contrainte FK stricte
+                    en SQLite ici -- coherence geree cote applicatif
+                    (delete_collection remet collection_id a NULL plutot
+                    que de cascader la suppression des jobs).
 
 Cycle de vie typique :
     pending -> running -> success
@@ -28,7 +35,8 @@ API principale :
     create_job(db_path, graph_content, config) -> job_id
     get_job(db_path, job_id) -> dict | None
     update_job(db_path, job_id, **fields)
-    list_jobs(db_path, limit=50) -> list[dict]
+    list_jobs(db_path, limit=50, collection_id=None, search=None) -> list[dict]
+    delete_job(db_path, job_id) -> bool
 """
 
 import json
@@ -59,11 +67,31 @@ CREATE INDEX IF NOT EXISTS idx_designer_jobs_created ON designer_jobs(created_at
 CREATE INDEX IF NOT EXISTS idx_designer_jobs_state ON designer_jobs(state);
 """
 
+# Colonnes ajoutees apres la creation initiale de la table (juillet 2026,
+# fonctionnalite "Mes tests" : renommage + regroupement en collections).
+# ALTER TABLE idempotent : SQLite n'a pas de "ADD COLUMN IF NOT EXISTS",
+# donc on catch l'erreur "duplicate column" plutot que d'inspecter
+# PRAGMA table_info a chaque demarrage.
+_MIGRATIONS = [
+    "ALTER TABLE designer_jobs ADD COLUMN name TEXT",
+    "ALTER TABLE designer_jobs ADD COLUMN collection_id TEXT",
+    "CREATE INDEX IF NOT EXISTS idx_designer_jobs_collection "
+    "ON designer_jobs(collection_id)",
+]
+
 
 def init_jobs_table(db_path: str) -> None:
-    """Cree la table designer_jobs si elle n'existe pas."""
+    """Cree la table designer_jobs si elle n'existe pas, applique les
+    migrations idempotentes (colonnes ajoutees apres coup)."""
     with sqlite3.connect(db_path) as conn:
         conn.executescript(_SCHEMA)
+        for stmt in _MIGRATIONS:
+            try:
+                conn.execute(stmt)
+            except sqlite3.OperationalError as e:
+                if "duplicate column" not in str(e).lower():
+                    raise
+        conn.commit()
 
 
 def _now_iso() -> str:
@@ -149,15 +177,66 @@ def update_job(db_path: str, job_id: str, **fields) -> None:
         conn.execute(f"UPDATE designer_jobs SET {cols} WHERE job_id = ?", values)
 
 
-def list_jobs(db_path: str, limit: int = 50) -> List[Dict]:
-    """Liste les jobs les plus recents."""
+def list_jobs(db_path: str, limit: int = 50,
+              collection_id: Optional[str] = None,
+              search: Optional[str] = None,
+              unfiled_only: bool = False) -> List[Dict]:
+    """Liste les jobs les plus recents, avec filtres optionnels.
+
+    Args:
+        collection_id : si fourni, ne retourne que les jobs de cette collection.
+        search        : si fourni, filtre sur name LIKE %search% OU job_id
+                        LIKE %search% (insensible a la casse).
+        unfiled_only  : si True, ne retourne que les jobs sans collection
+                        (collection_id IS NULL). Ignore le param collection_id.
+    """
+    where = []
+    params: List = []
+    if unfiled_only:
+        where.append("collection_id IS NULL")
+    elif collection_id is not None:
+        where.append("collection_id = ?")
+        params.append(collection_id)
+    if search:
+        where.append("(name LIKE ? OR job_id LIKE ?)")
+        like = f"%{search}%"
+        params.extend([like, like])
+    where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+    params.append(limit)
+
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
-            "SELECT job_id, created_at, updated_at, state, current_stage,"
-            "       progress, output_dir, duration_s, error "
-            "FROM designer_jobs "
-            "ORDER BY created_at DESC LIMIT ?",
-            (limit,),
+            f"SELECT job_id, created_at, updated_at, state, current_stage,"
+            f"       progress, output_dir, duration_s, error, name, collection_id "
+            f"FROM designer_jobs "
+            f"{where_sql} "
+            f"ORDER BY created_at DESC LIMIT ?",
+            params,
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def delete_job(db_path: str, job_id: str) -> bool:
+    """Supprime un job : la ligne DB ET son dossier de sortie sur disque
+    (output_dir, recursif). Ne leve pas si le dossier est deja absent.
+
+    Retourne True si un job a effectivement ete supprime, False si
+    job_id est introuvable.
+    """
+    import shutil
+
+    job = get_job(db_path, job_id)
+    if job is None:
+        return False
+
+    output_dir = job.get("output_dir")
+    if output_dir:
+        try:
+            shutil.rmtree(output_dir, ignore_errors=True)
+        except OSError:
+            pass  # best-effort : la suppression DB doit reussir meme si
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute("DELETE FROM designer_jobs WHERE job_id = ?", (job_id,))
+    return True
