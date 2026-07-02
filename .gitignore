@@ -117,3 +117,9 @@ model.xml
 
 # ===== Exports d'image Docker (docker save), transfert direct hors registre =====
 *.tar
+
+# ===== Export de secours JSON Lines (regenerable via export_jsonl.py) =====
+# ~1.3 GB pour h3-h9, ne va pas dans git. Le README qui documente le format
+# reste tracke (exports/README.md, exception explicite ci-dessous).
+exports/*.jsonl.gz
+exports/_export_log.txt
