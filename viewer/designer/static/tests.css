@@ -1,0 +1,213 @@
+/* Page "Mes tests" : organisation des jobs designer en collections.
+ * Reutilise les variables/couleurs de designer.css (deja chargee avant
+ * ce fichier), n'ajoute que le layout specifique a cette page. */
+
+.tst-main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ---- Sidebar collections ---- */
+.tst-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  border-right: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  background: #f8fafc;
+}
+.tst-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.8rem 1rem 0.5rem;
+}
+.tst-sidebar-header h2 {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #4b5563;
+}
+.tst-collections-list {
+  padding: 0 0.5rem 1rem;
+}
+
+.tst-coll-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #374151;
+  margin-bottom: 0.15rem;
+}
+.tst-coll-item:hover { background: #eef2f7; }
+.tst-coll-item.active {
+  background: #dbeafe;
+  color: #1e40af;
+  font-weight: 600;
+}
+.tst-coll-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.tst-coll-count {
+  font-size: 0.72rem;
+  color: #9ca3af;
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.05rem 0.45rem;
+  flex-shrink: 0;
+}
+.tst-coll-item.active .tst-coll-count { background: #bfdbfe; color: #1e40af; }
+.tst-coll-actions {
+  display: none;
+  gap: 0.2rem;
+  flex-shrink: 0;
+}
+.tst-coll-item:hover .tst-coll-actions { display: flex; }
+.tst-coll-actions button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #9ca3af;
+  font-size: 0.8rem;
+  padding: 0.1rem 0.25rem;
+  border-radius: 3px;
+}
+.tst-coll-actions button:hover { background: #e5e7eb; color: #374151; }
+
+/* ---- Contenu principal : table des jobs ---- */
+.tst-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 1rem 1.4rem;
+}
+.tst-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+  flex-shrink: 0;
+}
+.tst-toolbar h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #1e293b;
+}
+#job-search { max-width: 280px; }
+
+.tst-table-wrap {
+  flex: 1;
+  overflow-y: auto;
+}
+.tst-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.tst-table th {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 2px solid #e5e7eb;
+  color: #6b7280;
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.tst-table td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+.tst-table tr:hover td { background: #f8fafc; }
+
+.tst-job-name {
+  cursor: text;
+  border-radius: 4px;
+  padding: 0.15rem 0.35rem;
+  margin: -0.15rem -0.35rem;
+}
+.tst-job-name:hover { background: #eef2f7; }
+.tst-job-name input {
+  font: inherit;
+  border: 1px solid #2563eb;
+  border-radius: 4px;
+  padding: 0.1rem 0.3rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+.tst-job-id-muted {
+  color: #9ca3af;
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+}
+
+.tst-job-actions {
+  display: flex;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+.tst-job-actions button,
+.tst-job-actions select {
+  font-size: 0.78rem;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 4px;
+  padding: 0.2rem 0.45rem;
+  cursor: pointer;
+  color: #4b5563;
+}
+.tst-job-actions button:hover { background: #f3f4f6; }
+.tst-job-actions .tst-delete-btn:hover { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+
+.tst-empty {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #9ca3af;
+  font-size: 0.9rem;
+}
+
+/* ---- Modal collection (creer / editer) ---- */
+.tst-modal-box {
+  background: #fff;
+  border-radius: 10px;
+  padding: 1.4rem;
+  width: min(90vw, 420px);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.2);
+}
+.tst-modal-box h3 { margin: 0 0 1rem; font-size: 1.05rem; }
+.tst-field {
+  display: block;
+  font-size: 0.82rem;
+  color: #4b5563;
+  margin-bottom: 0.8rem;
+}
+.tst-field input,
+.tst-field textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 0.3rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.88rem;
+}
+.tst-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}

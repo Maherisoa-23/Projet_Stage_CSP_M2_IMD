@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Mes tests — Generateur non-benzenoides</title>
+  <link rel="stylesheet" href="/designer_static/designer.css">
+  <link rel="stylesheet" href="/designer_static/tests.css">
+</head>
+<body>
+  <div id="app">
+    <header class="dz-header">
+      <div class="dz-header-left">
+        <a href="/designer" class="dz-back" title="Retour au designer">←</a>
+        <h1>Mes tests</h1>
+      </div>
+      <div class="dz-header-right">
+        <span class="dz-status" id="status-info">—</span>
+      </div>
+    </header>
+
+    <main class="tst-main">
+      <!-- Colonne gauche : collections -->
+      <aside class="tst-sidebar">
+        <div class="tst-sidebar-header">
+          <h2>Collections</h2>
+          <button id="btn-new-collection" class="dz-btn dz-btn-icon" title="Nouvelle collection">+</button>
+        </div>
+        <div id="collections-list" class="tst-collections-list">
+          <div class="dz-loading-mini">Chargement…</div>
+        </div>
+      </aside>
+
+      <!-- Colonne droite : jobs de la collection selectionnee -->
+      <section class="tst-content">
+        <div class="tst-toolbar">
+          <h2 id="content-title">Tous les jobs</h2>
+          <input type="text" id="job-search" placeholder="Rechercher par nom ou id…" class="dz-select">
+        </div>
+        <div id="jobs-table-wrap" class="tst-table-wrap">
+          <div class="dz-loading-mini">Chargement…</div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Modal : creer / renommer une collection -->
+    <div class="dz-overlay hidden" id="collection-modal">
+      <div class="tst-modal-box">
+        <h3 id="collection-modal-title">Nouvelle collection</h3>
+        <label class="tst-field">
+          Nom
+          <input type="text" id="collection-name-input" maxlength="200" placeholder="ex. Etude pentagones isoles">
+        </label>
+        <label class="tst-field">
+          Description (optionnel)
+          <textarea id="collection-desc-input" rows="3" maxlength="1000"></textarea>
+        </label>
+        <div class="tst-modal-actions">
+          <button id="collection-modal-cancel" class="dz-btn dz-btn-secondary">Annuler</button>
+          <button id="collection-modal-save" class="dz-btn dz-btn-primary">Enregistrer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/designer_static/tests.js"></script>
+</body>
+</html>
