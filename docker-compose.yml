@@ -18,8 +18,11 @@ services:
       - "8765:8765"
     volumes:
       # Volume nomme : persiste la DB designer + les solutions generees
-      # entre redemarrages et mises a jour de l'image.
-      - csp_designer_data:/data
+      # entre redemarrages et mises a jour de l'image. Monte SOUS /app
+      # (project_root du code) -- voir la note dans le Dockerfile sur
+      # Path.relative_to(project_root), utilise par viewer/designer/api.py
+      # et solutions_db.py pour construire les chemins xyz servis au viewer 3D.
+      - csp_designer_data:/app/data
     environment:
       - DESIGNER_CLUSTER_ENABLED=0
     restart: unless-stopped

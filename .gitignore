@@ -114,3 +114,6 @@ experiments/v3/rapport_exp_v3.tex
 # ===== PyCSP3 generated XML (race condition entre test CLI et CSP) =====
 main.xml
 model.xml
+
+# ===== Exports d'image Docker (docker save), transfert direct hors registre =====
+*.tar

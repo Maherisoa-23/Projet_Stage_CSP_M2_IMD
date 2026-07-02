@@ -19,8 +19,8 @@ if ! command -v java >/dev/null 2>&1; then
 fi
 echo "java : $(java -version 2>&1 | head -n 1)"
 
-mkdir -p /data/output/designer_jobs
-echo "data : /data (volume persistant)"
+mkdir -p /app/data/output/designer_jobs
+echo "data : /app/data (volume persistant)"
 echo "==================================="
 
 exec "$@"

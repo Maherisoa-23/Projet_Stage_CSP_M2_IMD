@@ -10,7 +10,17 @@
 #  Build :
 #      docker build -t csp-designer .
 #  Run (voir aussi docker-compose.yml) :
-#      docker run -p 8765:8765 -v csp_designer_data:/data csp-designer
+#      docker run -p 8765:8765 -v csp_designer_data:/app/data csp-designer
+#
+#  Le volume de donnees est monte SOUS /app (racine du code, WORKDIR) et non
+#  a la racine /data : le code du designer (api.py, runner.py, solutions_db.py,
+#  build_db.py) calcule des chemins "relatifs a project_root" via
+#  Path.relative_to(project_root) a plusieurs endroits (best_xyz_path,
+#  ingestion DB, xyz_path des jobs...). Si le volume de donnees sortait de
+#  project_root (ex. /data a la racine du conteneur), ces relative_to()
+#  levent ValueError -> 500 sur /api/designer/jobs/<id>/solutions et le
+#  viewer 3D ne charge plus rien. Garder le volume sous /app evite de
+#  toucher a cette hypothese partagee par tout le code.
 # =====================================================================
 
 # ---------- Stage 1 : telechargement du binaire xTB ----------
@@ -56,13 +66,15 @@ COPY csp_solver/ csp_solver/
 COPY viewer/ viewer/
 
 # Variables d'environnement par defaut (mode designer-only, pas de cluster SSH).
+# Le volume /app/data reste SOUS project_root (/app) -- voir la note en tete
+# de fichier sur Path.relative_to(project_root).
 ENV DESIGNER_CLUSTER_ENABLED=0 \
-    DESIGNER_OUTPUT_DIR=/data/output/designer_jobs \
-    DESIGNER_DB_PATH=/data/designer.db \
+    DESIGNER_OUTPUT_DIR=/app/data/output/designer_jobs \
+    DESIGNER_DB_PATH=/app/data/designer.db \
     PYTHONUNBUFFERED=1
 
 # Volume pour la persistance (DB + outputs des jobs designer).
-VOLUME /data
+VOLUME /app/data
 
 EXPOSE 8765
 
