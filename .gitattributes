@@ -1,0 +1,7 @@
+# Force LF (pas CRLF) pour les scripts destines a s'executer dans un
+# conteneur Linux, quelle que soit la config core.autocrlf de l'utilisateur
+# Windows. Un CRLF sur le shebang (#!/bin/sh) fait planter le script au
+# demarrage du conteneur ("no such file or directory").
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker-compose.yml text eol=lf
