@@ -54,14 +54,18 @@ function hideFullscreen() {
   if (el) el.classList.add("hidden");
 }
 
-async function fetchJSON(url, label) {
+async function fetchJSON(url, label, opts = {}) {
   showLoader(label);
   try {
     const r = await fetch(url);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     return await r.json();
   } catch (e) {
-    alert(`Erreur réseau : ${e.message}`);
+    // silent=true : appel best-effort (ex. peupler le selecteur de dataset
+    // en arriere-plan) -- ne pas interrompre l'utilisateur avec une alerte
+    // bloquante si la ressource est simplement indisponible (mode
+    // designer-only sans table 'configs', par exemple).
+    if (!opts.silent) alert(`Erreur réseau : ${e.message}`);
     throw e;
   } finally {
     hideLoader();
@@ -108,8 +112,8 @@ function renderBreadcrumb() {
 }
 
 // ===== Dataset selector =====
-async function loadDatasets() {
-  const data = await fetchJSON("/api/datasets", "Datasets…");
+async function loadDatasets(silent = false) {
+  const data = await fetchJSON("/api/datasets", "Datasets…", { silent });
   state.datasets = data.datasets || [];
   const sel = $("#dataset-select");
   sel.innerHTML = "";
@@ -771,11 +775,15 @@ $("#job-sol-filter").addEventListener("change", (e) => {
   if (jobId) {
     // Verifier que l'id ressemble a un UUID court (alpha-num 6-12 chars)
     if (/^[a-f0-9]{6,12}$/i.test(jobId)) {
-      loadDatasets().catch(() => {});  // best-effort en background
+      loadDatasets(true).catch(() => {});  // best-effort en background, silencieux
       loadJobView(jobId);
       return;
     }
   }
-  await loadDatasets();
+  // Silencieux : en mode --designer-only (pas de table 'configs'), il n'y a
+  // aucun dataset a afficher. loadDashboard() gere deja ce cas (state.h reste
+  // null -> retour anticipe), donc pas besoin d'interrompre l'utilisateur
+  // avec une alerte bloquante des l'arrivee sur la page.
+  await loadDatasets(true).catch(() => {});
   loadDashboard();
 })();
