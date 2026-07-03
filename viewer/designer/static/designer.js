@@ -1014,6 +1014,9 @@
 
   async function submitJob() {
     if (grid.hexes.size === 0) return;
+    const btnRun = document.getElementById("btn-run");
+    if (btnRun.disabled) return;  // garde-fou : evite le double-clic (double POST /run)
+    btnRun.disabled = true;
     const hexes = [...grid.hexes].map(k => parseKey(k));
     try {
       showLoadingModal("Lancement…");
@@ -1034,6 +1037,7 @@
     } catch (e) {
       hideLoadingModal();
       showResultModal({ state: "failed", error: e.message });
+      btnRun.disabled = grid.hexes.size === 0;  // reactive (sauf si grille videe entretemps)
     }
   }
 
@@ -1104,6 +1108,11 @@
   // ====================================================================
 
   async function showResultModal(job) {
+    // Job termine (succes/echec/annule) : reactive "Generer" pour permettre
+    // un nouveau lancement (cf. submitJob, qui le desactive au clic pour
+    // eviter un double-POST /run).
+    document.getElementById("btn-run").disabled = grid.hexes.size === 0;
+
     const overlay = document.getElementById("result-overlay");
     const title = document.getElementById("result-title");
     const body = document.getElementById("result-body");
