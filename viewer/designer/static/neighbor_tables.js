@@ -243,6 +243,7 @@
   }
 
   async function addSequence(cycleSize, sequence) {
+    const before = (state.current.content[String(cycleSize)] || []).length;
     try {
       await apiSend(
         `/api/designer/neighbor-tables/${state.current.id}/sequences`, "POST",
@@ -251,12 +252,34 @@
       // Re-fetch le detail complet (inclut n_jobs_using, absent de la
       // reponse POST/DELETE sequences) plutot que de le bricoler localement.
       state.current = await apiGet(`/api/designer/neighbor-tables/${state.current.id}`);
+      const after = (state.current.content[String(cycleSize)] || []).length;
       await loadTables();
       renderTablesList();
       renderEditor();
+      // add_sequence ignore silencieusement les doublons (cf. tables_mgmt.py) :
+      // si le compte n'a pas bouge, la sequence existait deja -- feedback
+      // discret plutot qu'un silence qui pourrait laisser croire a un echec.
+      if (after === before) {
+        flashMessage("Cette sequence existe deja dans la table.");
+      }
     } catch (e) {
       alert(`Erreur : ${e.message}`);
     }
+  }
+
+  let flashTimer = null;
+  function flashMessage(text) {
+    let el = document.getElementById("ntb-flash");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "ntb-flash";
+      el.className = "ntb-flash";
+      document.body.appendChild(el);
+    }
+    el.textContent = text;
+    el.classList.add("visible");
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => el.classList.remove("visible"), 2500);
   }
 
   async function removeSequence(cycleSize, sequence) {

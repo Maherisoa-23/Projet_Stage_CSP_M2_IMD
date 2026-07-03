@@ -388,7 +388,11 @@ def reconstruct_and_validate(graph: BenzenoidGraph, solutions: list,
     strategy_kwargs = {"threshold": threshold, "opt_level": opt_level}
     if method == "multi-runs":
         strategy_kwargs["n_runs"] = n_runs
-    elif method == "md":
+    elif method in ("md", "det-opt"):
+        # "det-opt" est l'alias affiche cote designer web (cf.
+        # csp_presets.py::VALIDATION_OPTIONS) pour la meme MDStrategy que
+        # "md" (cf. utils/validation/__init__.py::_STRATEGIES). Les deux
+        # doivent recevoir les memes kwargs (deterministic, cache_db_path).
         if md_params is not None:
             strategy_kwargs["md_params"] = md_params
         strategy_kwargs["deterministic"] = md_deterministic
