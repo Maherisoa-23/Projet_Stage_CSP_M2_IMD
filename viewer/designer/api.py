@@ -25,7 +25,7 @@ from typing import Optional
 from flask import Blueprint, abort, jsonify, render_template, request, current_app
 
 from . import collections as collections_mod
-from . import graph_io, jobs, runner, solutions_db
+from . import graph_io, jobs, runner, solutions_db, tables_mgmt
 from .csp_presets import (
     CSP_PRESETS_CANONICAL,
     CSP_PRESETS_LEGACY,
@@ -378,6 +378,158 @@ def page_tests():
     return render_template("tests.html")
 
 
+# =====================================================================
+#  Tables de voisinage (CRUD, contrainte C3 du CSP)
+# =====================================================================
+
+@bp.route("/api/designer/neighbor-tables")
+def api_neighbor_tables_list():
+    """Liste toutes les tables de voisinage (sans leur contenu complet,
+    juste name/description/n_seq par cycle -- l'aperçu suffit pour la
+    liste ; le contenu complet est charge via GET /neighbor-tables/<id>).
+    """
+    db_path = current_app.config["DB_PATH"]
+    return jsonify({"tables": tables_mgmt.list_tables(db_path)})
+
+
+@bp.route("/api/designer/neighbor-tables/<table_id>")
+def api_neighbor_table_get(table_id: str):
+    """Retourne une table avec son contenu complet (pour l'editeur)."""
+    db_path = current_app.config["DB_PATH"]
+    table = tables_mgmt.get_table(db_path, table_id)
+    if table is None:
+        abort(404, description="table not found")
+    table["n_jobs_using"] = tables_mgmt.count_jobs_using(db_path, table_id)
+    return jsonify(table)
+
+
+@bp.route("/api/designer/neighbor-tables", methods=["POST"])
+def api_neighbor_table_create():
+    """Cree une table de voisinage.
+
+    Body JSON :
+      - {"source_id": "...", "name": "..."} -> duplique une table existante
+      - {"name": "...", "content": {...}, "description": "..."} -> table vide/fournie
+    """
+    db_path = current_app.config["DB_PATH"]
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    if not name:
+        abort(400, description="'name' is required")
+
+    if data.get("source_id"):
+        new_id = tables_mgmt.duplicate_table(db_path, data["source_id"], name[:200])
+        if new_id is None:
+            abort(404, description="source_id not found")
+    else:
+        content = data.get("content") or {"5": [], "6": [], "7": []}
+        description = (data.get("description") or "").strip() or None
+        try:
+            new_id = tables_mgmt.create_table(db_path, name[:200], content, description)
+        except ValueError as e:
+            abort(400, description=str(e))
+    return jsonify(tables_mgmt.get_table(db_path, new_id)), 201
+
+
+@bp.route("/api/designer/neighbor-tables/<table_id>", methods=["PATCH"])
+def api_neighbor_table_update(table_id: str):
+    """Modifie name/description/content d'une table. Body JSON : un ou
+    plusieurs champs parmi name, description, content."""
+    db_path = current_app.config["DB_PATH"]
+    if tables_mgmt.get_table(db_path, table_id) is None:
+        abort(404, description="table not found")
+    data = request.get_json(silent=True) or {}
+    fields = {}
+    if "name" in data:
+        name = (data["name"] or "").strip()
+        if not name:
+            abort(400, description="'name' cannot be empty")
+        fields["name"] = name[:200]
+    if "description" in data:
+        fields["description"] = (data["description"] or "").strip() or None
+    if "content" in data:
+        fields["content"] = data["content"]
+    if not fields:
+        abort(400, description="no updatable field provided (name, description, content)")
+    try:
+        tables_mgmt.update_table(db_path, table_id, **fields)
+    except ValueError as e:
+        abort(400, description=str(e))
+    return jsonify(tables_mgmt.get_table(db_path, table_id))
+
+
+@bp.route("/api/designer/neighbor-tables/<table_id>/sequences", methods=["POST"])
+def api_neighbor_table_add_sequence(table_id: str):
+    """Ajoute une sequence de voisins admissible. Body JSON :
+    {"cycle_size": 6, "sequence": [6, 6, 7, 0, 0, 5]}."""
+    db_path = current_app.config["DB_PATH"]
+    data = request.get_json(silent=True) or {}
+    cycle_size = data.get("cycle_size")
+    sequence = data.get("sequence")
+    if cycle_size not in (5, 6, 7) or not isinstance(sequence, list):
+        abort(400, description="'cycle_size' (5|6|7) and 'sequence' (list) are required")
+    try:
+        ok = tables_mgmt.add_sequence(db_path, table_id, cycle_size, sequence)
+    except ValueError as e:
+        abort(400, description=str(e))
+    if not ok:
+        abort(404, description="table not found")
+    return jsonify(tables_mgmt.get_table(db_path, table_id))
+
+
+@bp.route("/api/designer/neighbor-tables/<table_id>/sequences", methods=["DELETE"])
+def api_neighbor_table_remove_sequence(table_id: str):
+    """Retire une sequence de voisins. Body JSON :
+    {"cycle_size": 6, "sequence": [6, 6, 7, 0, 0, 5]}."""
+    db_path = current_app.config["DB_PATH"]
+    data = request.get_json(silent=True) or {}
+    cycle_size = data.get("cycle_size")
+    sequence = data.get("sequence")
+    if cycle_size not in (5, 6, 7) or not isinstance(sequence, list):
+        abort(400, description="'cycle_size' (5|6|7) and 'sequence' (list) are required")
+    ok = tables_mgmt.remove_sequence(db_path, table_id, cycle_size, sequence)
+    if not ok:
+        abort(404, description="table not found")
+    return jsonify(tables_mgmt.get_table(db_path, table_id))
+
+
+@bp.route("/api/designer/neighbor-tables/<table_id>", methods=["DELETE"])
+def api_neighbor_table_delete(table_id: str):
+    """Supprime une table de voisinage. Refuse (400) pour la table par
+    defaut. Body JSON optionnel {"confirm": true} : sans confirmation, si
+    la table est utilisee par des jobs passes, retourne un avertissement
+    (n_jobs_using) plutot que de supprimer -- l'UI doit alors redemander
+    confirmation explicitement a l'utilisateur.
+    """
+    db_path = current_app.config["DB_PATH"]
+    table = tables_mgmt.get_table(db_path, table_id)
+    if table is None:
+        abort(404, description="table not found")
+    if table["is_default"]:
+        abort(400, description="la table par defaut ne peut pas etre supprimee")
+
+    data = request.get_json(silent=True) or {}
+    confirmed = bool(data.get("confirm"))
+    n_jobs = tables_mgmt.count_jobs_using(db_path, table_id)
+    if n_jobs > 0 and not confirmed:
+        return jsonify({
+            "ok": False,
+            "needs_confirmation": True,
+            "n_jobs_using": n_jobs,
+            "message": f"Cette table a ete utilisee par {n_jobs} job(s). "
+                       f"Renvoyer avec confirm=true pour supprimer quand meme.",
+        }), 409
+
+    tables_mgmt.delete_table(db_path, table_id)
+    return jsonify({"ok": True})
+
+
+@bp.route("/neighbor-tables")
+def page_neighbor_tables():
+    """Page de gestion CRUD des tables de voisinage (contrainte C3)."""
+    return render_template("neighbor_tables.html")
+
+
 def _compute_verdict(md_verdict, planar):
     """Verdict global d'une solution. Identique fs et DB.
 
@@ -665,6 +817,7 @@ def init_app(app):
         jobs.init_jobs_table(db_path)
         solutions_db.init_solutions_table(db_path)
         collections_mod.init_collections_table(db_path)
+        tables_mgmt.init_tables_table(db_path)
         # xtb_cache (table du cache xTB) est initialisee depuis runner.py,
         # qui a deja acces a csp_solver.* via _setup_imports (sys.path pas
         # encore configure a ce stade du demarrage serveur).

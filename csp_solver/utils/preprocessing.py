@@ -297,13 +297,16 @@ def _generate_group(generators: list, nodes: list) -> set:
     return elements
 
 
-def preprocess(graph: BenzenoidGraph, freeze_b2: bool = True) -> dict:
+def preprocess(graph: BenzenoidGraph, freeze_b2: bool = True,
+               table_path=None) -> dict:
     """Execute tout le pre-traitement.
 
     Args:
         graph: le graphe dual
         freeze_b2: si True, geler les hexagones avec b(v)>=2.
                    Si False, ne geler que ceux avec deg=6 (completement entoures).
+        table_path: chemin d'une table de voisinage alternative (cf.
+                    utils/table.py::load_table). None = table par defaut.
 
     Returns:
         dict avec :
@@ -313,7 +316,7 @@ def preprocess(graph: BenzenoidGraph, freeze_b2: bool = True) -> dict:
         - 'frozen': list des sommets geles
         - 'free': list des sommets libres
     """
-    full_table = load_table()
+    full_table = load_table(table_path)
 
     # Domaines
     domains = compute_domains(graph, freeze_b2=freeze_b2)

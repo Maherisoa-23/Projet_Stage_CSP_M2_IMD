@@ -87,13 +87,21 @@ def build_table(rapport_path: str) -> None:
     print(f"Sauvegardé dans {TABLE_PATH}")
 
 
-def load_table() -> dict:
-    """Charge la table T(n) depuis le fichier JSON.
+def load_table(table_path=None) -> dict:
+    """Charge la table T(n) depuis un fichier JSON.
+
+    Args:
+        table_path: chemin du fichier a charger. None (defaut) = table
+            standard du projet (TABLE_PATH, utilisee par tout le pipeline
+            existant y compris le run final h3-h9). Permet au designer web
+            de charger une table alternative geree via le CRUD
+            (viewer/designer/tables_mgmt.py).
 
     Returns:
         dict {5: [list of tuples], 6: [...], 7: [...]}
     """
-    with open(TABLE_PATH, "r", encoding="utf-8") as f:
+    path = Path(table_path) if table_path else TABLE_PATH
+    with open(path, "r", encoding="utf-8") as f:
         raw = json.load(f)
 
     return {

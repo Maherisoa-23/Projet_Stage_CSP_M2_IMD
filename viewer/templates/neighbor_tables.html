@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Tables de voisinage — Generateur non-benzenoides</title>
+  <link rel="stylesheet" href="/designer_static/designer.css">
+  <link rel="stylesheet" href="/designer_static/neighbor_tables.css">
+</head>
+<body>
+  <div id="app">
+    <header class="dz-header">
+      <div class="dz-header-left">
+        <a href="/designer" class="dz-back" title="Retour au designer">←</a>
+        <h1>Tables de voisinage</h1>
+      </div>
+      <div class="dz-header-right">
+        <span class="dz-status" id="status-info">—</span>
+      </div>
+    </header>
+
+    <main class="ntb-main">
+      <!-- Colonne gauche : liste des tables -->
+      <aside class="ntb-sidebar">
+        <div class="ntb-sidebar-header">
+          <h2>Tables</h2>
+          <button id="btn-new-table" class="dz-btn dz-btn-icon" title="Dupliquer une table existante">+</button>
+        </div>
+        <div id="tables-list" class="ntb-tables-list">
+          <div class="dz-loading-mini">Chargement…</div>
+        </div>
+      </aside>
+
+      <!-- Colonne droite : editeur de la table selectionnee -->
+      <section class="ntb-content" id="ntb-content">
+        <div class="ntb-empty">
+          Selectionnez une table a gauche, ou creez-en une nouvelle.
+        </div>
+      </section>
+    </main>
+
+    <!-- Modal : dupliquer une table (choix de la source + nouveau nom) -->
+    <div class="dz-overlay hidden" id="new-table-modal">
+      <div class="ntb-modal-box">
+        <h3>Nouvelle table de voisinage</h3>
+        <label class="ntb-field">
+          A partir de
+          <select id="new-table-source"></select>
+        </label>
+        <label class="ntb-field">
+          Nom de la nouvelle table
+          <input type="text" id="new-table-name" maxlength="200" placeholder="ex. Table restreinte C3-strict">
+        </label>
+        <div class="ntb-modal-actions">
+          <button id="new-table-cancel" class="dz-btn dz-btn-secondary">Annuler</button>
+          <button id="new-table-save" class="dz-btn dz-btn-primary">Creer (duplication)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/designer_static/neighbor_tables.js"></script>
+</body>
+</html>

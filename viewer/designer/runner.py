@@ -274,12 +274,16 @@ def _resolve_preset_flags(config: Dict) -> Dict:
 
 def _build_command(python_exe: str, main_py: Path, graph_path: Path,
                    output_dir: Path, config: Dict,
-                   cache_db_path: Optional[str] = None) -> list:
+                   cache_db_path: Optional[str] = None,
+                   table_path: Optional[Path] = None) -> list:
     """Construit la commande subprocess depuis le dict de config.
 
     cache_db_path : si fourni, ajoute --cache-db (cache xTB partage entre
         tous les jobs designer, cf. csp_solver/xtb/cache.py). Sans effet
         pour method="skip" (pas de xTB dans ce mode).
+    table_path : si fourni, ajoute --table-path (table de voisinage
+        alternative materialisee sur disque, cf. tables_mgmt.py). Absent
+        = table par defaut du projet (comportement historique).
     """
     config = _resolve_preset_flags(config)
     cmd = [python_exe, str(main_py), str(graph_path)]
@@ -305,6 +309,8 @@ def _build_command(python_exe: str, main_py: Path, graph_path: Path,
         cmd.append("--no-freeze")
     if config.get("no_table"):
         cmd.append("--no-table")
+    elif table_path:
+        cmd.extend(["--table-path", str(table_path)])
     if config.get("adj_57"):
         cmd.append("--adj-57")
     if config.get("count_hexagon"):
@@ -417,8 +423,26 @@ def run_job(db_path: str, job_id: str, project_root: Path,
     except Exception:
         pass
 
+    # Table de voisinage alternative (cf. tables_mgmt.py) : si le job
+    # precise table_id != "default", on materialise son contenu dans
+    # output_dir/neighbor_table.json et on le passe en --table-path.
+    # table_id absent ou "default" -> pas de --table-path, le CLI utilise
+    # la table par defaut du projet directement (comportement historique).
+    table_path = None
+    table_id = job.get("config", {}).get("table_id")
+    if table_id and table_id != "default":
+        from . import tables_mgmt
+        table_path = output_dir / "neighbor_table.json"
+        try:
+            ok = tables_mgmt.materialize_table_file(db_path, table_id, str(table_path))
+            if not ok:
+                table_path = None
+        except Exception:
+            table_path = None
+
     cmd = _build_command(python_exe, main_py, graph_path, output_dir,
-                          job.get("config", {}), cache_db_path=db_path)
+                          job.get("config", {}), cache_db_path=db_path,
+                          table_path=table_path)
 
     t_start = time.time()
 

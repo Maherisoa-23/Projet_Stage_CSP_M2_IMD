@@ -580,6 +580,7 @@
   let advancedGroups = [];
   let validationOptions = [];
   let clusterEnabled = false;
+  let neighborTables = [];  // [{id, name, is_default, n_seq}], charge a part (dynamique)
 
   async function loadConfigPanel() {
     try {
@@ -602,7 +603,11 @@
           configState[v.key] = v.default;
         }
       }
+      if (configState.table_id === undefined) {
+        configState.table_id = "default";
+      }
 
+      await loadNeighborTables();
       renderPresetPanel();
       renderAdvancedPanel();
       renderValidationPanel();
@@ -611,6 +616,18 @@
       console.error("Config load failed", e);
       document.getElementById("tab-panel-preset").innerHTML =
         '<p class="dz-muted">Erreur de chargement des configs</p>';
+    }
+  }
+
+  // ---- Tables de voisinage : chargement de la liste pour le selecteur ----
+  async function loadNeighborTables() {
+    try {
+      const r = await fetch("/api/designer/neighbor-tables");
+      const data = await r.json();
+      neighborTables = data.tables || [];
+    } catch (e) {
+      console.error("Neighbor tables load failed", e);
+      neighborTables = [];
     }
   }
 
@@ -749,8 +766,54 @@
       for (const c of inGroup) {
         sec.appendChild(renderConfigRow(c, presetActive));
       }
+      if (group.key === "preprocessing") {
+        sec.appendChild(renderNeighborTableRow());
+      }
       panel.appendChild(sec);
     }
+  }
+
+  // ---- Ligne "Table de voisinage" : selecteur dynamique + lien de gestion ----
+  function renderNeighborTableRow() {
+    const row = document.createElement("div");
+    row.className = "dz-config-row";
+
+    const label = document.createElement("label");
+    label.style.flexDirection = "column";
+    label.style.alignItems = "flex-start";
+
+    const txt = document.createElement("div");
+    txt.textContent = "Table de voisinage";
+    const disabled = !!configState.no_table;
+
+    const select = document.createElement("select");
+    select.disabled = disabled;
+    for (const t of neighborTables) {
+      const o = document.createElement("option");
+      o.value = t.id;
+      const nTotal = (t.n_seq[5] || 0) + (t.n_seq[6] || 0) + (t.n_seq[7] || 0);
+      o.textContent = `${t.name}${t.is_default ? " (par defaut)" : ""} — ${nTotal} sequences`;
+      if (t.id === configState.table_id) o.selected = true;
+      select.appendChild(o);
+    }
+    select.addEventListener("change", () => {
+      configState.table_id = select.value;
+    });
+
+    label.appendChild(txt);
+    label.appendChild(select);
+    row.appendChild(label);
+
+    const help = document.createElement("p");
+    help.className = "dz-config-help";
+    help.innerHTML = disabled
+      ? "Ignore : la table de voisinage est desactivee ci-dessus."
+      : 'Table utilisee pour la contrainte C3. ' +
+        '<a href="/neighbor-tables" target="_blank">Gerer les tables</a> ' +
+        '(creer, dupliquer, editer, supprimer).';
+    row.appendChild(help);
+
+    return row;
   }
 
   // ---- Bloc "Validation xTB" : method + test_original + cluster ----

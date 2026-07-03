@@ -29,6 +29,14 @@ do_validate = "--validate" in _own_argv
 no_freeze = "--no-freeze" in _own_argv
 adj_57 = "--adj-57" in _own_argv
 no_table = "--no-table" in _own_argv
+# Table de voisinage alternative (cf. csp_solver/utils/table.py::load_table
+# et viewer/designer/tables_mgmt.py pour le CRUD cote designer). None =
+# table par defaut du projet (data/table_voisinage.json).
+table_path = None
+if "--table-path" in _own_argv:
+    idx = _own_argv.index("--table-path")
+    if idx + 1 < len(_own_argv):
+        table_path = _own_argv[idx + 1]
 # Par defaut, le solveur exclut la solution tout-hexagones (le benzenoide
 # d'origine). Le flag --count-hexagon la reintroduit dans la liste.
 count_hexagon = "--count-hexagon" in _own_argv
@@ -178,6 +186,7 @@ def main():
         print("  --solver S    : solveur CSP, 'choco' (defaut) ou 'ace' (LEGACY)")
         print("                  Choco est par defaut depuis juin 2026 (cf. doc/choco_vs_ace)")
         print("  --cache-db PATH : active le cache xTB dans cette DB sqlite (methode md)")
+        print("  --table-path PATH : utilise cette table de voisinage au lieu de la table par defaut")
         print("Exemple: python main.py data/first.graph --validate --n-runs 10")
         print("Exemple: python main.py data/first.graph --validate --method md")
         sys.exit(1)
@@ -190,9 +199,11 @@ def main():
 
     # --- Etape 2 : Pre-traitement ---
     print("=== Pre-traitement ===")
-    preprocessed = preprocess(graph, freeze_b2=not no_freeze)
+    preprocessed = preprocess(graph, freeze_b2=not no_freeze, table_path=table_path)
     if no_freeze:
         print("  (contrainte b(v)>=2 DESACTIVEE, seuls les deg=6 sont geles)")
+    if table_path:
+        print(f"  Table de voisinage : {table_path}")
 
     frozen = preprocessed['frozen']
     free = preprocessed['free']
