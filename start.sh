@@ -18,15 +18,15 @@ docker compose up -d --build
 
 echo
 echo "=== Designer demarre ==="
-echo "Ouverture du navigateur sur http://localhost:8765/designer"
+echo "Ouverture du navigateur sur http://localhost:8765/"
 sleep 2
 
 if command -v open >/dev/null 2>&1; then
-    open http://localhost:8765/designer        # macOS
+    open http://localhost:8765/        # macOS
 elif command -v xdg-open >/dev/null 2>&1; then
-    xdg-open http://localhost:8765/designer     # Linux
+    xdg-open http://localhost:8765/     # Linux
 else
-    echo "Ouvrez manuellement : http://localhost:8765/designer"
+    echo "Ouvrez manuellement : http://localhost:8765/"
 fi
 
 echo

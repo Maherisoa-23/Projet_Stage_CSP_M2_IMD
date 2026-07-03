@@ -27,9 +27,9 @@ if errorlevel 1 (
 
 echo.
 echo === Designer demarre ===
-echo Ouverture du navigateur sur http://localhost:8765/designer
+echo Ouverture du navigateur sur http://localhost:8765/
 timeout /t 2 >nul
-start http://localhost:8765/designer
+start http://localhost:8765/
 
 echo.
 echo Pour arreter : executez stop.bat ou "docker compose down"

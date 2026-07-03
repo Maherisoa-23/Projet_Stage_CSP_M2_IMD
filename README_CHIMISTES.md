@@ -9,20 +9,29 @@ dual).
 
 1. Installer **Docker Desktop** : <https://www.docker.com/products/docker-desktop/>
    (Windows, Mac ou Linux). Suivre les instructions par défaut.
-2. Démarrer Docker Desktop et attendre qu'il soit prêt (icône stable dans la
-   barre des tâches).
+   - Sur Windows, l'installateur peut demander un **redémarrage du PC** :
+     c'est normal (activation de WSL2), acceptez-le.
+2. Après l'installation, **lancer Docker Desktop manuellement** une première
+   fois et attendre que son icône (barre des tâches / menu barre en haut à
+   droite sur Mac) devienne stable — ça peut prendre 1-2 minutes au premier
+   démarrage. Vous n'aurez plus besoin de rouvrir cette fenêtre ensuite, les
+   scripts ci-dessous s'en chargent.
 3. Récupérer ce dossier (`Projet_Stage_CSP_M2_IMD`) sur votre machine.
+
+Vous n'aurez besoin d'aucune autre installation (pas de Python, pas de xTB à
+installer séparément — tout est inclus dans l'outil).
 
 ## Démarrer l'outil
 
 - **Windows** : double-cliquer sur `start.bat`
 - **Mac / Linux** : double-cliquer sur `start.sh` (ou `./start.sh` dans un terminal)
 
-Le premier démarrage prend plusieurs minutes (téléchargement et construction
-de l'image). Les démarrages suivants sont rapides (quelques secondes).
+Le premier démarrage prend **plusieurs minutes** (téléchargement et
+construction de l'image — normal, ne rien interrompre même si ça semble
+long). Les démarrages suivants sont rapides (quelques secondes).
 
-Un navigateur s'ouvre automatiquement sur l'outil. Si ce n'est pas le cas,
-ouvrez manuellement : <http://localhost:8765/designer>
+Un navigateur s'ouvre automatiquement sur la page d'accueil de l'outil. Si ce
+n'est pas le cas, ouvrez manuellement : <http://localhost:8765/>
 
 ## Arrêter l'outil
 
@@ -31,16 +40,30 @@ ouvrez manuellement : <http://localhost:8765/designer>
 
 Vos molécules et résultats restent sauvegardés pour la prochaine fois.
 
-## Utilisation
+## Page d'accueil
+
+La page d'accueil donne accès à tout :
+
+- **✏️ Designer** — dessiner et lancer une génération
+- **📁 Mes tests** — retrouver, renommer et regrouper vos jobs précédents en
+  collections
+- **🔗 Tables de voisinage** — consulter, dupliquer et personnaliser les
+  contraintes de forme utilisées par le solveur (voir l'explication intégrée
+  sur cette page, avec exemple)
+
+## Utilisation du Designer
 
 1. **Dessiner** une grille d'hexagones en cliquant sur les cases.
-2. Choisir une **configuration** (preset C1 à Ctopo, ou personnalisée).
+2. Choisir une **configuration** (preset C1 à Ctopo, ou personnalisée), et
+   éventuellement une **table de voisinage** alternative dans l'onglet
+   Avancé si vous en avez créé une.
 3. Choisir la **méthode** :
    - **Skip** : très rapide, géométrie approximative (pour explorer beaucoup
      d'idées rapidement).
    - **Validation xTB** : optimise réellement la géométrie 3D et vérifie la
-     planarité (~5-15 secondes par solution). Recommandé pour les conclusions
-     finales.
+     planarité (~5-15 secondes par solution ; instantané si une solution
+     identique a déjà été calculée — badge "⚡ cache" dans ce cas).
+     Recommandé pour les conclusions finales.
 4. Cliquer sur **Générer**.
 5. Cliquer sur le bouton **3D** d'une solution pour l'ouvrir dans le viewer
    interactif :
@@ -64,11 +87,27 @@ Vos molécules et résultats restent sauvegardés pour la prochaine fois.
 
 ## En cas de problème
 
-- **Le navigateur n'affiche rien** : vérifier que Docker Desktop est bien
-  démarré, puis relancer `start.bat` / `start.sh`.
+- **`start.bat`/`start.sh` affiche "Docker n'est pas installé ou n'est pas
+  démarré"** : ouvrez l'application Docker Desktop elle-même, attendez que
+  son icône soit stable (pas de sablier/animation), puis relancez le script.
+  C'est l'erreur la plus fréquente et elle se résout toujours ainsi.
+- **Le navigateur n'affiche rien / "Ce site est inaccessible"** : le premier
+  démarrage peut prendre plusieurs minutes, patientez puis rafraîchissez la
+  page. Si ça persiste après 5 minutes, vérifiez que Docker Desktop est bien
+  démarré et relancez `start.bat` / `start.sh`.
+- **Rien ne se passe / erreur de port** : un autre programme utilise peut-être
+  déjà le port 8765 sur votre machine. Fermez les autres outils similaires,
+  ou contactez l'équipe technique pour changer le port.
 - **"Validation xTB" échoue tout le temps** : ouvrir un terminal et taper
   `docker compose logs designer` depuis ce dossier pour voir le détail de
   l'erreur (peut être transmis à l'équipe technique).
 - **Mettre à jour l'outil** (nouvelle version reçue) : relancer simplement
   `start.bat` / `start.sh`, il reconstruit automatiquement si besoin. Vos
   molécules déjà créées sont conservées.
+
+## Retours et bugs
+
+Cette version est en phase de test. N'importe quel comportement bizarre,
+message d'erreur, ou question mérite d'être signalé — mieux vaut un
+signalement de trop que de découvrir un bug plus tard. Le plus utile pour
+nous : une capture d'écran + ce que vous faisiez juste avant.
