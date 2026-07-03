@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Generateur non-benzenoides — Accueil</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='hub.css') }}">
+</head>
+<body>
+  <header class="hub-header">
+    <h1>🔬 Generateur non-benzenoides</h1>
+    <p class="hub-subtitle">Dessin, resolution CSP, validation xTB et analyse chimique de PAH non-benzenoides.</p>
+  </header>
+
+  <main class="hub-main">
+    <div class="hub-grid">
+      <a href="/designer" class="hub-card hub-card-primary">
+        <div class="hub-card-icon">✏️</div>
+        <h2>Designer</h2>
+        <p>Dessinez une grille d'hexagones, lancez la generation de substitutions
+           5/6/7 et validez-les par xTB.</p>
+      </a>
+
+      <a href="/tests" class="hub-card">
+        <div class="hub-card-icon">📁</div>
+        <h2>Mes tests</h2>
+        <p>Retrouvez vos jobs precedents, renommez-les et regroupez-les en collections.</p>
+      </a>
+
+      <a href="/neighbor-tables" class="hub-card">
+        <div class="hub-card-icon">🔗</div>
+        <h2>Tables de voisinage</h2>
+        <p>Creez et editez vos propres tables de contraintes de voisinage (C3)
+           utilisees par le solveur.</p>
+      </a>
+
+      <a href="/explorer" class="hub-card" id="card-explorer">
+        <div class="hub-card-icon">📊</div>
+        <h2>Explorateur de corpus</h2>
+        <p id="explorer-desc">Parcourez les molecules et solutions deja calculees (h3 a h9).</p>
+      </a>
+    </div>
+  </main>
+
+  <script src="{{ url_for('static', filename='hub.js') }}"></script>
+</body>
+</html>

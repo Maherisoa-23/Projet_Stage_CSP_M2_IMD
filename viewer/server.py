@@ -54,7 +54,23 @@ def db():
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    """Page d'accueil : hub de navigation vers les fonctionnalites.
+
+    Exception : si ?job=<id> est present dans l'URL (lien genere par
+    designer.js / tests.js pour ouvrir directement une vue job), on sert
+    explorer.html qui gere ce param cote JS -- garde /?job=<id> fonctionnel
+    sans dupliquer la logique de job view dans le hub.
+    """
+    if request.args.get("job"):
+        return render_template("explorer.html")
+    return render_template("hub.html")
+
+
+@app.route("/explorer")
+def explorer():
+    """Explorateur du corpus pre-calcule (molecules/solutions h3-h9).
+    Vide en mode --designer-only (pas de table 'configs')."""
+    return render_template("explorer.html")
 
 
 # =====================================================================

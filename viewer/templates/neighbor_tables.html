@@ -18,6 +18,48 @@
       </div>
     </header>
 
+    <details class="ntb-help">
+      <summary>ℹ️ Comment fonctionne une table de voisinage ?</summary>
+      <div class="ntb-help-body">
+        <p>
+          Une table de voisinage encode les <strong>contraintes de forme</strong>
+          qu'un cycle central (pentagone, hexagone ou heptagone) impose a ses
+          voisins directs pour que l'assemblage reste geometriquement plausible
+          (avant meme la validation xTB). C'est la contrainte <strong>C3</strong>
+          du modele CSP.
+        </p>
+        <p>
+          Pour un cycle de taille <code>n</code> (5, 6 ou 7), une
+          <strong>sequence</strong> est une liste de <code>n</code> valeurs,
+          une par arete du cycle, dans l'ordre ou elles se succedent autour du
+          cycle :
+        </p>
+        <ul>
+          <li><code>0</code> = arete libre (pas de voisin de ce cote)</li>
+          <li><code>5</code>, <code>6</code> ou <code>7</code> = taille du cycle voisin attache a cette arete</li>
+        </ul>
+        <p>
+          Exemple pour un hexagone (n=6) : la sequence <code>6_6_7_0_0_5</code>
+          signifie que ce cycle a un hexagone adjacent sur sa 1re arete, un
+          autre hexagone sur la 2e, un heptagone sur la 3e, deux aretes libres,
+          puis un pentagone sur la 6e. Une sequence n'est admissible dans la
+          table que si elle a ete explicitement ajoutee : le solveur rejette
+          toute disposition de voisins qui ne correspond a aucune sequence de
+          <code>T(n)</code>.
+        </p>
+        <p>
+          <strong>Retirer une sequence</strong> rend cette disposition de
+          voisins interdite (le solveur explore moins de possibilites).
+          <strong>Ajouter une sequence</strong> autorise une disposition
+          supplementaire (le solveur explore plus de possibilites, avec un
+          risque accru de solutions non planes en 3D). La table "par defaut"
+          correspond aux dispositions physiquement stables identifiees pour le
+          projet ; les tables personnalisees permettent d'explorer des
+          hypotheses plus restrictives ou plus permissives.
+        </p>
+      </div>
+    </details>
+
     <main class="ntb-main">
       <!-- Colonne gauche : liste des tables -->
       <aside class="ntb-sidebar">

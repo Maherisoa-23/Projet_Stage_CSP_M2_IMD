@@ -41,6 +41,14 @@ header h1 {
   color: var(--primary);
 }
 
+.home-link {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+.home-link:hover { color: var(--primary); }
+
 .header-designer-link {
   margin-left: auto;
   margin-right: 1rem;

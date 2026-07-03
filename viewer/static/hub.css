@@ -1,0 +1,104 @@
+/* Page d'accueil : hub de navigation vers les fonctionnalites.
+ * Palette alignee sur style.css (--primary #2563eb, etc.) mais fichier
+ * autonome : cette page ne charge pas app.js / style.css. */
+
+:root {
+  --primary: #2563eb;
+  --primary-dark: #1d4ed8;
+  --muted: #6b7280;
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --border: #e5e7eb;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  margin: 0;
+  background: var(--bg);
+  color: #111827;
+  min-height: 100vh;
+}
+
+.hub-header {
+  text-align: center;
+  padding: 3rem 1.5rem 1.5rem;
+}
+.hub-header h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.8rem;
+  color: #1e293b;
+}
+.hub-subtitle {
+  margin: 0 auto;
+  max-width: 640px;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.hub-main {
+  max-width: 1000px;
+  margin: 1rem auto 3rem;
+  padding: 0 1.5rem;
+}
+
+.hub-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 1.2rem;
+}
+
+.hub-card {
+  display: block;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.6rem 1.4rem;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  transition: transform 0.14s, box-shadow 0.14s, border-color 0.14s;
+}
+.hub-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.12);
+  border-color: #bfdbfe;
+}
+
+.hub-card-primary {
+  background: linear-gradient(135deg, #2563eb, #6366f1);
+  color: #fff;
+  border-color: transparent;
+}
+.hub-card-primary:hover {
+  box-shadow: 0 10px 28px rgba(37, 99, 235, 0.35);
+}
+.hub-card-primary p { color: rgba(255,255,255,0.9); }
+
+.hub-card-icon {
+  font-size: 1.8rem;
+  margin-bottom: 0.6rem;
+}
+.hub-card h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.1rem;
+}
+.hub-card p {
+  margin: 0;
+  font-size: 0.87rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+/* Carte "Explorateur" : attenuee si le mode designer-only est detecte
+ * (aucun dataset h3-h9 disponible), sans etre desactivee -- l'utilisateur
+ * peut toujours cliquer pour voir le message explicatif de la page. */
+.hub-card.hub-card-empty {
+  opacity: 0.55;
+}
+.hub-card.hub-card-empty:hover {
+  transform: none;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  border-color: var(--border);
+}

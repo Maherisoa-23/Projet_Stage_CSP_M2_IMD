@@ -2,6 +2,38 @@
  * Reutilise les variables/couleurs de designer.css (deja chargee avant
  * ce fichier), n'ajoute que le layout specifique a cette page. */
 
+/* ---- Bloc d'aide pedagogique (details/summary repliable) ---- */
+.ntb-help {
+  flex-shrink: 0;
+  background: #eff6ff;
+  border-bottom: 1px solid #bfdbfe;
+  padding: 0.6rem 1.4rem;
+}
+.ntb-help summary {
+  cursor: pointer;
+  font-size: 0.87rem;
+  font-weight: 600;
+  color: #1e40af;
+  user-select: none;
+}
+.ntb-help summary:hover { text-decoration: underline; }
+.ntb-help-body {
+  max-width: 780px;
+  margin-top: 0.7rem;
+  font-size: 0.85rem;
+  color: #1e3a5f;
+  line-height: 1.55;
+}
+.ntb-help-body p { margin: 0 0 0.6rem; }
+.ntb-help-body ul { margin: 0 0 0.6rem; padding-left: 1.4rem; }
+.ntb-help-body code {
+  background: #dbeafe;
+  border-radius: 3px;
+  padding: 0.05rem 0.3rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.82rem;
+}
+
 .ntb-main {
   flex: 1;
   display: flex;
