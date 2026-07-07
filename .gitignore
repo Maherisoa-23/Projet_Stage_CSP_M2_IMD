@@ -7,6 +7,7 @@
 .ruff_cache/
 
 final_h3_h9.db.backup-before-dihedral
+final_h3_h9.db.backup-before-*
 rapport_benchmark_csp.md
 script choco vs ace/
 img rapport de stage/
@@ -64,6 +65,11 @@ experiments/v3/
 # ===== Scripts cluster one-shot (SSH/SLURM, lances manuellement, pas =====
 # ===== importes par le pipeline) — ne pas re-tracker. =====
 cluster/ops/
+
+# ===== Isolation C5 (experimentation ponctuelle : run cluster + scripts =====
+# ===== d'agregation/fusion one-shot, pas du code applicatif) — ne pas =====
+# ===== re-tracker. =====
+experiments/c5_isolation/
 
 # ===== Scripts/figures one-shot lies a la redaction (memoire, bench) =====
 scripts/figures/
