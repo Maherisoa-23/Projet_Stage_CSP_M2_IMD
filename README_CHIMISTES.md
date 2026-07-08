@@ -55,20 +55,20 @@ La page d'accueil donne accès à tout :
 
 En plus du Designer (dessiner ses propres molécules), l'outil peut afficher
 un corpus de plusieurs millions de solutions déjà calculées pendant le
-stage (tailles h3 à h9, plusieurs configurations de contraintes). Ce n'est
-**pas inclus par défaut** dans le dossier récupéré depuis GitHub (trop
-volumineux, ~11 Go) — il faut l'intégrer une fois, à partir des fichiers
-reçus séparément (clé USB) :
+stage (tailles h3 à h9, plusieurs configurations de contraintes). Les
+scripts d'intégration (`merge_corpus.py`, `integrate_corpus.bat`/`.sh`)
+sont déjà dans ce dossier, à côté de `start.bat` — seule la donnée elle-même
+(`corpus_only_for_chimiste.db`, ~11 Go) n'est **pas incluse via GitHub**
+(trop volumineuse) et doit être reçue à part (clé USB) :
 
-1. Récupérer `corpus_only_for_chimiste.db`, `merge_corpus.py` et
-   `integrate_corpus.bat` (ou `.sh`) — fournis à part.
-2. Les copier dans ce dossier, **à côté de `start.bat`/`docker-compose.yml`**.
-3. Démarrer l'outil si ce n'est pas déjà fait (`start.bat`/`start.sh`).
-4. Double-cliquer sur `integrate_corpus.bat` (Windows) ou lancer
+1. Récupérer `corpus_only_for_chimiste.db` — fourni à part — et le copier
+   dans ce dossier, **à côté de `start.bat`**.
+2. Démarrer l'outil si ce n'est pas déjà fait (`start.bat`/`start.sh`).
+3. Double-cliquer sur `integrate_corpus.bat` (Windows) ou lancer
    `./integrate_corpus.sh` (Mac/Linux). Le script s'occupe de tout
    (détection automatique, copie, intégration, nettoyage, redémarrage) —
    ça prend plusieurs minutes, ne rien interrompre.
-5. Une fois terminé, la carte **🔎 Explorer** de la page d'accueil (visible
+4. Une fois terminé, la carte **🔎 Explorer** de la page d'accueil (visible
    dès le départ, mais vide tant que cette étape n'est pas faite) donne
    accès aux solutions pré-calculées (filtres par taille, configuration,
    planéité).
