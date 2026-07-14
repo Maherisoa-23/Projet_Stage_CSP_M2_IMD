@@ -379,9 +379,9 @@ def _load_xyz_text(rel: str) -> str | None:
       2. SELECT DIRECT sur final_solutions par composants (size_h, config,
          graph_name, sol_index) si le rel_path matche le pattern run-final.
          Utilise idx_copy_lookup -> ~10 ms.
-      3. VIEW xyz_files -> SCAN FULL final_solutions (~5000 ms). Fallback de
-         derniere chance pour les paths qui ne matchent pas (3).
-      4. Table designer_xyz_files (sols designer mode skip ou DB designer-only).
+      3. Table designer_xyz_files (PK indexee, sols des jobs designer).
+      4. VIEW xyz_files -> SCAN FULL final_solutions (jusqu'a ~1 min avec le
+         corpus 11 Go integre). Derniere chance pour les paths legacy.
 
     Retourne le contenu texte (str), ou None si introuvable.
     """
@@ -409,22 +409,32 @@ def _load_xyz_text(rel: str) -> str | None:
                 (int(size_h), config, graph_name, int(sol_index)),
             ).fetchone()
 
-    # 3. Fallback : VIEW xyz_files (SCAN) ou table designer_xyz_files
+    # 3. Table designer_xyz_files (PK indexee -> instantane). AVANT la VIEW :
+    #    les XYZ des jobs designer (data/output/designer_jobs/...) ne matchent
+    #    pas le pattern run-final de l'etape 2, et payaient donc le SCAN FULL
+    #    de la VIEW (~1 min avec le corpus 11 Go integre) avant d'atteindre
+    #    leur table. Constate sur /api/mol3d : 57 s par molecule apres
+    #    l'integration du corpus.
+    if row is None:
+        with db() as conn:
+            has_designer_xyz = conn.execute(
+                "SELECT 1 FROM sqlite_master "
+                "WHERE name='designer_xyz_files' AND type='table'"
+            ).fetchone()
+            if has_designer_xyz:
+                row = conn.execute(
+                    "SELECT content_gz FROM designer_xyz_files WHERE rel_path = ?",
+                    (rel_norm,),
+                ).fetchone()
+
+    # 4. Derniere chance : VIEW xyz_files (SCAN FULL de final_solutions).
+    #    Ne sert plus que pour les rel_path exotiques/legacy qui ne sont ni
+    #    sur le fs, ni au format run-final, ni des jobs designer.
     if row is None:
         with db() as conn:
             row = conn.execute(
                 "SELECT content_gz FROM xyz_files WHERE rel_path = ?", (rel_norm,)
             ).fetchone()
-            if not row:
-                has_designer_xyz = conn.execute(
-                    "SELECT 1 FROM sqlite_master "
-                    "WHERE name='designer_xyz_files' AND type='table'"
-                ).fetchone()
-                if has_designer_xyz:
-                    row = conn.execute(
-                        "SELECT content_gz FROM designer_xyz_files WHERE rel_path = ?",
-                        (rel_norm,),
-                    ).fetchone()
 
     if not row:
         return None

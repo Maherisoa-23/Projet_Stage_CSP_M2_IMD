@@ -7,17 +7,24 @@
 
 # Environnements Python locaux (l'image installe ses propres deps)
 venv/
-__pycache__/
+**/__pycache__/
 *.pyc
 
 # Bases de donnees volumineuses (exploration de corpus, hors perimetre
-# du livrable designer ; pas montees dans l'image, seulement en option
-# via un volume externe si besoin plus tard)
-*.db
-*.db-journal
-*.sqlite
-*.sqlite3
-viewer/db_all.db
+# du livrable designer ; integrees au runtime via volume + script
+# integrate_corpus, jamais dans l'image).
+# ATTENTION : contrairement a .gitignore, un motif *.db dans .dockerignore
+# ne matche QUE la racine du contexte. Il faut **/*.db pour exclure les
+# .db niches (ex. viewer/corpus_only_for_chimiste.db, 11 Go, qui faisait
+# passer le contexte de build de ~30 Mo a ~23 Go => build "fige").
+**/*.db
+**/*.db-journal
+**/*.sqlite
+**/*.sqlite3
+
+# Exports JSONL de secours (4 Go) et fichiers temporaires
+exports/
+tmp/
 
 # Donnees de jobs designer locaux (l'image part d'un /data vide)
 viewer/output/

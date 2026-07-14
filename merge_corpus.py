@@ -106,6 +106,46 @@ def _copy_corpus_tables(conn, source_path):
         conn.execute("DETACH DATABASE src")
 
 
+# Index des tables corpus. Ni l'export (corpus_only_for_chimiste.db) ni la
+# copie INSERT..SELECT ci-dessus ne conservent les index de la DB d'origine :
+# sans eux, chaque lookup XYZ (etape 2 de _load_xyz_text) et chaque listing
+# de l'explorateur SCANNE final_solutions / solutions en entier (~30-60 s
+# par requete avec le corpus complet, constate sur /api/mol3d). Definitions
+# copiees de la DB de dev (experiments/final/final_h3_h9.db).
+CORPUS_INDEXES = [
+    "CREATE INDEX IF NOT EXISTS idx_final_sols_status ON final_solutions(run_id, status)",
+    "CREATE INDEX IF NOT EXISTS idx_final_sols_size_config ON final_solutions(run_id, size_h, config)",
+    "CREATE INDEX IF NOT EXISTS idx_copy_lookup ON final_solutions(size_h, config, status, graph_name)",
+    "CREATE INDEX IF NOT EXISTS idx_mol_name ON molecules(mol)",
+    "CREATE INDEX IF NOT EXISTS idx_mol_h_config_plans ON molecules(h, config, n_plans DESC)",
+    "CREATE INDEX IF NOT EXISTS idx_sol_features_adj ON sol_features(adj_55, adj_57, adj_77, n_sum)",
+    "CREATE INDEX IF NOT EXISTS idx_sfc9 ON sol_features_c9(n_pent, triple_jct_defect)",
+    "CREATE INDEX IF NOT EXISTS idx_sol_mol ON solutions(h, config, mol)",
+    "CREATE INDEX IF NOT EXISTS idx_sol_verdict ON solutions(h, config, mol, verdict)",
+    "CREATE INDEX IF NOT EXISTS idx_sol_angle ON solutions(h, config, mol, angle_deg)",
+    # Absent de la DB dev mais indispensable en conteneur : la mediane de
+    # /api/summary fait ORDER BY angle_deg sous WHERE h+config ; avec 'mol'
+    # intercale dans idx_sol_angle, SQLite doit trier des millions de lignes
+    # (~30 s par affichage du dashboard). Cet index rend le parcours
+    # index-only (~0.1 s).
+    "CREATE INDEX IF NOT EXISTS idx_sol_h_config_angle ON solutions(h, config, angle_deg)",
+]
+
+
+def _create_corpus_indexes(conn):
+    for stmt in CORPUS_INDEXES:
+        # Best-effort par index : une table absente d'une variante de corpus
+        # ne doit pas interrompre l'integration des autres.
+        try:
+            t0 = time.perf_counter()
+            conn.execute(stmt)
+            conn.commit()
+            name = stmt.split(" ON ")[0].split("EXISTS ")[-1].strip()
+            print(f"  {name} : OK ({time.perf_counter()-t0:.1f}s)")
+        except sqlite3.OperationalError as e:
+            print(f"  [SKIP] {stmt[:60]}... ({e})")
+
+
 def _create_xyz_view(conn):
     conn.execute("DROP VIEW IF EXISTS xyz_files")
     conn.execute("""
@@ -141,13 +181,16 @@ def main():
             n = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
             print(f"  {t}: {n} lignes")
 
-    print("\n[1/3] Preservation des XYZ deja generes...")
+    print("\n[1/4] Preservation des XYZ deja generes...")
     _migrate_existing_xyz_table(conn)
 
-    print("\n[2/3] Copie du corpus recu...")
+    print("\n[2/4] Copie du corpus recu...")
     _copy_corpus_tables(conn, args.source)
 
-    print("\n[3/3] Activation de l'explorateur (VIEW xyz_files)...")
+    print("\n[3/4] Creation des index (indispensables aux perfs)...")
+    _create_corpus_indexes(conn)
+
+    print("\n[4/4] Activation de l'explorateur (VIEW xyz_files)...")
     _create_xyz_view(conn)
 
     print("\n=== Etat APRES (verification : vos jobs designer doivent etre INCHANGES) ===")
