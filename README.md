@@ -1,5 +1,11 @@
 # Generation de non-benzenoides plans par CSP
 
+> **Vous etes chimiste / utilisateur de l'application ?** Suivez plutot
+> [`README_CHIMISTES.md`](README_CHIMISTES.md) : tout passe par Docker
+> (`start.bat` / `start.sh`), **aucune installation manuelle** n'est
+> necessaire (ni Python, ni solveur CSP, ni xTB). Le present fichier
+> s'adresse aux developpeurs.
+
 Projet de stage M2 IMD (AMU). Genere des molecules **non-benzenoides** (cycles
 de tailles 5, 6, 7) sur des squelettes benzenoides et identifie celles dont
 la structure 3D optimisee reste **plane**.
@@ -7,7 +13,7 @@ la structure 3D optimisee reste **plane**.
 **Pipeline** :
 
 ```
-Squelette benzenoide -> Solveur CSP (PyCSP3 + ACE)
+Squelette benzenoide -> Solveur CSP (PyCSP3 + Choco)
                           | affectations 5/6/7 sur cycles
                           v
                      Reconstruction 3D
@@ -35,7 +41,9 @@ pip install -r requirements.txt
 
 # 2. Pre-requis externes
 #    - xtb (binaire >= 6.7) : https://github.com/grimme-lab/xtb
-#    - ACE solver (jar)     : https://www.cril.univ-artois.fr/~lecoutre/
+#    Le solveur CSP par defaut est Choco, EMBARQUE par pycsp3 : rien a
+#    installer ni compiler. (ACE n'est plus requis -- conserve uniquement
+#    en legacy via --solver ace pour reproduire les runs historiques.)
 
 # 3. Lancer le viewer (DB pre-calculee fournie ou regenerable)
 python server.py --db experiments/final/final_h3_h9.db --port 8765
@@ -94,7 +102,12 @@ et la justification scientifique de Ctopo.
 
 ---
 
-## Lancer un run CSP
+## Lancer un run CSP (developpeurs)
+
+> Ces deux sections (run CSP et Ctopo) documentent la **reproduction du run
+> cluster complet h3-h9** effectue pendant le stage. Elles sont inutiles pour
+> utiliser l'application : la generation CSP a la demande est integree au
+> Docker (page Designer).
 
 **Local (1 graph, dev)** :
 ```bash
@@ -120,7 +133,7 @@ Variables d'environnement utiles :
 
 ---
 
-## Reproduire Ctopo apres un run
+## Reproduire Ctopo apres un run (developpeurs)
 
 ```bash
 # 1. Migrer la DB du run final vers le schema viewer

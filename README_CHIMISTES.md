@@ -76,6 +76,11 @@ sont déjà dans ce dossier, à côté de `start.bat` — seule la donnée elle-
 Cette étape ne touche jamais aux molécules déjà créées dans le Designer —
 elles restent toutes disponibles après l'intégration.
 
+> Note : le README technique mentionne un fichier `final_h3_h9.db` — c'est
+> la base de travail **interne** du stage (même corpus, format brut, côté
+> développeur). Vous n'en avez pas besoin : `corpus_only_for_chimiste.db`
+> est la seule base à récupérer, déjà préparée au bon format pour l'outil.
+
 ## Utilisation du Designer
 
 1. **Dessiner** une grille d'hexagones en cliquant sur les cases.
@@ -99,6 +104,13 @@ elles restent toutes disponibles après l'intégration.
    - À droite : le **graphe dual**, une vue 2D schématique qui montre les
      vraies tailles de cycles de la solution (utile pour vérifier la
      cohérence si la géométrie 3D semble déformée en mode Skip).
+6. **Comparer deux solutions côte à côte** (deux façons) :
+   - Dans la liste des solutions d'un job : cocher exactement 2 solutions,
+     puis cliquer sur **⚖ Comparer (2)**.
+   - Depuis le viewer 3D : cliquer sur **📌 Comparer…** pour épingler la
+     molécule affichée, ouvrir une autre solution, puis cliquer sur
+     **⚖ Comparer**. Les deux vues 3D tournent ensemble (désactivable via
+     la case « Synchroniser la rotation »).
 
 ## Remarques importantes
 

@@ -5,6 +5,7 @@
   <title>Viewer CSP — explorateur SQLite</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
   <link rel="stylesheet" href="/molviz_static/molviz.css">
+  <link rel="stylesheet" href="/molviz_static/compare.css">
   <!-- 3Dmol.js : visualisation 3D des molecules -->
   <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
 </head>
@@ -87,7 +88,11 @@
       </div>
       <div id="job-export-bar" class="toolbar hidden">
         <span id="job-export-count" class="muted"></span>
-        <button id="job-export-btn" class="btn-export" style="margin-left:auto" disabled>
+        <button id="job-compare-btn" class="btn-export" style="margin-left:auto" disabled
+                title="Selectionnez exactement 2 solutions pour les comparer cote a cote">
+          ⚖ Comparer (2)
+        </button>
+        <button id="job-export-btn" class="btn-export" disabled>
           ⬇ Exporter la selection (.zip)
         </button>
       </div>
@@ -138,6 +143,7 @@
   </main>
 
   <script src="/molviz_static/molviz.js"></script>
+  <script src="/molviz_static/compare.js"></script>
   <script src="{{ url_for('static', filename='config_descriptions.js') }}"></script>
   <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>

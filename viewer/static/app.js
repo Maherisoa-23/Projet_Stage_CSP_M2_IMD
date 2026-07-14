@@ -701,16 +701,34 @@ function renderJobSolTable() {
   updateJobExportBar();
 }
 
-/** Met a jour le compteur + l'etat du bouton "Exporter la selection". */
+/** Met a jour le compteur + l'etat des boutons "Exporter" / "Comparer". */
 function updateJobExportBar() {
   const bar = $("#job-export-bar");
   const countEl = $("#job-export-count");
   const btn = $("#job-export-btn");
+  const cmpBtn = $("#job-compare-btn");
   if (!bar) return;
   const n = jobSolSelection.size;
   bar.classList.toggle("hidden", n === 0);
   if (countEl) countEl.textContent = `${n} solution${n > 1 ? "s" : ""} selectionnee${n > 1 ? "s" : ""}`;
   if (btn) btn.disabled = n === 0;
+  // Comparaison cote a cote : exactement 2 solutions cochees.
+  if (cmpBtn) cmpBtn.disabled = n !== 2 || !window.MolCompare;
+}
+
+/** Ouvre le modal de comparaison (compare.js) sur les 2 solutions cochees. */
+function compareJobSelection() {
+  if (jobSolSelection.size !== 2 || !window.MolCompare) return;
+  const sols = [...jobSolSelection]
+    .map((p) => state.jobSolutions.find((s) => s.best_xyz_path === p))
+    .filter(Boolean);
+  if (sols.length !== 2) return;
+  const mk = (s) => ({
+    xyz_path: s.best_xyz_path,
+    title: `Job #${state.jobId} · ${s.name}`,
+    subtitle: `sizes ${(s.sizes || "").replace(/_/g, "-")} · ${s.verdict}`,
+  });
+  window.MolCompare.open(mk(sols[0]), mk(sols[1]));
 }
 
 /** Construit l'URL /api/xyz_export pour la selection courante et declenche
@@ -831,6 +849,7 @@ $("#job-sol-filter").addEventListener("change", (e) => {
   renderJobSolTable();
 });
 $("#job-export-btn").addEventListener("click", exportJobSelection);
+$("#job-compare-btn").addEventListener("click", compareJobSelection);
 
 // ===== Initial load =====
 (async () => {

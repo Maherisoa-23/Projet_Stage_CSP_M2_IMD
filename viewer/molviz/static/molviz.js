@@ -103,6 +103,12 @@
   // Lien de telechargement du .xyz de la molecule courante (header du modal).
   let exportLinkRef = null;
 
+  // Bouton epingler/comparer du header (flux en 2 temps via compare.js :
+  // epingler la molecule A, ouvrir la B, cliquer "Comparer"). Refs mises a
+  // jour par updateCompareBtn(). currentTitle sert de libelle d'epinglage.
+  let compareBtnRef = null;
+  let currentTitle = null;
+
   function el(tag, attrs, ...children) {
     const e = document.createElement(tag);
     if (attrs) {
@@ -213,9 +219,26 @@
     }, "⬇ .xyz");
     exportLinkRef = exportLink;
 
+    const headerTitle = buildHeaderTitle(info);
+    currentTitle = headerTitle;
+
+    // Bouton epingler/comparer : present seulement si compare.js est charge
+    // sur la page (window.MolCompare). el() ignore les enfants null, donc
+    // le header reste valide sans lui.
+    let compareBtn = null;
+    if (window.MolCompare) {
+      compareBtn = el("button", {
+        class: "molviz-compare-btn",
+        id: "molviz-compare-btn",
+        onclick: onCompareClick,
+      }, "📌 Comparer…");
+    }
+    compareBtnRef = compareBtn;
+
     const header = el("div", { class: "molviz-header" },
-      el("div", { class: "title" }, buildHeaderTitle(info)),
+      el("div", { class: "title" }, headerTitle),
       el("div", { class: "meta", id: "molviz-meta" }, "—"),
+      compareBtn,
       exportLink,
       el("button", { class: "molviz-close", title: "Fermer (Esc)", onclick: close }, "✕"),
     );
@@ -990,6 +1013,45 @@
    *   - {xyz_path, title, subtitle}   pour ouvrir un xyz arbitraire
    *   - {sol_dir, sol_idx, sizes, verdict}  pour les solutions (retro-compat)
    */
+  /** Met a jour le libelle du bouton epingler/comparer selon l'etat. */
+  function updateCompareBtn() {
+    if (!compareBtnRef || !window.MolCompare) return;
+    const p = window.MolCompare.getPinned();
+    if (!p) {
+      compareBtnRef.textContent = "📌 Comparer…";
+      compareBtnRef.title = "Epingle cette molecule, puis ouvre une autre "
+        + "solution et clique sur Comparer pour les voir cote a cote";
+      compareBtnRef.classList.remove("pinned");
+    } else if (p.xyz_path === currentXyzRel) {
+      compareBtnRef.textContent = "📌 Epinglee";
+      compareBtnRef.title = "Molecule epinglee. Ouvre une autre solution puis "
+        + "clique sur Comparer. (Cliquer ici pour desepingler.)";
+      compareBtnRef.classList.add("pinned");
+    } else {
+      compareBtnRef.textContent = "⚖ Comparer";
+      compareBtnRef.title = `Comparer cote a cote avec : ${p.title}`;
+      compareBtnRef.classList.add("pinned");
+    }
+  }
+
+  /** Cycle epingler -> desepingler -> comparer du bouton header. */
+  function onCompareClick() {
+    if (!window.MolCompare || !currentXyzRel) return;
+    const p = window.MolCompare.getPinned();
+    const current = { xyz_path: currentXyzRel, title: currentTitle || "Molecule" };
+    if (!p) {
+      window.MolCompare.pin(current);
+      updateCompareBtn();
+    } else if (p.xyz_path === currentXyzRel) {
+      window.MolCompare.clearPin();
+      updateCompareBtn();
+    } else {
+      window.MolCompare.clearPin();
+      close();
+      window.MolCompare.open(p, current);
+    }
+  }
+
   async function open(info) {
     if (currentRoot) close();
 
@@ -1008,6 +1070,9 @@
       return;
     }
     currentXyzRel = xyzRel;
+    // Le libelle du bouton epingler/comparer depend du chemin courant
+    // (epinglee = ce meme chemin ? -> "Epinglee" vs "Comparer").
+    updateCompareBtn();
     // Lien de telechargement direct : le navigateur gere le download via
     // Content-Disposition, pas besoin de fetch cote JS.
     if (exportLinkRef) {
